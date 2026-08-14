@@ -1,0 +1,141 @@
+# Decisions — Finding Best Mobo by Buildzoid
+
+ADR-lite. One dated entry per decision, newest at the bottom. A recorded ruling
+is never silently reversed: to change one, argue it in chat, then append a
+superseding entry. History is never rewritten.
+
+## 2026-08-14 — Longevity target is Zen 6, not Zen 7
+
+The original ask was to overspec the power rails so that a future Zen 7 drop-in
+stays feasible. Raised in chat that this spends money on an outcome the socket
+decides rather than the board: AM5 is committed through Zen 6, and Zen 7 is
+expected to need a new socket. Owner ruled: rank for headroom under the heaviest
+plausible Zen 6 part, and have the report state plainly that Zen 7 is not
+something a board purchase can buy. Recorded as a non-goal in `docs/DESIGN.md`
+§3, with "does the corpus say anything about AM5 past Zen 6" left open in §11.
+
+## 2026-08-14 — All inference runs on the owner's subscription; no API key
+
+Owner ruled that no API key exists or will be provided, and that every model
+call runs on their Claude Code subscription. Model is Opus 5 throughout, with
+reasoning effort as the cost lever: low for per-excerpt extraction, medium for
+synthesis, high where genuine reasoning is required.
+
+This is the constraint that shapes the architecture. A Python program cannot
+call the model, so the pipeline splits at the model boundary (see the next
+entry), and model usage becomes a scarce shared resource rather than a billable
+line item — which is what makes the pre-inference checkpoint load-bearing.
+
+## 2026-08-14 — Split the pipeline at the model boundary
+
+Options: a Python program calling an LLM API; a fully agentic run with no
+program; a split. The API option is removed by the no-key ruling. A fully
+agentic run cannot reliably count mentions across a thousand transcripts, cannot
+be tested, and cannot be repeated.
+
+Chosen: Python owns everything deterministic (enumerate, fetch, normalize,
+filter, excerpt, bundle, assemble the report) and writes work bundles to disk;
+Claude Code agents read bundles and write structured claims back. Python never
+calls a model; agents never scrape YouTube. Side effect worth having: the
+checkpoint becomes structural, because the program has no way to enter inference
+on its own.
+
+## 2026-08-14 — Prefilter and excerpt rather than send whole transcripts
+
+Owner asked whether prefiltering could reduce inference cost. Options: full
+transcripts of selected videos; excerpt windows around board mentions; a cheap
+triage model between the two. Chosen: keyword/alias prefilter, then excerpt
+windows. Whole transcripts are highest-recall and several times the cost on a
+budget where cost is the binding constraint; a triage model adds a place where a
+good video is discarded with no record. Excerpting concentrates the recall risk
+in one inspectable, tunable number — window size.
+
+## 2026-08-14 — `yt-dlp` approved as the one new dependency
+
+Asked under the AGENTS.md rule that new dependencies need owner approval. Owner
+approved `yt-dlp` for channel enumeration and caption retrieval, declining the
+option of adding a second caption library. To be isolated behind one module so a
+YouTube change or a tool swap touches one file.
+
+## 2026-08-14 — Three tiers, structurally separated
+
+Owner requires the report to distinguish boards Buildzoid tested, boards he
+reasons about or has heard about from trusted sources, and boards inferred to
+inherit an approved board's verdict by shared design. Options: one ranked list
+with confidence annotations, or hard tiers. Chosen: hard tiers, because
+annotations get skimmed and the entire point is that an inference must not read
+as a measurement.
+
+## 2026-08-14 — Tier 3 uses model knowledge plus web verification
+
+Options: model knowledge alone with flags; a hand-curated spec table; model
+knowledge verified against the web; drop the tier. Owner chose verification.
+Model knowledge alone asserts VRM configurations confidently and sometimes
+wrongly, which is the worst failure mode for a report meant to prevent an
+expensive mistake; a curated table turns the project into a spec-scraping
+exercise. Every tier-3 entry carries a confidence level and names the specific
+fact to confirm before buying.
+
+## 2026-08-14 — Safety is its own axis and a hard exclusion
+
+Raised in chat that "won't kill my CPU" and "best VRM" are different questions
+with different causes — firmware voltage judgment versus component choice — and
+that a composite score lets a board with excellent power delivery and dangerous
+firmware outrank a modest safe board. Chosen: score the two separately, and let
+an unretracted safety warning remove a board from the shortlist regardless of
+its VRM, leaving it visible only in a warnings section with the condemning
+quote.
+
+## 2026-08-14 — Hard checkpoint before inference, then calibrate, then batch
+
+Owner's requirement: stop after scraping and preprocessing, report expected
+cost, and decide whether to continue. Extended in chat to three stops rather than
+one, because an estimate built on a chars-per-token guess is still a guess.
+Chosen: print the projection and stop; run a small most-recent calibration batch
+and compare projected against actual; then three larger recency-ordered batches
+with a stop after them. The claim store is append-only and batch-tagged, so
+stopping is free and a report can be generated at any boundary with a coverage
+stamp. Cost-saving levers are agreed in advance as configuration (DESIGN §R17)
+so a bad calibration leads to turning knobs rather than redesigning.
+
+## 2026-08-14 — Transcript failures are logged and tolerated, with two halt triggers
+
+Supersedes the earlier fail-hard-on-any-gap position taken while drafting, at the
+owner's direction. Fail-hard cannot complete, because some videos genuinely have
+no caption track; per-video waivers preserve strictness but demand a ruling on
+every incidental miss, which becomes ceremony that gets clicked through.
+
+Chosen: log every failure with its class and continue, halting for joint review
+on either of two triggers. Three consecutive fetch errors catches a block or
+throttle immediately, because systemic failure arrives in a burst. Cumulative
+fetch errors at 3% of indexed videos catches slow attrition that never trips the
+streak. Videos with no caption track are a separate expected population with a
+looser 5% trigger. Numbers proposed by the agent, confirmed by the owner, and
+held as configuration rather than constants. The ledger is reprinted in the final
+report so incomplete coverage stays visible where it is used.
+
+## 2026-08-14 — Excerpt window starts wide: 2 minutes before, 5 after
+
+Owner's direction: start wide so a verdict delivered minutes after the board is
+named is still caught, and narrow later if the first batches prove it too
+expensive. Asymmetric because the conclusion follows the analysis.
+
+The errors are not symmetric either, which is the reasoning worth keeping. A
+too-narrow window produces a report that reads as complete while silently
+missing conclusions, and nothing in the output signals it. A too-wide window
+produces a correct report that costs too much, and the cost is measured on the
+first batch. Because the corpus stage is deterministic and cached, re-cutting at
+a narrower window costs CPU time and no refetching.
+
+## 2026-08-14 — Requirement ids must match `R<digits>`
+
+Found while reviewing the design doc before opening its pull request: the
+coverage gate (`.github/scripts/coverage.sh`) recognises only `**R<n>**` and
+validates a plan's `covers:` entries against `^R[0-9]+$`. Two ids added during
+drafting, `R2a` and `S1a`, would have been invisible to it — never counted as
+covered, and rejected if a plan claimed them. Renumbered to `R24` and `S10`, and
+appended at the end of their lists rather than inserted in sequence.
+
+Worth noting for the ratchet: the coverage gate ignores ids it does not
+recognise instead of failing on them, so it fails open on a malformed id. The
+gate scripts are human-owned, so this is the owner's to log and fix.

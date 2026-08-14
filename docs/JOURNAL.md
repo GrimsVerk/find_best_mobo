@@ -48,3 +48,52 @@ it also carried unresolved conflict markers in `src/find_best_mobo/__init__.py`,
 and fixing them by hand is itself a manual edit, so `template-sync` would reject
 that branch even once it could run. Second, `project_name` is now the slug and
 `project_slug` is gone — deliberate, matching the new template, not drift.
+
+## 2026-08-14 — the design doc, written and nearly lost
+
+`docs/DESIGN.md` is filled in, replacing the skeleton that has been gating all
+planned work since the bootstrap session. It carries 25 requirements and 11
+success criteria. Every owner ruling behind it is recorded in `docs/DECISIONS.md`
+(created this session) rather than left in chat.
+
+The shape that came out of elicitation: the pipeline splits at the model
+boundary, because no API key exists and all inference runs on the owner's
+subscription. Python owns the deterministic corpus work and writes bundles to
+disk; agents read bundles and write claims back. Between them sits a hard
+checkpoint that prints a cost projection and stops, then a small calibration
+batch that turns the projection into a measurement, then three larger batches
+with a stop after them. Reports are generable at any batch boundary with a
+coverage stamp, so stopping early is a real option rather than an abandonment.
+
+Two owner revisions during drafting, both superseding positions taken earlier in
+the same session and both recorded in `DECISIONS.md`: transcript failures are
+logged and tolerated with two halt triggers rather than failing hard, and the
+excerpt window starts wide (2 min before a mention, 5 after) to be narrowed
+later on evidence rather than starting tight.
+
+**Nearly lost.** The owner reset their local checkout to `origin/main` partway
+through, and the design doc — tracked, but never committed — went back to the
+skeleton. It was reconstructed from the session's context in full. Nothing else
+was affected; `GLOSSARY.project.md` survived as an untracked file. The lesson is
+the ordinary one: git protects what has been committed, and a large document
+living only in the working tree is one command from gone.
+
+**Found while reviewing before the pull request:** two requirement ids added
+during drafting, `R2a` and `S1a`, do not match what the coverage gate parses
+(`**R<digits>**`, validated as `^R[0-9]+$`). They would have been silently
+uncounted. Renumbered to `R24` and `S10`. The gate ignores unrecognised ids
+rather than failing on them — it fails open on a malformed id — which is a
+ratchet candidate for the owner, since gate scripts are human-owned.
+
+**Open, and blocking the merge of this pull request.** The design doc cannot
+pass the `plan` check. The `docs/` exemption is size-capped at 50 added lines and
+the doc adds around 600; no plan can cover it either, since plans implement the
+design doc's requirements and would have to predate it. This is the same
+bootstrap shape as #2 and #4 — a document the pipeline requires but has no path
+for — and it needs an owner decision: bypass and log, or add an uncapped
+exemption for the design doc in `plan-resolve.sh`, which is a gate path and
+therefore the owner's to change.
+
+Next session: with the design doc landed, write the plan for the MVP milestone —
+corpus and the cost checkpoint, no inference at all — as `docs/plans/<slug>.md`
+on its own `docs/` pull request, before any code.
