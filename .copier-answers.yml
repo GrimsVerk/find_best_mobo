@@ -5,5 +5,4 @@ auto_merge: true
 code_owner: '@GrimsVerk'
 description: Searching Buildzoid videos on YT to extract his top pick for an AMD mobo.
 language: python
-project_name: Finding Best Mobo by Buildzoid
-project_slug: find-best-mobo
+project_name: find-best-mobo
