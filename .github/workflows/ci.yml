@@ -90,8 +90,25 @@ jobs:
         run: |
           # Let git authenticate to GitHub with the token, if one is set.
           if [ -n "${TEMPLATE_TOKEN:-}" ]; then
-            git config --global url."https://x-access-token:${TEMPLATE_TOKEN}@github.com/".insteadOf "https://github.com/"
-            git config --global url."https://x-access-token:${TEMPLATE_TOKEN}@github.com/".insteadOf "git@github.com:"
+            AUTH="https://x-access-token:${TEMPLATE_TOKEN}@github.com/"
+            git config --global url."$AUTH".insteadOf "https://github.com/"
+            git config --global url."$AUTH".insteadOf "git@github.com:"
+
+            # A project generated before the HTTPS convention may have recorded
+            # an ssh:// _src_path naming a personal host alias from someone's
+            # ~/.ssh/config. No runner can resolve that, and the two rewrites
+            # above do not match it — copier then dies on "Could not resolve
+            # hostname", which reads like a credentials problem and is not one.
+            # Rewrite whatever host it named straight to the authenticated
+            # endpoint, so CI works regardless of the URL the project recorded.
+            SRC="$(sed -n 's/^_src_path: *//p' .copier-answers.yml | tr -d "\"'" | head -1)"
+            case "$SRC" in
+              *ssh://git@*)
+                ALIAS="$(printf '%s' "$SRC" | sed -E 's#^.*ssh://(git@[^/]+)/.*#\1#')"
+                echo "template-sync: _src_path names '$ALIAS'; routing it through the token."
+                git config --global url."$AUTH".insteadOf "ssh://${ALIAS}/"
+                ;;
+            esac
           fi
           BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
           HEAD_SHA="$(git rev-parse HEAD)" \
