@@ -97,3 +97,107 @@ therefore the owner's to change.
 Next session: with the design doc landed, write the plan for the MVP milestone —
 corpus and the cost checkpoint, no inference at all — as `docs/plans/<slug>.md`
 on its own `docs/` pull request, before any code.
+
+## 2026-08-14 — slice 1 built; the process, not the product, was the day's work
+
+Slice 1 exists and works. Almost everything else in this session was the
+orchestration path failing on first use, in six distinct ways, all now in
+`docs/escapes.md`. Read that file before restarting: it is the accurate account
+of what is broken. This entry carries what does not fit there — state, working
+knowledge, and the order things must happen in.
+
+### Where work stands
+
+`feat/corpus-and-checkpoint` carries slice 1: the `index` command, the config
+and CLI every later slice builds on, and 27 passing tests. It is open as #20 and
+**red**, for a reason that has nothing to do with the code — see the queue below.
+
+Four slices of the plan remain unbuilt: fetch, normalize/aliases, select, and
+excerpt/bundle/estimate.
+
+### The pull-request queue, and why the order is fixed
+
+At the time of writing: #24 and #25 (ratchet entries), #22 (plan and template
+parser fix), #20 (slice 1). They must land in that order:
+
+1. **#24 then #25** — both append to `docs/escapes.md`, so the second will
+   conflict trivially at the end of the table. Resolve by keeping both rows, and
+   by merging `main` into the branch rather than rebasing it, since it is
+   already pushed.
+2. **#22 next** — it cites the escapes entry from #24, and the reviewer reads
+   that file at the pull request's *base* commit. Cited before it lands, the
+   claim is false at the only moment it is checked, and the review blocks. This
+   already happened twice.
+3. **#20 last** — rebase it onto the result. Its `plan` check cannot pass until
+   #22's parser fix is on `main`, because the plan itself is unparseable
+   without it and an unparseable plan empties the reviewer's facts table.
+
+The general rule this cost a day to learn: **land the ratchet entry first, then
+the document that cites it, then the work.**
+
+### Uncommitted and in-flight
+
+- The owner's zero-duration rule is **implemented but not committed**, in
+  `src/find_best_mobo/commands/index.py` on `feat/corpus-and-checkpoint`. It
+  reports the count of videos with no duration and warns above one, naming ids.
+  It is deliberately uncommitted: a blind test-writer was still working on its
+  tests, and those should land in history before the implementation.
+- A worker branch `worker/cac-1-zerodur-tests` may exist with those tests. Check
+  it committed before trusting it — a worker that does nothing still exits 0.
+- The worker prompts live in `/tmp` and **will not survive a reboot**. They are
+  worth rewriting from this entry rather than recovering.
+
+### Orchestration: what actually works
+
+- **Engine must be `claude`, not the default `codex`** — there is no codex
+  subscription on this account, and the script only checks that the binary
+  exists, not that it can run.
+- **`--bypass-sandbox` is required.** Worktrees are created under
+  `.claude/worktrees/`, which Claude Code protects, so a sandboxed worker cannot
+  write a single file and exits 0 having done nothing. The owner approved the
+  bypass knowingly; workers stay in isolated worktrees and every diff is read
+  before assembly.
+- **Always check `git log base..HEAD` per worker branch.** Exit code 0 means the
+  engine ran, not that it produced anything.
+- **Merge the test branch before the code branch**, so the blind tests precede
+  the implementation in history and `blind-tests.sh` can report later edits.
+
+### The technique that made blind authorship work
+
+The first attempt produced two workers that disagreed on six points — the fake
+surface, the config file's shape, how the entry point is called, and more. The
+fix was a **shared contract block quoted verbatim into both briefs**: anything
+both sides can observe must be identical in both, or it does not reach one of
+them. After that, the six settled points all held and the single remaining
+disagreement was the one rule that predated the block (record ordering), which
+had reached the coder's brief only.
+
+Corollary worth keeping: when the two disagree, the plan is the arbiter. If the
+plan is silent, the plan is what needs fixing — not whichever side is easier to
+edit.
+
+### Watching pull requests
+
+Wait on **"no check is still pending"**, never on "the pull request is no longer
+open". A failing pull request never leaves the open state, so the second
+condition makes red indistinguishable from still-running until a timeout, and
+indistinguishable from success if nothing is watching at all.
+
+### Known rough edges in slice 1, already recorded in `docs/architecture.md`
+
+- Flat channel listing has no upload date without the
+  `youtubetab:approximate_date` extractor argument; the dates it then gives are
+  approximate, so a video near the 2023-01-01 boundary may land on either side.
+- A missing upload date is stored as `0001-01-01` — deterministic, and obviously
+  not a real date.
+- A missing duration reads as 0 and therefore classifies as a Short. The owner's
+  rule accepts exactly one such video (a stream in progress) and treats two or
+  more as evidence of another cause; that is what the uncommitted change reports.
+
+### Next session
+
+Land the queue in the order above, commit the zero-duration change behind its
+tests, then build slice 2 (transcript fetch and the failure ledger) with the
+same two-worker pattern. The parser fix the owner is adding to the template —
+fixture tests for `plan-parse.sh`, plus a check that every real plan parses on
+its own pull request — is what stops this session's central failure recurring.
