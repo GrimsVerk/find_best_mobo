@@ -15,6 +15,11 @@
 #                   [--engine codex|claude] [--model <m>] [--base <branch>]
 #                   [--bypass-sandbox]
 #
+# --base defaults to the CURRENT HEAD. That is fine for a single feature and
+# silently wrong for more than one: pass --base feat/<slug> explicitly so a
+# worker branches off its own feature, not off whatever is checked out. See
+# .claude/orchestration.md.
+#
 # On success it leaves the worktree and branch in place and prints:
 #   WORKER_RESULT id=<id> branch=<branch> worktree=<path> engine=<engine> exit=<code>
 #
@@ -24,7 +29,10 @@
 set -euo pipefail
 
 usage() {
-  sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
+  # Print the leading comment block, stopping at the first non-comment line.
+  # Self-terminating rather than a fixed line range, so editing the header
+  # above can't make --help spill shell code into its own output.
+  sed -n '2,/^[^#]/p' "$0" | sed -n 's/^# \{0,1\}//p'
 }
 
 ID=""

@@ -15,8 +15,14 @@ get it out of me efficiently, then produce the finished doc.
 
 ## How to behave
 
-1. **First, reflect the idea back** in two or three sentences so I can confirm you
-   understood it. If you got it wrong, I'll correct you before we go further.
+1. **Restate it back — adversarially, before anything else.** In your own words,
+   state three things: the **goal**, the **constraints**, and the **success
+   condition** (how we'll know it worked). Your own words, not a paraphrase of
+   mine — reusing my phrasing hides the mismatch instead of exposing it. Probe
+   the parts you had to fill in. Keep going until I confirm all three, and don't
+   settle for a "close enough" restatement: a misunderstood goal survives every
+   downstream check, because a review can only tell you the code matches the
+   plan, never that the plan was the wrong plan.
 2. **Find the gaps** by comparing my idea against the template's sections. Identify
    what's genuinely missing or ambiguous — especially non-goals, target platform(s),
    the key design decisions and their tradeoffs, constraints, MVP scope, and success
@@ -32,6 +38,22 @@ get it out of me efficiently, then produce the finished doc.
 5. **Know when to stop.** When you have enough to fill every required section of the
    template to a quality where a competent builder could start work, say so, and
    move to producing the doc. Don't drag out questioning past that point.
+
+## Before you write anything: declare your uncertainty
+
+When you believe you have enough, **stop — do not start writing the doc yet.**
+First list the decisions you are **least confident about**: the design choices
+you had to guess at rather than derive from what I told you. For each, give the
+option you'd pick and why, in one line.
+
+Then wait for my rulings.
+
+This is not a formality and it is not the same as the "Risks & open questions"
+section — that records what's undecided *in the design*; this surfaces what
+*you* had to invent to fill the gaps. It's the "which choices are you least
+confident in?" question asked **before** the work instead of after, which is the
+only point where acting on the answer is still cheap. Guess silently here and
+the wrong guess gets faithfully implemented, reviewed as conformant, and merged.
 
 ## When you have enough
 
@@ -54,6 +76,27 @@ phasing (MVP first), 13 Success criteria. The guidance comments in that file tel
 you what each section is for; don't reproduce those comments in the output.
 
 Write the finished doc back into `docs/DESIGN.md`, replacing the skeleton.
+
+## After the design doc: the plan
+
+The design doc says *what* we're building and *why*. It is not enough to start
+coding from. Once I've approved it, take one milestone from section 12 and write
+a **plan** for it: copy `docs/plans/_TEMPLATE.md` to `docs/plans/<slug>.md` and
+fill it in.
+
+A plan breaks the work into 3-5 **vertical slices**, each declaring the
+behaviour it delivers end-to-end, the files it touches, its type and method
+signatures, and a line-count estimate. The template explains each field and why
+it's there — read its guidance comments before filling it in.
+
+Two things carry over from above:
+
+- **Run the uncertainty gate again**, at plan scope, before you write any
+  slices. Design-level agreement doesn't mean the program design is agreed;
+  where code lives and what calls what is exactly where you'll be guessing.
+  Record the questions and my rulings in the plan's "Uncertainties" section.
+- **The estimate is a tripwire, not a target.** Never shrink code, error
+  handling, or tests to come in under it.
 
 ---
 

@@ -1,5 +1,6 @@
 {
-  "_comment": "Optional Claude Code convenience layer — deleting the whole .claude/ directory leaves a fully functional project. Enforcement lives in pre-commit and CI; this hook only surfaces failures earlier, in-session, and the deny rules mirror the AGENTS.md branch discipline (no pushes to main, no force pushes, no history rewrites, no --no-verify gate-skipping) for Claude Code sessions. CI is the authoritative gate regardless; these denies just stop a session skipping it. Tradeoff: the hook runs after every file edit, so it is limited to fast operations (format + quick test run). The allow list is a scoped allowlist for /orchestrate (headless workers + git worktree management); it does NOT switch the project into a full bypass mode.",
+  "_comment": "Optional Claude Code convenience layer — deleting the whole .claude/ directory leaves a fully functional project. Enforcement lives in pre-commit and CI; this hook only surfaces failures earlier, in-session, and the deny rules mirror the AGENTS.md branch discipline (no pushes to main, no force pushes, no history rewrites, no --no-verify gate-skipping) for Claude Code sessions. CI is the authoritative gate regardless; these denies just stop a session skipping it. The allow list is a scoped allowlist for /orchestrate (headless workers + git worktree management); it does NOT switch the project into a full bypass mode.",
+  "_comment_hook": "The PostToolUse hook is FORMAT ONLY, in both languages. It used to run the full pytest suite after every single edit, which is wrong twice over: on any real suite it is far too slow for a per-edit hook, and it fires mid-refactor when tests are legitimately red — so its exit 2 blocks the session precisely while you are in the middle of the multi-step change that would make it pass again. Tests belong at the commit boundary, where pre-commit runs them, and in CI, which is authoritative. Formatting is the only thing cheap enough and safe enough to do on every write.",
   "permissions": {
     "allow": [
       "Bash(.claude/scripts/spawn-worker.sh:*)",
@@ -23,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run ruff format --quiet . && uv run pytest -q -x >/dev/null 2>&1 || { echo 'post-edit checks failed — run: uv run pytest' >&2; exit 2; }"
+            "command": "command -v uv >/dev/null 2>&1 && uv run ruff format --quiet . || true"
           }
         ]
       }

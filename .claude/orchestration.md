@@ -1,33 +1,150 @@
 # Orchestration
 
 A single layer of parallelism for Claude Code: the main session (the
-**orchestrator**) fans a task out to a few **worker** agents, each running
-headless in its own git worktree, then assembles their branches into a single
-pull request. It does **not** merge — see "Handoff to the merge pipeline".
+**orchestrator**) drives **one feature** — its plan, its branch, its group of
+**worker** agents, and its pull request. Workers run headless in isolated git
+worktrees. The orchestrator assembles their branches and opens the PR. It does
+**not** merge — see "Handoff to the merge pipeline".
 
 This whole setup lives under `.claude/` — the deletable, Claude-Code-specific
 layer. Removing `.claude/` removes orchestration and leaves a fully functional
 project (docs, CI, and pre-commit are untouched).
 
-- **Command:** `/orchestrate <task>` (see `.claude/commands/orchestrate.md`).
+- **Command:** `/orchestrate <feature slug>` (see `.claude/commands/orchestrate.md`).
 - **Primitive:** `.claude/scripts/spawn-worker.sh` (one worker per call).
+
+## The shape
+
+```
+orchestrator (this session)
+└── feature: draft-saving      plan docs/plans/draft-saving.md → branch feat/draft-saving → PR
+    ├── worker/draft-saving-1        slice 1, code
+    ├── worker/draft-saving-1-tests  slice 1, tests (written blind, in parallel)
+    ├── worker/draft-saving-2        slice 2, code
+    └── worker/draft-saving-2-tests  slice 2, tests
+```
+
+Everything a worker needs comes from its slice in the plan. Everything the
+reviewer needs comes from the plan the PR's branch resolves to. That is why
+plans are per-feature and branch names carry the slug — it is the only link
+between a PR and the document it is judged against.
+
+## One feature per orchestrator
+
+An orchestrator drives exactly one feature, start to finish. **To work on two
+features at once, open a second session** and run `/orchestrate` there.
+
+This is a deliberate reversal of an earlier design that let one session juggle
+several features. Two sessions is strictly better: each keeps a clean context for
+the part that actually degrades — assembly, where the orchestrator must read
+every worker's diff and reconcile every code/test pair — and neither has to
+police whether two features' file lists collide, because they cannot see each
+other. The cost of that isolation is nil, since the features were required to be
+disjoint anyway.
+
+It does not violate the one-layer rule below. That rule stops an *agent* from
+spawning an orchestrator, which is what makes a process tree unpredictable and
+leaves nothing that knows what is running. You opening a second window is not
+that: you know what is running, because you started both.
 
 ## The one-layer rule
 
 There is **exactly one** level of spawning: the orchestrator spawns workers;
-**workers spawn nothing**. Each worker prompt states this explicitly, and the
-orchestrator never hands a worker `spawn-worker.sh` or any other orchestration
-tooling. This keeps the process tree flat and predictable — no recursive
-fan-out, no worker pools, no cross-machine work. One layer, on this machine,
-in the terminal.
+**workers spawn nothing**. In particular, an orchestrator never spawns another
+orchestrator — that is a second layer wearing a different hat, and it brings back
+everything the rule exists to prevent: recursive fan-out, an unpredictable
+process tree, and no single place that knows what is running.
+
+Each worker prompt states this explicitly, and the orchestrator never hands a
+worker `spawn-worker.sh` or any other orchestration tooling.
 
 ## Worker isolation
 
-Each worker gets its own `git worktree` on a fresh `worker/<id>` branch under
-`.claude/worktrees/<id>`, so workers never touch the main working tree or each
-other. The orchestrator scopes subtasks to **disjoint files/directories** so
-two branches can't conflict. Worker stdout+stderr is captured to
-`.claude/orchestration-logs/<id>.log`. Both directories are gitignored.
+Each worker gets its own `git worktree` on a fresh `worker/<slug>-<n>` branch
+under `.claude/worktrees/<slug>-<n>`, so workers never touch the main working
+tree or each other. Worker stdout+stderr is captured to
+`.claude/orchestration-logs/<slug>-<n>.log`. Both directories are gitignored.
+
+Workers for a feature are based on **that feature's branch**, not on whatever
+the orchestrator happens to have checked out. Pass `--base feat/<slug>`
+explicitly on every spawn. `spawn-worker.sh` defaults `--base` to the current
+HEAD, which is silently wrong the moment a second feature is in flight: workers
+would branch off another feature's code and carry it into their PR.
+
+## How much to run at once
+
+Two limits, because two different things break, and they break for different
+reasons. One number cannot express both.
+
+**Concurrent workers: 12.** This is a *machine and budget* limit. Each worker is
+a process with its own worktree — a full checkout — and often its own test run.
+Twelve is comfortable on a desktop and worth lowering on a laptop; treat it as
+hardware-dependent rather than sacred. The budget half matters more than it
+looks: workers and the PR review gate draw on the same subscription, so a wide
+fan-out can saturate the rate limit and leave the gate — a required check that
+fails closed — with no capacity. Starve it and you have spent your budget
+building something you now cannot merge.
+
+**Slices assembled per session: 6.** This is an *attention* limit, and it is the
+one to respect. After the workers finish, one session reads every branch diff,
+checks each against its slice, and reconciles each code/test pair — all in a
+single context window. It does not fail loudly when that gets too big. It fails
+by giving slice 6 a worse review than slice 1, which looks exactly like a clean
+review from the outside.
+
+The two align at the ceiling: 6 slices × 2 workers = 12 concurrent. They come
+apart when a slice skips its test-writer pair, which is allowed for slices with
+no real logic — then 6 slices might be 9 workers.
+
+A plan is 3–5 slices by design, so a normal feature sits inside both limits with
+room to spare. If a plan needs more than 6, that is the plan telling you it is
+really two features.
+
+## Code and tests are written blind, in parallel
+
+Each slice gets two workers: one writing the code, one writing the tests. Both
+branch off `feat/<slug>` at the same commit, so **neither has the other's output
+in its worktree** — the test author cannot read the implementation because it
+is not there.
+
+That structure is the mechanism. An agent asked to write code and its tests
+writes tests that describe what its code happens to do, bugs included, and the
+suite then certifies the bug. Splitting the roles only helps if the test author
+genuinely cannot see the implementation; a promise to ignore it is not the same
+thing, and writing tests *afterwards* fails for the same reason even with a
+different agent — the code is there to read.
+
+What makes blind parallel authorship work at all is the slice's **Signatures**
+block. It is the contract both sides code against: same names, same arguments,
+same types. Without it the two would agree on intent and disagree on every
+identifier, and reconciliation would cost more than the separation saves. This
+is the reason the plan schema demands signatures with no bodies.
+
+The two meet at assembly, and disagreement there is the payoff, not a problem —
+it means the slice was built and checked by two independent readings of the
+spec, and they differed. `/orchestrate` step 4 says how to resolve it; the one
+forbidden resolution is weakening the test to match the code.
+
+CI's `test-the-tests` check backs this up from the other side: it reverts the
+implementation and fails if the tests still pass, catching a test author that
+asserted on nothing.
+
+## If you run a second orchestrator, keep the features disjoint
+
+Two features touching the same file will conflict when the second PR merges, and
+neither PR's checks will have seen the combination. Since neither session can see
+the other, **that check is yours to make** before you start the second one:
+
+```sh
+grep -h '^- \*\*Files:\*\*' docs/plans/<slug-a>.md docs/plans/<slug-b>.md
+```
+
+If the file lists overlap, run the features one after another instead. Do not try
+to coordinate two live branches over the same file — you would be doing by hand,
+across two contexts, exactly the merge reconciliation the pipeline exists to
+avoid. This is a habit rather than a script on purpose; if it turns out to be the
+thing that keeps escaping, `docs/escapes.md` will say so and *then* it earns
+automation.
 
 ## Sandbox default and the opt-in bypass
 
@@ -43,14 +160,6 @@ The sandbox is dropped **only** when you pass `--bypass-sandbox` to
 or `claude --dangerously-skip-permissions`). It is off by default and should
 stay off unless a task genuinely needs it — say why when you use it.
 
-## The 3–5 worker sweet spot
-
-Aim for **3–5** workers, never more. Fewer than 3 rarely beats doing the work
-inline; more than 5 means the subtasks probably aren't cleanly independent, the
-review/merge step dominates, and the odds of overlapping edits climb. If a task
-won't split into ~3–5 disjoint pieces, that's a signal to do it directly rather
-than to spawn a crowd.
-
 ## Hard single-layer enforcement (available, off by default)
 
 The one-layer rule is enforced by **convention** — the worker prompt tells the
@@ -62,15 +171,16 @@ untrusted or experimental worker prompts.
 
 ## Handoff to the merge pipeline
 
-The orchestrator's job ends at **opening a PR**. Merging belongs to the
-pipeline, not to any agent: a PR merges when its required checks go green — the
-CI **hard gate** plus an independent **soft gate** (`.github/workflows/review.yml`,
-a read-only LLM review of the diff). The orchestrator's own local review is a
+The orchestrator's job ends at **opening a PR per feature**. Merging belongs to
+the pipeline, not to any agent: a PR merges when its required checks go green —
+the CI **hard gate**, the `plan` check (the PR resolves to exactly one plan),
+`test-the-tests`, and the independent **soft gate**
+(`.github/workflows/review.yml`). The orchestrator's own local review is a
 pre-check to avoid wasting a CI run on obvious junk; it is never authorization
-to merge, and no agent runs `gh pr merge` on its own judgment. The reviewer
-that gates the PR is separate from whoever wrote or assembled the change — no
-single agent both reviews and merges. Workers must never touch the gate paths
-(CI, the review check, `CODEOWNERS`, pre-commit); those are human-owned.
+to merge, and no agent runs `gh pr merge` on its own judgment. The reviewer that
+gates the PR is separate from whoever wrote or assembled the change — no single
+agent both reviews and merges. Workers must never touch the gate paths (CI, the
+review check, `CODEOWNERS`, pre-commit); those are human-owned.
 
 ## Safety
 
@@ -78,5 +188,5 @@ Workers **execute unreviewed code** the model wrote. Keep the sandbox on. Do
 not export API keys or other secrets into worker environments unless a specific
 worker actually needs them — a broadly-scoped key handed to several parallel,
 unattended agents is a large blast radius for little benefit. Review each
-worker's diff against `AGENTS.md` before merging; discard anything you can't
+worker's diff against `AGENTS.md` before assembling; discard anything you can't
 vouch for.
