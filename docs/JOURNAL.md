@@ -27,3 +27,24 @@ bootstrap path, not a precedent — from here every change has a pipeline to pas
 Next session: `docs/DESIGN.md` is still the unfilled template, so §5 has no
 requirements for a plan to cover and §13 no success criteria for the acceptance
 pass to evidence. Filling it in is the gate on all planned work.
+
+## 2026-08-14 — template v0.4.4, and the template URL
+
+The v0.4.4 update (#4) introduces `template-sync`: it replays `copier update`
+from the base commit and passes only if the result matches the branch exactly.
+That check is what earns a `template/` branch its exemption from planning — a
+stronger claim than a plan, because it verifies the diff rather than recording
+an intention.
+
+It could not run. `_src_path` named `github.com-grimsverk`, an SSH host alias
+defined in the owner's `~/.ssh/config` and resolvable nowhere else, so the clone
+failed before copier started. `TEMPLATE_TOKEN` does not reach this: the workflow
+rewrites `https://github.com/` and `git@github.com:`, and an `ssh://` alias URL
+matches neither. This pull request points `_src_path` at the plain `https://`
+URL, which the runner can resolve and the token can authenticate.
+
+Two consequences worth carrying forward. First, #4 was merged by owner override:
+it also carried unresolved conflict markers in `src/find_best_mobo/__init__.py`,
+and fixing them by hand is itself a manual edit, so `template-sync` would reject
+that branch even once it could run. Second, `project_name` is now the slug and
+`project_slug` is gone — deliberate, matching the new template, not drift.

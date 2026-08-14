@@ -22,3 +22,4 @@ someone guessed at. If the same gate column keeps appearing, that is the signal.
 out to be wrong, append a correction. -->
 
 | 2026-08-14 | `secrets` job crashed with a 403 on every pull request — the default token cannot list PR commits, so gitleaks never scanned | CI (the gate was present but could not run on the event it matters for) | `secrets` now declares `pull-requests: read`, so the job scans instead of aborting |
+| 2026-08-14 | `template-sync` could not run at all — `_src_path` named an SSH host alias that exists only on the owner's machine, so CI could not reach the template | CI (the gate was present but unrunnable, so a `template/` branch's exemption was unbacked) | `_src_path` is now an `https://` URL the runner can resolve and `TEMPLATE_TOKEN` can authenticate |
