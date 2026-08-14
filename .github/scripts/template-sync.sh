@@ -98,12 +98,35 @@ echo "template-sync: replaying \`copier update --vcs-ref=$TARGET_REF\` from the 
 # hanging on a prompt; --trust because the template may carry tasks. Both match
 # what a person running this locally would need.
 if ! ( cd "$WORKTREE" && copier update --defaults --trust --vcs-ref="$TARGET_REF" ) 2>&1; then
-  die "\`copier update\` failed when replayed from the base commit.
+  SRC="$(git -C "$ROOT" show "${HEAD_SHA}:${ANSWERS}" \
+    | sed -n 's/^_src_path: *//p' | tr -d "\"'" | head -1)"
+  # Order matters: name the cause that is NOT a credentials problem first.
+  # "Could not resolve hostname" from an ssh:// alias reads exactly like an auth
+  # failure, and an earlier version of this message sent people to check a token
+  # that was perfectly fine.
+  case "$SRC" in
+    *ssh://git@*|git@*)
+      die "\`copier update\` failed when replayed from the base commit.
 
-If the template repository is private, CI needs a token that can read it —
-see TEMPLATE_TOKEN in .github/workflows/ci.yml. Otherwise the target version
-'$TARGET_REF' may not exist, or the update may not apply cleanly on top of
-this project's base commit."
+_src_path in ${ANSWERS} is:
+
+    $SRC
+
+That is an SSH URL. If it names a host alias from a personal ~/.ssh/config, no
+CI runner can resolve it — the failure above will say \"Could not resolve
+hostname\", which looks like a credentials problem and is not one. The workflow
+rewrites the alias through TEMPLATE_TOKEN, so this should have been handled; if
+you are seeing it anyway, check that TEMPLATE_TOKEN is set, then change
+_src_path to https://github.com/<owner>/<repo>.git, which is what CI can fetch
+without any rewriting at all." ;;
+    *)
+      die "\`copier update\` failed when replayed from the base commit.
+
+_src_path is '$SRC'. If the template repository is private, CI needs a token
+that can read it — see TEMPLATE_TOKEN in .github/workflows/ci.yml. Otherwise
+the target version '$TARGET_REF' may not exist, or the update may not apply
+cleanly on top of this project's base commit." ;;
+  esac
 fi
 
 # Compare content, not diffs: `git write-tree` hashes the whole tree, so equal
