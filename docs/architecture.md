@@ -59,7 +59,13 @@ fetching, no selection, no model involvement — those are later slices of the
    carrying its classification and inclusion reason — exclusions are recorded,
    never implied.
 6. A summary prints: total videos found, how many fell outside the date range,
-   how many were excluded as Shorts, how many were kept.
+   how many were excluded as Shorts, how many were kept, and how many reported
+   no duration at all.
+7. If more than one video reported no duration, a warning follows the summary
+   naming every affected video id, in the order they appear in the index. One
+   such video is expected and harmless; more than one means durations are being
+   zeroed by some other cause and real videos are silently leaving the corpus,
+   so the ids are named to make the cause chaseable.
 
 Rerunning rewrites the index from a fresh listing; given the same listing and
 configuration the file is byte-identical (records sorted by upload date then
@@ -82,6 +88,10 @@ video id, keys sorted within each record).
 - **A missing duration classifies as a Short.** Missing or null duration is
   treated as 0, which is at or below the Shorts threshold. Deliberate — it
   never crashes — but it means a listing that omitted durations would
-  quietly exclude everything as Shorts.
+  quietly exclude everything as Shorts. The `index` summary therefore counts
+  these separately and warns above one, which is what turns that silent failure
+  into a visible one. The count deliberately overlaps the Shorts count rather
+  than being subtracted from it: a zero-duration video really was excluded as a
+  Short, and the second line says why that may be wrong.
 - **A missing upload date is recorded as `0001-01-01`.** The record keeps its
   out-of-range exclusion visible rather than inventing a plausible date.
