@@ -216,16 +216,17 @@ standing problem.** It replays `copier update` and demands a byte-identical
 tree, but a conflict is exactly the case copier hands back to a human, so the
 replay reproduces the markers and the only satisfying tree is one committing
 them to `main`. Three files conflicted here. Second occurrence (#4 was the
-first); the owner merged by bypass again. Logged as `ESC-17`; the recurring cost
-is `docs/BACKLOG.md`'s first Proposed item, with three candidate directions.
+first); the owner merged by bypass again. It is being logged in the ratchet
+ledger and as a standing backlog item, both on their own pull requests.
 Predicting this before opening the PR worked — every gate script was run
 locally first, and CI matched the local run line for line.
 
 **Slice 1 is now actually complete.** The zero-duration rule the previous
 session left uncommitted is merged (#31). Two blind agents, separate worktrees,
 one shared contract block quoted verbatim into both briefs — and they agreed on
-every point, 38 tests green with nothing to reconcile. That is the practice
-`ESC-10` produced, working the first time it was used deliberately.
+every point, 38 tests green with nothing to reconcile. That is the shared
+contract block the previous session's asymmetric-brief failure produced,
+working the first time it was used deliberately.
 
 Worth carrying forward: the test author reported five points it resolved by
 guessing (where the new line sits in the summary block, where the warning region
@@ -236,8 +237,8 @@ should carry that detail next time.
 **Slice 2 was not built, deliberately.** Writing the briefs surfaced that the
 slice had no legal home for the caption download: `ytdlp.py` is the only module
 permitted to import yt-dlp and was not in slice 2's file list, so the blind test
-author would have had to guess the network surface. That is the `ESC-10` setup
-reproduced one slice later. The plan is the arbiter when the two sides could
+author would have had to guess the network surface — the same setup that caused
+the asymmetric-brief failure, reproduced one slice later. The plan is the arbiter when the two sides could
 disagree, so the plan is what was fixed — #32 adds the boundary, its file, and
 three guessed decisions listed for the owner's ruling.
 
