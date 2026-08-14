@@ -40,7 +40,23 @@
 set -euo pipefail
 
 # Keep in sync with the Planning rule in AGENTS.md.
+#
+# Two kinds of exemption, and the difference is what earns it.
+#
+# EXEMPT_PREFIXES are exempt because the change is too small to plan, so they
+# are size-capped — the cap is the whole reason the exemption is not a
+# self-service bypass.
+#
+# SYNC_PREFIXES are exempt because the change was specified and reviewed
+# somewhere else: in the template repository, at the merge that produced the
+# version being pulled in. No plan can ever resolve for one. They are NOT
+# size-capped, because a template update is whatever size the template made it —
+# instead they are guarded by the `template-sync` check, which proves the diff
+# is byte-for-byte `copier update` output and nothing else. That is a stronger
+# guarantee than a plan, not a weaker one, and it is why an uncapped exemption
+# is safe here and would not be safe for chore/.
 EXEMPT_PREFIXES=(chore/ docs/)
+SYNC_PREFIXES=(template/)
 EXEMPT_MAX_ADDED="${EXEMPT_MAX_ADDED:-50}"
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -50,6 +66,15 @@ PLANS_DIR="${PLANS_DIR:-docs/plans}"
 HEAD_SHA="${HEAD_SHA:-HEAD}"
 
 die() { echo "plan-resolve: $*" >&2; exit 1; }
+
+for prefix in "${SYNC_PREFIXES[@]}"; do
+  if [[ "$HEAD_REF" == "$prefix"* ]]; then
+    echo "plan-resolve: branch '$HEAD_REF' is a template sync ('$prefix') — no plan" >&2
+    echo "plan-resolve: applies. The template-sync check verifies it instead, and" >&2
+    echo "plan-resolve: is a required check precisely because this one steps aside." >&2
+    exit 0
+  fi
+done
 
 for prefix in "${EXEMPT_PREFIXES[@]}"; do
   if [[ "$HEAD_REF" == "$prefix"* ]]; then

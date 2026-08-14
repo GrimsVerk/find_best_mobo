@@ -44,6 +44,18 @@ end up as whatever the change turned out to need, and the reviewer is left
 checking a diff against a document from that same diff. `CODEOWNERS` puts
 `docs/plans/` behind the owner's review, so merging the plan is the ruling on it.
 
+**Template updates are the third kind of change.** Pulling template improvements
+in with `copier update` is neither planned work nor a trivial chore: it was
+specified and reviewed in the *template* repository, at the merge that produced
+the version being pulled in, so no plan here could ever describe it. Put it on a
+`template/` branch, which the `plan` check exempts and the **`test-the-tests`**
+check ignores. What earns that exemption is `template-sync`, which replays
+`copier update` from the base commit and fails unless the result is byte-for-byte
+this pull request — a stronger guarantee than a plan, because it proves nothing
+hand-written rode along. A `template/` branch may therefore carry the template's
+output and **nothing else**; a hand change on top belongs in its own later pull
+request, with a plan.
+
 A genuinely trivial change — a typo, a doc tweak — may skip planning by using a
 `chore/` or `docs/` branch prefix, which the `plan` check exempts. That escape
 hatch exists so small fixes aren't ceremony; reaching for it to avoid planning

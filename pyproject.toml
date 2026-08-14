@@ -1,6 +1,8 @@
 [project]
 name = "find-best-mobo"
 version = "0.1.0"
+# Not measured by ruff (TOML, not Python), so a long description is safe here —
+# unlike the module docstring in src/, which is wordwrapped for that reason.
 description = "Searching Buildzoid videos on YT to extract his top pick for an AMD mobo."
 readme = "README.md"
 requires-python = ">=3.12"
