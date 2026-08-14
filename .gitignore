@@ -1,7 +1,9 @@
 .DS_Store
 # Claude Code orchestration (transient; produced by .claude/scripts/spawn-worker.sh)
 .claude/orchestration-logs/
-.claude/worktrees/
+# Worker worktrees live OUTSIDE .claude/, which Claude Code protects — a worker
+# sandboxed under it is refused every write, silently. See spawn-worker.sh.
+.worktrees/
 __pycache__/
 *.py[cod]
 .venv/

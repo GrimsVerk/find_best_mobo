@@ -39,14 +39,13 @@ One line per question, with your proposed default, then the ruling once given. -
 - **Q:** <the decision you're unsure about> — **proposed:** <your default>
   **Ruling:** <what the owner decided>
 
-## The work, sliced
+## The slices
 
-<!-- This heading must NOT begin with the word "Slice".
-`.github/scripts/plan-parse.sh` treats every heading matching `^#+\s*Slice` as a
-slice, so a `## Slices` banner parses as a slice declaring no files and no
-estimate, and the whole plan is rejected — which empties the reviewer's
-mechanical facts table and blocks the pull request on `plan` and `review`
-together. Logged in `docs/escapes.md`.
+<!-- This banner deliberately does NOT begin with the word "Slice" followed by a
+space. `.github/scripts/plan-parse.sh` finds slices by that pattern, and a
+banner reading `## Slices` matched it — parsing as a slice that declares no
+files and no estimate, which failed the plan for every plan copied from here.
+The parser is now stricter too; both halves of that fix are worth keeping.
 
 The plan is a list of VERTICAL slices. Each one delivers something
 observable end-to-end — a thing that works, however narrowly.

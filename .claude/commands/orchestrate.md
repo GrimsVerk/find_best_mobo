@@ -74,7 +74,34 @@ Split the slice's declared files between them: paths under `tests/` or `Tests/`
 belong to the **test-writer**, everything else to the **coder**. They must not
 write into each other's files.
 
-**Coder prompt** — the slice (`Slice N` of `docs/plans/<slug>.md`), its
+### Write the shared contract block first
+
+Before either prompt exists, write **one** block stating everything both agents
+need to agree on for this slice: the signatures exactly as the plan declares
+them, and every behaviour either side can observe — ordering, error cases, edge
+cases, what round-trips and what does not. Then **quote that block verbatim into
+both prompts**. Not paraphrased, not summarised per role: the same text, twice.
+
+This is not tidiness. The two agents cannot see each other's work, so the only
+thing keeping them in agreement is what they were both told. A rule that reaches
+one prompt and not the other is a contract only one of them is building to, and
+the disagreement surfaces at assembly as a test failure about a behaviour the
+plan never stated — which reads exactly like a bug and is not one. That happened:
+a coder's brief said records are sorted canonically, the test author's said only
+that they round-trip, so the tests asserted input order and the suite failed at
+assembly. The retry used a shared block and the disagreements vanished.
+
+**And anything both sides can observe belongs in the plan, not in a prompt.** If
+you find yourself adding a behaviour to the shared block that the plan does not
+state, you have found a gap in the plan. Fix the plan and say so in your report.
+A prompt is not a specification: nothing reads it afterwards, the reviewer never
+sees it, and the next agent to touch this slice will not know the rule exists.
+
+Each prompt is then the shared block, plus only what is genuinely role-specific:
+which files that agent owns, and what it must not do.
+
+**Coder prompt** — the shared contract block, the slice (`Slice N` of
+`docs/plans/<slug>.md`), its
 non-test files, its signatures, the acceptance bar (follows `AGENTS.md`,
 `docs/architecture.md` updated), plus:
 
@@ -92,9 +119,10 @@ non-test files, its signatures, the acceptance bar (follows `AGENTS.md`,
 > `AGENTS.md`. Work left uncommitted does not exist: the orchestrator collects
 > your branch by its commits and an empty branch is discarded. Then stop.
 
-**Test-writer prompt** — the slice, its test files, its signatures, and the role
-defined in `.claude/agents/test-writer.md` (read it into the prompt, or delegate
-to that subagent). Its tests are expected to **fail** in isolation, because the
+**Test-writer prompt** — the same shared contract block, quoted verbatim, then
+the slice, its test files, and the role defined in
+`.claude/agents/test-writer.md` (read it into the prompt, or delegate to that
+subagent). Its tests are expected to **fail** in isolation, because the
 implementation is not in its tree; that is correct and it must not write the
 implementation to go green. Its prompt ends with:
 
@@ -133,25 +161,34 @@ when you do. Never skip it for a slice with behaviour worth asserting on.
 Run them with background `&` + `wait` (or `xargs -P`), not one at a time.
 Defaults: engine `codex`, workspace-level sandbox. Keep the sandbox on — do NOT
 pass `--bypass-sandbox` unless the task genuinely requires it and you have said
-why. Collect each printed `WORKER_RESULT` line (id, branch, worktree, exit code).
+why. Collect each printed `WORKER_RESULT` line (id, branch, worktree, engine
+exit code, and `commits=<n>`).
+
+A spawn that exits **3** means the engine finished cleanly and committed
+nothing; a spawn that exits **2** failed before the worktree existed, and if it
+says *installed but not usable* the engine cannot authenticate — switch engines
+or sign in, and do not re-dispatch until it can.
 
 ## 4. Review, then assemble
 
 After the workers finish, for each one:
 
-- **Check it actually committed.** A branch with no commits beyond its base is a
-  **failed worker**, not a worker with nothing to say — most likely it edited
-  files and stopped without committing, and every one of those edits is about to
-  be discarded silently:
+- **Check it actually committed.** `spawn-worker.sh` now does this for you — it
+  exits 3 and prints `commits=0` when the engine returned cleanly having
+  committed nothing — but read the branch yourself as well, because "committed
+  something" is not "committed the slice":
 
   ```sh
   git -C <worktree> log --oneline feat/<slug>..HEAD   # empty => failure
   git -C <worktree> status --porcelain                # uncommitted leftovers
   ```
 
-  If the log is empty, treat the worker as errored: re-dispatch it once (with
-  the commit instruction made explicit) or discard it, and say so in your
-  report. Never let an empty branch pass as a success.
+  A branch with no commits beyond its base is a **failed worker**, not a worker
+  with nothing to say — most likely it edited files and stopped without
+  committing, or was refused every write and could not be told so. Treat it as
+  errored: re-dispatch it once (with the commit instruction made explicit) or
+  discard it, and say so in your report. Never let an empty branch pass as a
+  success.
 - Read its branch diff (`git -C <worktree> diff feat/<slug>...`) and its log
   under `.claude/orchestration-logs/<id>.log`.
 - Review the changes against `AGENTS.md` **and against the slice it was given** —
@@ -205,16 +242,35 @@ After the workers finish, for each one:
 ## 5. Open the PR, then stop
 
 Push `feat/<slug>` and open **one** pull request for it. **Do not merge it.**
-Your job ends here: the merge is the pipeline's, triggered by the required checks
-going green — CI, `plan`, `test-the-tests`, and the review soft gate (and, where
-enabled, GitHub auto-merge completes it mechanically). A passing local pre-check
-is never your authorization to merge, and you never run `gh pr merge` on your own
-judgment.
+The merge is the pipeline's, triggered by the required checks going green — CI,
+`plan`, `test-the-tests`, and the review soft gate (and, where enabled, GitHub
+auto-merge completes it mechanically). A passing local pre-check is never your
+authorization to merge, and you never run `gh pr merge` on your own judgment.
+
+**Opening the pull request is not the finish line — it starts a wait.** If you
+wait, the condition to wait on is **"no check is still pending"**. Never "the
+pull request is no longer open".
+
+That second condition is the one to get right, because it looks correct and is
+not: a *failing* pull request never leaves the open state. Waiting on it makes
+red indistinguishable from still-running until the timeout, and where nothing is
+watching at all, indistinguishable from success. Downstream, an orchestrator
+reported its slice built and stopped watching; its checks went red and it sat
+there until the owner noticed and said so.
+
+```sh
+gh pr checks <n> --watch    # returns when nothing is pending; non-zero if red
+```
+
+Report **which** checks failed, not merely that the wait ended. A red check is
+actionable: fix it through this same command in fix-dispatch mode. How long to
+wait — or whether to hand back to the owner instead of waiting — is `/deliver`
+step 4's question; the exit condition is this one either way.
 
 Clean up the worktrees you're done with:
 
 ```sh
-git worktree remove --force .claude/worktrees/<id>
+git worktree remove --force .worktrees/<id>
 git branch -D worker/<id>   # for discarded branches
 ```
 

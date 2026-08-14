@@ -21,6 +21,13 @@
 # review gate with no plan to check conformance against, which is two gates
 # disarmed by a string the author chooses.
 #
+# One carve-out from the cap, and only one: a branch whose diff is entirely
+# within docs/plans/ or docs/DESIGN.md. Those are the documents the process
+# itself demands, they are far larger than any cap for typos, and no plan can
+# ever cover them — a plan branch cannot resolve to a plan that does not exist
+# yet, which is the point of the rule, not a loophole in it. One path outside
+# them and the cap applies as normal.
+#
 # The resolved plan must ALSO already exist at BASE_SHA. A plan introduced by
 # the same pull request it authorises is not a specification, it is a
 # description written after the fact: the reviewer would be checking the diff
@@ -34,6 +41,7 @@
 #              size cap is measured against it
 # Optional env:
 #   PLANS_DIR         where plans live (default: docs/plans)
+#   DESIGN_DOC        the design doc (default: docs/DESIGN.md)
 #   HEAD_SHA          the PR head commit (default: HEAD)
 #   EXEMPT_MAX_ADDED  added-line cap for exempt branches (default: 50)
 
@@ -55,9 +63,29 @@ set -euo pipefail
 # is byte-for-byte `copier update` output and nothing else. That is a stronger
 # guarantee than a plan, not a weaker one, and it is why an uncapped exemption
 # is safe here and would not be safe for chore/.
+#
+# PLANNING_PATHS are the third case, and the one the cap got wrong. The process
+# demands two documents that no plan can ever cover and that no ordinary
+# exemption can fit: a completed design doc runs to several hundred lines, and
+# the plan template is 124 lines before anything is filled in, so every plan
+# blows a 50-line cap too. A plan branch also cannot resolve to a plan that does
+# not yet exist on the default branch — which is that rule's whole point.
+#
+# So a branch whose additions are confined to these paths keeps the exemption at
+# any size. A branch adding a plan is not skipping planning; it IS the planning,
+# and it is reviewed the same way every plan is: `CODEOWNERS` puts these paths
+# behind the owner, so merging one is the ruling on it. The moment such a branch
+# also touches code, the cap applies again — that is the case the cap exists for,
+# and the check below is a whole-diff test, not a per-file one, precisely so that
+# a plan cannot be used as cover for the code smuggled alongside it.
+#
+# Without this, the only way through was the owner bypassing the gate. That
+# happened three times in one session downstream, and a gate bypassed three
+# times in a day is one nobody will trust on the day it matters.
 EXEMPT_PREFIXES=(chore/ docs/)
 SYNC_PREFIXES=(template/)
 EXEMPT_MAX_ADDED="${EXEMPT_MAX_ADDED:-50}"
+DESIGN_DOC="${DESIGN_DOC:-docs/DESIGN.md}"
 
 ROOT="$(git rev-parse --show-toplevel)"
 PLANS_DIR="${PLANS_DIR:-docs/plans}"
@@ -80,6 +108,27 @@ for prefix in "${EXEMPT_PREFIXES[@]}"; do
   if [[ "$HEAD_REF" == "$prefix"* ]]; then
     added="$(git -C "$ROOT" diff --numstat "${BASE_SHA}...${HEAD_SHA}" \
       | awk '{ s += $1 } END { print s + 0 }')"
+
+    # Is every path in this diff a planning document? One path outside them and
+    # the answer is no — the branch is carrying something else as well, and the
+    # cap is exactly the check for that.
+    planning_only=1
+    while IFS= read -r path; do
+      [[ -z "$path" ]] && continue
+      case "$path" in
+        "$PLANS_DIR"/*|"$DESIGN_DOC") ;;
+        *) planning_only=0; break ;;
+      esac
+    done < <(git -C "$ROOT" diff --name-only "${BASE_SHA}...${HEAD_SHA}")
+
+    if [[ "$planning_only" -eq 1 && "$added" -gt "$EXEMPT_MAX_ADDED" ]]; then
+      echo "plan-resolve: branch '$HEAD_REF' adds $added lines, all of them in \
+$PLANS_DIR/ or $DESIGN_DOC — the planning documents themselves, which no plan \
+can cover. Exempt from the size cap; the owner still reviews them via \
+CODEOWNERS." >&2
+      exit 0
+    fi
+
     if [[ "$added" -gt "$EXEMPT_MAX_ADDED" ]]; then
       die "branch '$HEAD_REF' claims the exempt prefix '$prefix' but adds $added
 lines (cap: $EXEMPT_MAX_ADDED).
@@ -87,6 +136,11 @@ lines (cap: $EXEMPT_MAX_ADDED).
 The exemption is for changes too small to plan — a typo, a doc tweak. A change
 this size needs a plan: copy $PLANS_DIR/_TEMPLATE.md to $PLANS_DIR/<slug>.md,
 land it, then branch with the slug in the branch name.
+
+The cap does not apply to a branch whose additions are ENTIRELY within
+$PLANS_DIR/ or $DESIGN_DOC — writing a plan is not skipping planning. This
+branch touches something else as well, so it is not that case. Split it: the
+planning documents on one branch, the rest on its own with a plan behind it.
 
 Raising the cap to get this through is gate tampering under AGENTS.md."
     fi

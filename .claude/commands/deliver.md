@@ -120,6 +120,13 @@ two means two sessions, which is the owner's call to make, not yours.
 > guessing. Say plainly that you are stopping because the waiting strategy is
 > undecided, and offer the options above. Delete this block once the owner rules,
 > and record the ruling in `docs/DECISIONS.md`.
+>
+> **Whichever strategy is chosen, the exit condition is not in question: wait
+> until no check is still pending, never until the pull request is no longer
+> open.** A failing pull request never leaves the open state, so that second
+> condition makes red indistinguishable from still-running — and, where nothing
+> is watching, from success. This is the one part of the step that is already
+> decided; it constrains the options above rather than being one of them.
 
 PRs merge when their required checks go green — CI, `plan`, `test-the-tests`,
 and the review gate. That is mechanical and none of it is yours to drive. Do not

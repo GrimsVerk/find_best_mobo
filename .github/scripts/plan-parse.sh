@@ -39,8 +39,17 @@ die() { echo "plan-parse: $*" >&2; exit 1; }
 # One record per slice. Placeholders (<path>) and anything containing the join
 # delimiter are dropped, so an unfilled template yields "no files" rather than a
 # path literally named "<path>".
+#
+# The trailing [[:space:]] is load-bearing. Without it, a plural SECTION BANNER
+# — `## Slices`, which the shipped _TEMPLATE.md used to carry — matches as a
+# slice, and so declares no files and no estimate, and the whole plan is
+# rejected. Every plan copied from the template inherited it, and the symptom
+# pointed nowhere near the cause: the plan check failed, the review gate got an
+# empty mechanical facts table and blocked on that alone, and neither message
+# mentioned a heading. A real slice heading is `## Slice 1 — <behaviour>`, so
+# requiring whitespace after the word costs nothing and closes it.
 RECORDS="$(awk '
-  /^#+[[:space:]]*Slice/ {
+  /^#+[[:space:]]*Slice[[:space:]]/ {
     if (title != "") print title "\t" est "\t" files
     title = $0; sub(/^#+[[:space:]]*/, "", title)
     est = 0; files = ""
