@@ -37,6 +37,11 @@ fixed, not that the objection lapsed.
   lives in.** The shared contract had to assign them, and got `FetchFailure`
   wrong: placing it in `transcripts.py` is circular. Two blind authors can
   disagree on placement while agreeing on behaviour, so the plan should state it.
+- **`corpus-and-checkpoint` slice 3 — the alias table is filed under a
+  gitignored path.** The plan puts it at `data/aliases.toml`, but `data/` is
+  gitignored because the corpus never enters git (R21). The alias table is
+  hand-authored input, not cached corpus, so a fresh clone would have none. Built
+  at the stated path via `git add -f`; it belongs outside `data/`.
 
 ## Proposed
 
