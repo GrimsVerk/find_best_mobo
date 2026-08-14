@@ -65,6 +65,17 @@ adding more than ~50 lines fails the `plan` check — and the reviewer is told t
 scrutinise exempt branches harder rather than to relax, because an unplanned
 change is less checked than a planned one, not more trusted.
 
+**The planning documents themselves are exempt from that cap**, and only they: a
+branch whose entire diff sits inside `docs/plans/` or `docs/DESIGN.md` passes at
+any size. A completed design doc runs to hundreds of lines and the plan template
+is over a hundred before anything is filled in, so the cap made the two
+documents this process demands the two documents it could not accept — and no
+plan can cover them anyway, since a plan branch cannot resolve to a plan that
+does not exist yet. Writing a plan is not skipping planning; it is the planning,
+and `CODEOWNERS` still puts it behind the owner's review. Touch one file outside
+those paths and the cap is back: split the branch rather than widening the
+exemption.
+
 **Commits.** One conceptually contained commit per unit of work, pushed
 when complete, with an imperative one-line message. The test suite must
 pass before every commit. Documentation is updated in the same commit as
@@ -211,6 +222,18 @@ it, what check was added. One line, appended, never rewritten. The log exists
 because the next check worth building is the one the log keeps pointing at — do
 not add speculative checks in advance of it.
 
+**A recorded check is demonstrated, or it is labelled as a proposal.** The "check
+added" column takes either a check that has actually been run — **red against the
+defect, green against the fix**, both observed — or a candidate written as
+*unverified: <what it would be>*. Never a suggestion phrased as though it were
+verified. The column is read as a record of what now protects this project, so an
+untested idea in it carries exactly the same authority as a demonstrated check
+and sends the next reader down a dead end. That has happened here: a proposed
+check would have been red on the day it was added, because it parsed a file whose
+placeholders the parser rejects by design, and it was caught by chance rather
+than by anything in the process. If you cannot run the check, say so and say what
+would have to be true to run it.
+
 **Gate paths are off-limits.** Never modify the things that check the code:
 CI workflows (`.github/workflows/`), the review check or its prompt
 (`.github/review-prompt.md`, `.github/scripts/review.sh`), the pre-commit
@@ -225,6 +248,50 @@ gate measures a change against, so a change may not carry its own revision of
 them: the review scripts read all of them at the pull request's base commit, and
 `CODEOWNERS` requires the owner's review to change any of them. Revise them on
 their own pull request, before the work they govern, never alongside it.
+
+**When one of these documents cites another, land them in this order: the ratchet
+entry first, then the document that cites it, then the work.** The review gate
+reads `docs/escapes.md` **at the pull request's base commit**, so a plan or a
+rule claiming "logged in `docs/escapes.md`" while that entry sits unmerged in
+another pull request is making a claim that is false at the only moment anything
+checks it. The reviewer is right to block, and it will block again on the second
+attempt for the same reason, because nothing about the ordering has changed.
+Downstream this blocked the same pull request twice. Write the ledger entry, land
+it, then reference it.
+
+**Citations are by id, and they point backward only.** Every `docs/escapes.md`
+entry carries an id — `ESC-<n>`, the next unused integer — and a gated document
+cites an entry by that id alone, only once the entry exists on the default
+branch. This is checked, not asked for: CI resolves every `ESC-` citation in
+this file, `docs/DESIGN.md`, and `docs/plans/` against `docs/escapes.md` at the
+pull request's base commit (`.github/scripts/escape-refs.sh`) and fails when one
+dangles, so a claim about the ledger can never be false at the moment it is
+checked. And the entry-first ordering is cheap to obey, because an entry may
+land before its check exists — as a **stub**: id, date, the one-clause
+description, the gate column, and a check column explicitly marked *unverified —
+pending*. A stub is one line, blocks on nothing, and is exactly the
+explicitly-marked proposal the ratchet rule above already allows; once the fix
+and its check have merged, append the completing correction row — same id, the
+demonstrated check, citing the merged work. Entries are records, never
+authorization: no gate passes a change because of anything in the escapes log,
+so neither a stub nor a completed row is worth forging.
+
+**This ordering is the cost, and it is not going to be traded away.** It was put
+to us that one pull request might reasonably carry an `docs/escapes.md` entry
+together with the fix it describes, when the two share a root cause — the
+argument being that an append-only incident log is not really "the standard the
+change is judged against", and that one root cause fanning into four serialized
+pull requests is a chain that can block on itself. **Rejected, deliberately, so
+it is not relitigated.** Two reasons. The log is not merely a record: the review
+gate reads it as evidence, and a change that appends its own exculpatory entry is
+supplying the evidence it is judged by — the fact that appending is the only
+permitted edit does not make the claim in the appended row true. And an agent
+logging its own escape is exactly where a self-serving entry would come from, in
+the direction hardest to notice, since a plausible line about what "should have
+caught it" reads no differently from an accurate one. The serialization is real
+and it is the price. Order the chain correctly and it does not deadlock — and
+the stub lifecycle above is what keeps the price small: the entry that must land
+first is one line and waits on nothing.
 
 ## Language-specific
 

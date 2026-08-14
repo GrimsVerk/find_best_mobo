@@ -9,17 +9,40 @@ escapes gets fixed without also adding a permanent check that would have caught
 it. "Why did this bug exist" and "which gate should have caught this" are the
 same question, and this is where the second answer lives.
 
+**Every entry has an id** — `ESC-<n>`, the next unused integer — and the id is
+how other documents refer to it. A gated document (`AGENTS.md`,
+`docs/DESIGN.md`, a plan) cites an entry by id, and only once the entry exists
+on the default branch: CI resolves every citation against this file at the pull
+request's base commit and fails when one dangles
+(`.github/scripts/escape-refs.sh`). Never cite an entry that has not merged.
+
+**An entry may land in two steps.** When the check does not exist yet, log a
+**stub** now: id, date, what escaped, the gate column, and a check column of
+*unverified — pending: <the check you intend>*. A stub is one line and blocks
+on nothing, so the entry lands first — as the ordering rule in `AGENTS.md`
+requires — without holding up the fix or the documents that cite it. Once the
+fix and its check have merged, append a **correction row with the same id**
+recording the demonstrated check. A stub that stays pending is visible here
+precisely so it can be asked about.
+
+**Entries are records, never authorization.** No gate passes a change because
+of anything in this file — reviewers judge against `AGENTS.md`, the design, and
+the plan. That is what makes it safe for the agent that caused an escape to be
+the one that logs it: a self-serving entry buys nothing, and the owner reviews
+every row via `CODEOWNERS` either way.
+
 This is a log, not a dashboard, and that is deliberate — with one project there
 is nothing to aggregate yet. Its job is to accumulate evidence about which gate
 is missing, so the next check added is one the evidence asked for rather than one
 someone guessed at. If the same gate column keeps appearing, that is the signal.
 
-| Date | What escaped | Which gate should have caught it | Check added |
-| --- | --- | --- | --- |
-| _YYYY-MM-DD_ | _what went wrong, one clause_ | _CI / review / plan / test-the-tests / none existed_ | _what now exists so it can't recur_ |
+| Id | Date | What escaped | Which gate should have caught it | Check added |
+| --- | --- | --- | --- | --- |
+| _ESC-<n>_ | _YYYY-MM-DD_ | _what went wrong, one clause_ | _CI / review / plan / test-the-tests / none existed_ | _what now exists so it can't recur, or "unverified — pending: <planned check>"_ |
 
 <!-- Append below, newest at the bottom. Never rewrite an entry; if one turns
-out to be wrong, append a correction. -->
+out to be wrong (or a stub gets its check), append a correction row with the
+same id. -->
 
 | 2026-08-14 | `secrets` job crashed with a 403 on every pull request — the default token cannot list PR commits, so gitleaks never scanned | CI (the gate was present but could not run on the event it matters for) | `secrets` now declares `pull-requests: read`, so the job scans instead of aborting |
 | 2026-08-14 | `template-sync` could not run at all — `_src_path` named an SSH host alias that exists only on the owner's machine, so CI could not reach the template | CI (the gate was present but unrunnable, so a `template/` branch's exemption was unbacked) | `_src_path` is now an `https://` URL the runner can resolve and `TEMPLATE_TOKEN` can authenticate |

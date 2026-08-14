@@ -61,9 +61,33 @@ worker `spawn-worker.sh` or any other orchestration tooling.
 ## Worker isolation
 
 Each worker gets its own `git worktree` on a fresh `worker/<slug>-<n>` branch
-under `.claude/worktrees/<slug>-<n>`, so workers never touch the main working
-tree or each other. Worker stdout+stderr is captured to
+under `.worktrees/<slug>-<n>`, so workers never touch the main working tree or
+each other. Worker stdout+stderr is captured to
 `.claude/orchestration-logs/<slug>-<n>.log`. Both directories are gitignored.
+
+**The worktrees are not under `.claude/`, and that is load-bearing.** Claude Code
+treats `.claude/` as a protected directory: a headless worker whose tree sat
+there was refused every write — `Write` and `Edit` denied, `touch` refused as
+outside the allowed working directory, `git hash-object -w` left unapproved —
+and headless mode has nobody to prompt, so every denial passed in silence. The
+worker produced an empty branch and exited 0. Do not "fix" a write refusal by
+reaching for `--bypass-sandbox`; that drops the sandbox for unreviewed
+model-written code to work around a directory name. The dot prefix is also
+deliberate: pytest and ruff both skip dot-directories by default, so a live
+worktree cannot be swept up by the outer project's own test or lint run.
+
+**A worker that commits nothing fails.** `spawn-worker.sh` compares the branch
+against the commit it started from and exits 3 when nothing landed, printing
+`commits=<n>` on its `WORKER_RESULT` line. Before that check existed, an agent
+that was refused every write reported success, and the only thing between that
+and an empty pull request was the orchestrator remembering to diff each branch.
+
+**The engine is preflighted before any worktree is created.** Being on `PATH`
+says nothing about whether an engine can authenticate, and the default engine is
+`codex` — on an account with no codex subscription the default path cannot work
+at all. `spawn-worker.sh` probes the engine first and fails with "engine X is
+installed but not usable", rather than letting the worker die deep inside a
+headless run where the error mentions anything but authentication.
 
 Workers for a feature are based on **that feature's branch**, not on whatever
 the orchestrator happens to have checked out. Pass `--base feat/<slug>`
@@ -150,10 +174,27 @@ automation.
 
 Workers run at **workspace-level sandbox** by default:
 
-- `codex` (default engine): `codex exec --full-auto --ephemeral` — sandboxed
-  writes limited to the workspace; `--ephemeral` so parallel runs don't share
-  session state.
-- `claude`: `claude -p` under the project's normal permission rules.
+- `codex` (default engine): `codex exec --approve-for-me --ephemeral` —
+  sandboxed writes limited to the workspace; `--ephemeral` so parallel runs
+  don't share session state. (`--approve-for-me` replaced `--full-auto`, which
+  codex-cli removed; 0.147.0 rejects the old spelling outright.)
+- `claude`: `claude -p --allowed-tools <worker grants> --permission-mode
+  acceptEdits` — file writes auto-accepted inside the worktree, and a short
+  whitelist of commands: git add/commit/status/diff/log/show, and the
+  language's test and format runners. Nothing else is reachable, so `git push`,
+  `git reset --hard` and `--no-verify` need no deny rule; they are simply not on
+  the list. Override the list with `SPAWN_WORKER_ALLOWED_TOOLS` (comma-separated).
+
+**Why the `claude` grants are passed on the command line rather than left to
+`.claude/settings.json`.** A fresh worktree is a workspace nobody has trusted
+interactively, so Claude Code ignores the project's own allow list there
+("this workspace has not been trusted") and falls back to asking — which a
+headless run has nobody to answer. The worker replies "I need your permission to
+write that file" and exits 0 having written nothing. Command-line grants are not
+subject to workspace trust, so that is where they have to live.
+
+`spawn-worker.sh --print-command` prints the assembled command line without
+running anything, which is how the template's own CI pins these flags.
 
 The sandbox is dropped **only** when you pass `--bypass-sandbox` to
 `spawn-worker.sh` (which switches to `codex --dangerously-bypass-approvals-and-sandbox`
