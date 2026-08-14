@@ -217,3 +217,23 @@ This is a fallback, not a licence to build queues: the standing rule is one open
 pull request at a time (`ESC-20`), and a branch that never goes stale needs no
 updating. The ruling covers the case where staleness happens anyway — a merge
 the agent did not control, or a pull request held for review.
+
+## 2026-08-14 — An explicit plan wins, and the objection goes in the rework queue
+
+Owner ruling, given while plan approval was unavailable. Where a plan states
+something explicitly, implement it as written — even where it looks wrong. Do
+not deviate, do not argue the exception in a pull request, and do not stall
+waiting for a ruling that cannot come.
+
+Two things make that safe rather than merely obedient. First, the objection is
+written into `docs/BACKLOG.md` under "Plan rework", where it cannot be missed
+when the plans are next revised — an unrecorded objection is the failure mode
+this replaces. Second, where the owner has ruled the specification questionable,
+a **minimal implementation that passes is acceptable**, because the code is
+expected to be rewritten once the plan is fixed; effort spent polishing it is
+effort spent twice.
+
+The owner named the trade-off when giving the ruling: it is suboptimal, and it
+is preferred to blocking. If it produces real friction or waste, that is
+evidence for `docs/escapes.md` — including where the cause is the owner's own
+availability. Logged when it costs something, not in advance of it.

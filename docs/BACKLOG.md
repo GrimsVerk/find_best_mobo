@@ -14,6 +14,35 @@ the owner's approval:
 
 _(nothing yet)_
 
+## Plan rework
+
+Objections to what a plan explicitly says, raised while building it. Per the
+2026-08-14 ruling in `docs/DECISIONS.md`, the plan is implemented as written and
+the objection is recorded HERE rather than argued in a pull request. This list
+is the agenda for the next plan revision; an item leaving it means the plan was
+fixed, not that the objection lapsed.
+
+- **`corpus-and-checkpoint` slice 2 — a clean rerun leaves a stale failure
+  ledger.** `data/failures.jsonl` is rewritten when a failure is recorded, so a
+  run with no failures never rewrites it and the previous run's file survives,
+  reading as current. Implemented as specified. Options: rewrite unconditionally
+  at end of run (preferred), delete on a clean run, or keep it and rename the
+  concept to "the last run that had failures".
+- **`corpus-and-checkpoint` slice 2 — the plan cannot express "no captions".**
+  `fetch_transcript` is typed `-> Transcript`, leaving no way to signal a video
+  with no caption track, which the design treats as an ordinary outcome. Built
+  with a `NoCaptions` exception declared in the shared contract instead. The
+  plan's signature block should carry it.
+- **`corpus-and-checkpoint` slice 2 — the plan does not say which module a type
+  lives in.** The shared contract had to assign them, and got `FetchFailure`
+  wrong: placing it in `transcripts.py` is circular. Two blind authors can
+  disagree on placement while agreeing on behaviour, so the plan should state it.
+- **`corpus-and-checkpoint` slice 3 — the alias table is filed under a
+  gitignored path.** The plan puts it at `data/aliases.toml`, but `data/` is
+  gitignored because the corpus never enters git (R21). The alias table is
+  hand-authored input, not cached corpus, so a fresh clone would have none. Built
+  at the stated path via `git add -f`; it belongs outside `data/`.
+
 ## Proposed
 
 ### Make template updates stop costing a manual intervention
