@@ -201,3 +201,19 @@ slice of their own. The reasoning is sound and worth recording: that slice is
 where the recall risk lives — if caption mangling defeats the alias table, the
 corpus is quietly wrong and nothing downstream reveals it — so it earns its own
 checkpoint rather than riding along inside selection.
+
+## 2026-08-14 — The agent keeps its own pull request branches up to date
+
+Owner ruling, after a session left four pull requests open at once. When the
+later ones auto-merged, the earlier ones fell behind the default branch and had
+to be updated by hand before their checks could re-run — work that landed on the
+owner purely because an agent had opened a queue it then stopped tending.
+
+Ruled: updating a stale branch is the agent's job, not the owner's. An agent
+watching a pull request it opened updates the branch itself as soon as it falls
+behind, and does not wait to be asked.
+
+This is a fallback, not a licence to build queues: the standing rule is one open
+pull request at a time (`ESC-20`), and a branch that never goes stale needs no
+updating. The ruling covers the case where staleness happens anyway — a merge
+the agent did not control, or a pull request held for review.
