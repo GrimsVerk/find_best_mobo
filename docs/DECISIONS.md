@@ -139,3 +139,25 @@ appended at the end of their lists rather than inserted in sequence.
 Worth noting for the ratchet: the coverage gate ignores ids it does not
 recognise instead of failing on them, so it fails open on a malformed id. The
 gate scripts are human-owned, so this is the owner's to log and fix.
+
+## 2026-08-14 — #12 merged by owner bypass, and why that is not a precedent
+
+The design doc pull request could not pass the `plan` check: the `docs/`
+exemption caps at 50 added lines, it added ~731, and no plan can cover the
+document that plans are written against. The agent flagged this before opening
+the pull request and did not attempt to route around it — raising the cap is
+gate tampering under `AGENTS.md`, and gate paths are owner-owned. Owner ruled:
+merge by bypass, and log the escape.
+
+The review gate independently reached the same conclusion and returned BLOCK,
+citing the agent's own journal entry admitting the pull request was
+unauthorised, and noting that `DECISIONS.md` recorded nine rulings from that
+session but not this one. That finding was correct on the evidence available to
+it. The reviewer runs with fresh context on a runner and cannot see chat, so an
+owner ruling made in conversation does not exist as far as any gate is
+concerned. This entry is what closes that gap, and the general lesson is the one
+`AGENTS.md` already states: chat is not storage.
+
+Recorded in `docs/escapes.md` (#13). Bootstrap, not precedent — the standing
+answer is a gate change that gives the design doc a path of its own, which is
+the owner's to make.
