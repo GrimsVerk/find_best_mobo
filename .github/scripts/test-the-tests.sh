@@ -29,6 +29,15 @@ cd "$ROOT"
 
 skip() { echo "test-the-tests: SKIP — $*"; exit 0; }
 
+# A template sync is machine-generated: reverting "the implementation" of a
+# `copier update` and asking whether the tests still pass is not a question with
+# a meaningful answer, and a template that touches both a scaffold test and a
+# scaffold source file would fail this check for no reason anyone could act on.
+# The template-sync check governs those branches instead, and it is stricter.
+if [[ "${HEAD_REF:-}" == template/* ]]; then
+  skip "'$HEAD_REF' is a template sync — verified by the template-sync check"
+fi
+
 # Language is detected from the files present, so this script stays the same for
 # every variant; only the runner in ci.yml differs.
 if [[ -f pyproject.toml ]]; then

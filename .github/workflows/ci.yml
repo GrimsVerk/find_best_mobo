@@ -57,6 +57,47 @@ jobs:
           # fails here instead, where the message can say what to fix.
           git show "$BASE_SHA:$PLAN" | .github/scripts/plan-parse.sh >/dev/null
 
+  # The other half of the planning story. A `template/` branch is exempt from
+  # the `plan` check above, because a template update is specified in the
+  # TEMPLATE repository and no plan here can ever describe it. This is what
+  # earns that exemption: it replays `copier update` from the base commit and
+  # fails unless the result is byte-for-byte this pull request. Stronger than a
+  # plan, which only says someone intended the change.
+  #
+  # Runs on every PR and exits 0 for non-template branches, rather than being
+  # skipped with an `if:` — a skipped job counts as PASSING for a required
+  # check, and a gate that can be silenced by naming a branch differently is
+  # not a gate.
+  template-sync:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the check needs the base commit to replay from.
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: uv tool install copier
+      - name: Verify this is exactly what the template produces
+        env:
+          # Only needed when the template repository is private — the built-in
+          # GITHUB_TOKEN is scoped to THIS repository and cannot read another
+          # one. Create a fine-grained PAT with read access to the template repo
+          # and store it as the TEMPLATE_TOKEN secret. Without it, a template/
+          # branch fails closed here rather than merging unverified.
+          TEMPLATE_TOKEN: ${{ secrets.TEMPLATE_TOKEN }}
+        run: |
+          # Let git authenticate to GitHub with the token, if one is set.
+          if [ -n "${TEMPLATE_TOKEN:-}" ]; then
+            git config --global url."https://x-access-token:${TEMPLATE_TOKEN}@github.com/".insteadOf "https://github.com/"
+            git config --global url."https://x-access-token:${TEMPLATE_TOKEN}@github.com/".insteadOf "git@github.com:"
+          fi
+          BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
+          HEAD_SHA="$(git rev-parse HEAD)" \
+          HEAD_REF="$GITHUB_HEAD_REF" \
+          .github/scripts/template-sync.sh
+
   # Secret scanning belongs in CI, not only in a local hook. gitleaks runs in
   # pre-commit too, but pre-commit requires `pre-commit install` on every clone
   # — an agent working in a fresh worktree, or anyone who skipped that step,
@@ -121,5 +162,6 @@ jobs:
         run: |
           BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
           HEAD_SHA="$(git rev-parse HEAD)" \
+          HEAD_REF="$GITHUB_HEAD_REF" \
           .github/scripts/test-the-tests.sh
 

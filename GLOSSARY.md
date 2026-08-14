@@ -102,6 +102,17 @@ fresh explanation each time is what stops it sticking.
   happened. On a shared branch you always **revert**.
 - **merge conflict** — when two changes touch the same lines and git can't
   decide which wins, you get a **merge conflict** and have to choose by hand.
+- **conflict markers** — what git (and copier) leave *in the file* when they
+  can't resolve a conflict: your version and theirs, fenced by `<<<<<<<`,
+  `=======` and `>>>>>>>`. The file is not valid code until you keep one side
+  and delete the **conflict markers** — which is also why nothing should ever
+  commit while they are present.
+- **`git switch` / `git restore`** — `git switch` moves between branches
+  (`-c` creates one first); `git restore` throws away changes to files. They
+  were split out of `git checkout` in 2019 because one command doing both was
+  genuinely dangerous: `git checkout somefile.py` silently discards your edits
+  to that file and looks almost identical to the branch command. `checkout`
+  still works; **`switch`** is the half that cannot surprise you.
 
 ### CI and automation
 
@@ -138,6 +149,14 @@ fresh explanation each time is what stops it sticking.
 - **concurrency group** — push twice quickly and you get two CI runs, the first
   now testing a commit nobody will merge. A **concurrency group** cancels the
   superseded run instead of paying for it.
+- **PAT (personal access token)** — a password-substitute you generate for
+  automation, scoped to exactly what it may touch. A project's CI gets a token
+  automatically, but only for its own repository — reading a *different* private
+  repo needs a **PAT** you create and store as a secret. Fine-grained ones expire
+  (a year at most), and everything depending on them fails at once when they do.
+- **secret** — a value stored in a repository's settings rather than in its
+  files, exposed to CI as an environment variable and masked in the logs. Where
+  a token belongs; committing one instead is what `gitleaks` exists to catch.
 - **exit code** — every command finishes with a number: `0` means success,
   anything else means failure. CI decides whether a step passed by reading its
   **exit code**, nothing more.
