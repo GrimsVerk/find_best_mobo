@@ -1,6 +1,6 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
 _commit: v0.4.0
-_src_path: git+ssh://git@github.com-grimsverk/GrimsVerk/grimsverk-template.git
+_src_path: git+https://github.com/GrimsVerk/grimsverk-template.git
 auto_merge: true
 code_owner: '@GrimsVerk'
 description: Searching Buildzoid videos on YT to extract his top pick for an AMD mobo.
