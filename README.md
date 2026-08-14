@@ -134,24 +134,10 @@ on, branches as `template/<version>`, commits, pushes, and opens the pull
 request. `--no-pr` stops before the pull request; `--ref HEAD` pulls in a
 template change that has merged but is not tagged yet.
 
-**On a new machine, set the SSH rewrite first.** `_src_path` in
-`.copier-answers.yml` is an `https://` URL, because CI is the one consumer that
-cannot choose its own transport — a runner has no SSH key and cannot resolve a
-host alias from a personal `~/.ssh/config`. If you authenticate to GitHub over
-SSH, route that one URL back through it:
-
-```sh
-git config --global \
-  url."ssh://git@<your-ssh-host>/<owner>/<template-repo>.git".insteadOf \
-  "https://github.com/<owner>/<template-repo>.git"
-```
-
-Scoped to that single URL, so no other remote is affected. It lives in
-`~/.gitconfig`, so it is **per machine** and the repository does not carry it —
-a new laptop needs it again, and the symptom is a password prompt. Do not work
-around that by running `copier update` against the SSH URL directly: that
-rewrites `_src_path` to an alias only your machine can resolve, and
-`template-sync` then fails for everyone.
+> If `copier update` prompts for a password, your machine is missing the local
+> git routing rule — see the template repository's README. Nothing in this
+> project needs changing; `_src_path` is an `https://` URL on purpose, because CI
+> is the one consumer that cannot choose its own transport.
 
 It stops and hands back to you in exactly one case: a **conflict**, where the
 template changed a file this project also changed. Copier leaves both versions
