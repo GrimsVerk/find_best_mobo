@@ -1,0 +1,36 @@
+WEBVTT
+Kind: captions
+Language: en
+
+NOTE
+These captions were generated automatically, so the spacing on part
+numbers is unreliable. Nothing in this block belongs to a cue.
+
+1
+00:00:01.000 --> 00:00:04.500 align:start position:0%
+So the <c>X670E</c> Taichi board
+
+2
+00:00:04.500 --> 00:00:09.000
+has a twelve phase <00:00:05.250><c>VRM</c>
+and it is <c.colorE5E5E5>actually</c> quite good
+
+3
+00:00:09.000 --> 00:00:10.000
+<c> </c>
+
+NOTE a one-line note block
+
+4
+01:02.250 --> 01:07.000
+<v Buildzoid>the B650E is fine too
+
+5
+01:07.000 --> 01:12.000 align:middle
+   VRM thermals matter
+
+this block carries no timing line at all and is not a cue
+
+6
+01:02:03.750 --> 01:02:09.000
+two hours in, still talking about VRMs
