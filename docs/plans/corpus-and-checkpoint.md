@@ -117,7 +117,29 @@ def read_index(path: Path) -> Iterator[Video]: ...
 
 def main(argv: Sequence[str] | None = None) -> int: ...
 def run(config: Config, args: Namespace) -> int: ...
+
+
+# The network boundary. This is the only module that imports yt-dlp, and the
+# only surface a test may fake — declared here because a test author who has to
+# guess at it fakes one level deeper and the two sides then disagree at the
+# seam rather than on behaviour.
+def list_channel_entries(channel_url: str, start_date: date) -> Iterator[dict[str, object]]: ...
 ```
+
+**Two rules the signatures cannot carry, settled here after both slice-1 workers
+resolved them differently:**
+
+- **A Short uploaded before the start date is excluded as a Short.**
+  `classification="short"` and `inclusion="excluded_short"` win over
+  `excluded_out_of_range`, because the slice ties that classification and
+  inclusion pair together unconditionally. Check the duration before the date.
+- **Flat channel listing carries no upload date.** `yt-dlp`'s flat playlist
+  entries omit `upload_date` unless the `youtubetab:approximate_date` extractor
+  argument is set, so a naive implementation classifies the entire channel as
+  out-of-range and yields an empty corpus. `list_channel_entries` must set it,
+  and the resulting dates are approximate — which `docs/architecture.md` records
+  as a known rough edge, since it means a video near the 2023-01-01 boundary may
+  fall on either side of it.
 
 ## Slice 2 — Transcripts land in a local cache, and gaps are visible
 
