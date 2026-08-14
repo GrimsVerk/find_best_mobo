@@ -3,7 +3,7 @@
 Searching Buildzoid videos on YT to extract his top pick for an AMD mobo.
 
 Generated from [grimsverk-template](https://github.com/GrimsVerk/grimsverk-template);
-pull in template updates with `copier update --trust`.
+pull in template updates with `scripts/update-from-template.sh`.
 
 ## Development
 
@@ -46,6 +46,13 @@ rubber-stamp, and no agent merges on its own judgment:
   Branches prefixed `chore/` or `docs/` are exempt, for changes too small to
   plan; the exemption is capped at ~50 added lines so it can't be used to route
   real work around the gate.
+- **Hard gate — template-sync** (the `template-sync` job): a `template/` branch
+  is exempt from `plan`, because a template update is specified in the *template*
+  repository and no plan here can describe it. This is what earns that: it
+  replays `copier update` from the base commit and fails unless the result is
+  byte-for-byte this PR. Stronger than a plan — a plan says someone intended the
+  change; this proves nothing hand-written rode along with it. Passes trivially
+  on every other branch.
 - **Hard gate — test-the-tests** (the `test-the-tests` job): reverts this PR's
   implementation, keeps its new tests, and fails if the suite still passes.
   Tests that stay green without the code they cover are testing nothing, which
@@ -82,12 +89,21 @@ them on the default branch (`main`):
    - `checks` (CI hard gate)
    - `secrets` (mechanical: gitleaks over the full history)
    - `plan` (mechanical: the PR resolves to exactly one plan, already at base)
+   - `template-sync` (mechanical: a `template/` PR is pure `copier update` output)
    - `test-the-tests` (mechanical: the new tests fail without the new code)
    - `review` (LLM soft gate)
 2. **Require review from Code Owners** (branch protection), so changes to the
    gate paths in `CODEOWNERS` need @GrimsVerk's approval even under
    auto-merge.
-3. **Review engine credential** (a *subscription*, not a metered API key): the
+3. **Template read token** (`TEMPLATE_TOKEN`): a fine-grained PAT with
+   **Contents: Read-only** on the template repository, added under *Settings →
+   Secrets and variables → Actions*. This repository's built-in CI token is
+   scoped to this repository and cannot read another one, so `template-sync`
+   cannot fetch the template without it — and it fails closed, meaning no
+   template update can merge. Fine-grained tokens expire (a year at most); when
+   this one does, the check starts failing here and in every other project at
+   once, so renew it deliberately rather than discovering it.
+4. **Review engine credential** (a *subscription*, not a metered API key): the
    review runs on your Claude Code subscription. Generate a token once with
    `claude setup-token` and add it as the `CLAUDE_CODE_OAUTH_TOKEN` secret under
    *Settings → Secrets and variables → Actions*. (A metered `ANTHROPIC_API_KEY`
@@ -95,13 +111,55 @@ them on the default branch (`main`):
    the review job fails closed and nothing merges. *Codex engine: running the
    gate on a ChatGPT/Codex subscription needs that CLI's login injected into CI
    — not wired yet; see the comment in `review.yml`.*
-4. **Allow auto-merge** for the repo (*Settings → General → Pull Requests →
+5. **Allow auto-merge** for the repo (*Settings → General → Pull Requests →
    Allow auto-merge*), and keep **Allow merge commits** enabled (the default) —
    the PR lands as a merge commit. Without auto-merge enabled, `auto-merge.yml`
    can't arm PRs.
 
 Coding agents work on a branch and open a PR into this pipeline; branch
 protection plus the required checks are what prevent self-merging.
+
+## Updating from the template
+
+Template improvements arrive through `copier update`, and that is a third kind
+of change: not planned work, not a trivial chore. It was specified and reviewed
+in the template repository, so no plan here could describe it.
+
+```sh
+scripts/update-from-template.sh
+```
+
+That is the whole thing: it updates, works out which template version you landed
+on, branches as `template/<version>`, commits, pushes, and opens the pull
+request. `--no-pr` stops before the pull request; `--ref HEAD` pulls in a
+template change that has merged but is not tagged yet.
+
+It stops and hands back to you in exactly one case: a **conflict**, where the
+template changed a file this project also changed. Copier leaves both versions
+in the file with conflict markers around them, and no script can know which side
+you meant. Nothing is committed at that point, so `git checkout -- .` backs the
+whole update out if you would rather deal with it later.
+
+The `template/` prefix exempts it from the `plan` check and hands verification
+to `template-sync`, which replays the update from the base commit and fails
+unless this PR is exactly its output. So the branch may carry the template's
+changes and **nothing else** — if a hand fix is needed on top, it goes in its own
+pull request afterwards, with a plan.
+
+Expect to approve it yourself. A template update usually touches `.github/` and
+`AGENTS.md`, which `CODEOWNERS` owns, and GitHub will not accept your approval on
+your own PR — see the deadlock note in the root template's README. That is
+working as intended: a change to your own gates is exactly what a human should
+look at. `template-sync` being green is what makes that a quick read of the
+template's release notes rather than a line-by-line audit of 40 files.
+
+> **This repository needs a `TEMPLATE_TOKEN` secret**, because the template is
+> private. A project's built-in CI token is scoped to the project and cannot read
+> another repository, so without it `template-sync` fails closed and no template
+> update can merge. Add a fine-grained PAT with **Contents: Read-only** on the
+> template repo under *Settings → Secrets and variables → Actions*. It expires —
+> a year at most — and when it does, this check starts failing here and in every
+> other project at the same time.
 
 ## The ratchet
 
