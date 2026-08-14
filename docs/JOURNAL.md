@@ -201,3 +201,45 @@ tests, then build slice 2 (transcript fetch and the failure ledger) with the
 same two-worker pattern. The parser fix the owner is adding to the template —
 fixture tests for `plan-parse.sh`, plus a check that every real plan parses on
 its own pull request — is what stops this session's central failure recurring.
+
+## 2026-08-14 — template v0.4.8, and the check that cannot pass
+
+Template updated v0.4.7 → v0.4.8 (#28), the release written against
+`docs/template-fix-prompt.md`. It fixes upstream every orchestration and gate
+defect the previous session hit. Read the ledger for what closed; the short
+version is that orchestration can now launch a worker, the plan parser no longer
+misreads a section banner, coverage no longer fails open on a malformed id, and
+the planning documents finally have a path through the `plan` check.
+
+**`template-sync` cannot pass for a conflicted update, and that is now the
+standing problem.** It replays `copier update` and demands a byte-identical
+tree, but a conflict is exactly the case copier hands back to a human, so the
+replay reproduces the markers and the only satisfying tree is one committing
+them to `main`. Three files conflicted here. Second occurrence (#4 was the
+first); the owner merged by bypass again. Logged as `ESC-17`; the recurring cost
+is `docs/BACKLOG.md`'s first Proposed item, with three candidate directions.
+Predicting this before opening the PR worked — every gate script was run
+locally first, and CI matched the local run line for line.
+
+**Slice 1 is now actually complete.** The zero-duration rule the previous
+session left uncommitted is merged (#31). Two blind agents, separate worktrees,
+one shared contract block quoted verbatim into both briefs — and they agreed on
+every point, 38 tests green with nothing to reconcile. That is the practice
+`ESC-10` produced, working the first time it was used deliberately.
+
+Worth carrying forward: the test author reported five points it resolved by
+guessing (where the new line sits in the summary block, where the warning region
+begins). It happened to write assertions loose enough to accommodate either
+choice. Those were safe guesses, not shared knowledge — the contract block
+should carry that detail next time.
+
+**Slice 2 was not built, deliberately.** Writing the briefs surfaced that the
+slice had no legal home for the caption download: `ytdlp.py` is the only module
+permitted to import yt-dlp and was not in slice 2's file list, so the blind test
+author would have had to guess the network surface. That is the `ESC-10` setup
+reproduced one slice later. The plan is the arbiter when the two sides could
+disagree, so the plan is what was fixed — #32 adds the boundary, its file, and
+three guessed decisions listed for the owner's ruling.
+
+Next session: land #29, #30, #32, then build slice 2 (transcripts and the
+failure ledger) off the revised plan, then slices 3–5. Nothing else is blocked.
