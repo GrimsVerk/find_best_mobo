@@ -17,45 +17,71 @@ agent from rediscovering the system by grepping.
 
 Delete these comments or leave them; they don't render. -->
 
-## Components
+What exists today is the first corpus stage: a CLI that enumerates the
+Buildzoid channel and writes a classified video index to disk. No transcript
+fetching, no selection, no model involvement — those are later slices of the
+`corpus-and-checkpoint` plan.
 
-<!-- One entry per component: its name, and the single thing it is responsible
-for. If a component needs "and" to describe its responsibility, say so plainly —
-that's worth seeing. -->
+## Components
 
 | Component | Responsible for |
 | --- | --- |
-| _name_ | _the single thing it is responsible for_ |
+| CLI dispatcher (`cli.py`) | Parsing the command line, loading configuration, and handing off to the subcommand module named on the command line. It holds no list of subcommands: adding a stage means adding a module, never editing the dispatcher. |
+| Configuration (`config.py`) | Declaring every lever the whole pipeline will ever have — including ones no stage uses yet — and reading them from `config.toml`, with in-code defaults so an absent key or file is never a crash. |
+| Network boundary (`ytdlp.py`) | The only code that touches `yt-dlp` or the network. Lists a channel's uploads via flat playlist extraction (no downloads), reusing one client for the whole run, and yields raw entry dicts. |
+| Index (`index.py`) | Classifying each raw entry into a video record (regular or Short; pending, excluded-as-Short, or out-of-range) and reading/writing the index as deterministic JSONL. Classification is pure — no I/O. |
+| `index` subcommand (`commands/index.py`) | The stage itself: enumerate, write `data/index.jsonl`, print the summary counts. |
 
 ## Data flow
 
-<!-- What moves between the components, in what direction, and in what form.
-Prose or a simple list is fine — `A --(what)--> B`. A diagram is welcome but
-never required; an accurate list beats a stale picture. -->
+- YouTube --(flat channel listing, one raw entry dict per upload)--> network boundary
+- network boundary --(raw entries)--> index classification --(video records)--> `data/index.jsonl`
+- `config.toml` --(levers)--> every component, loaded once by the CLI dispatcher
+- `data/index.jsonl` --(video records)--> later slices, via the index reader
 
 ## Main paths
 
-<!-- Walk the two or three journeys that matter, start to finish, in plain
-language: what triggers it, which components it touches in order, what the
-observable result is. These are what someone reads to understand how the system
-actually behaves, and they are the first thing to go stale — check them at the
-end of each slice. -->
+### Building the video index
 
-### <path name>
+1. The owner runs `uv run find-best-mobo index` (optionally `--config <path>`).
+2. The dispatcher loads configuration and imports the `index` command module by
+   name.
+3. The command enumerates the channel through the network boundary: every
+   upload, lazily, without downloading anything.
+4. Each entry is classified. Duration at or below the Shorts threshold means
+   excluded as a Short — checked before anything else, so a pre-2023 Short is
+   excluded as a Short, not as out-of-range. Otherwise an upload date before
+   the start date (or missing entirely) means excluded as out-of-range.
+   Everything else — livestreams explicitly included — is kept as pending, for
+   the selection stage to judge later. Only Shorts are ever excluded on
+   duration; there is no ceiling.
+5. Every video, excluded or not, becomes one line of `data/index.jsonl`
+   carrying its classification and inclusion reason — exclusions are recorded,
+   never implied.
+6. A summary prints: total videos found, how many fell outside the date range,
+   how many were excluded as Shorts, how many were kept.
 
-1.
+Rerunning rewrites the index from a fresh listing; given the same listing and
+configuration the file is byte-identical (records sorted by upload date then
+video id, keys sorted within each record).
 
 ## State and storage
 
-<!-- Optional. What persists, where it lives, and what owns it. Skip if the
-system holds nothing. -->
+- `config.toml` (repository root) — every pipeline lever, flat keys. In git.
+- `data/index.jsonl` — one JSON record per video. Local-only, gitignored, as
+  the whole `data/` tree will be: the corpus never enters git.
 
 ## Known rough edges
 
-<!-- Optional but valuable. Things that work but are awkward, deliberate
-shortcuts, and where the next change in this area is likely to hurt. This is the
-section that stops a future agent confidently "fixing" something load-bearing,
-and it's where the reviewer's "easy to change next time" findings should land
-when they're accepted rather than acted on. -->
-
--
+- **Upload dates from flat listing are approximate.** Flat extraction only
+  carries a date at all because the `youtubetab:approximate_date` extractor
+  argument is set (without it, every video would silently classify as
+  out-of-range and the corpus would be empty). The dates it produces are
+  approximations, so a video near the 2023-01-01 boundary may fall on either
+  side of it.
+- **A missing duration classifies as a Short.** Missing or null duration is
+  treated as 0, which is at or below the Shorts threshold. Deliberate — it
+  never crashes — but it means a listing that omitted durations would
+  quietly exclude everything as Shorts.
+- **A missing upload date is recorded as `0001-01-01`.** The record keeps its
+  out-of-range exclusion visible rather than inventing a plausible date.

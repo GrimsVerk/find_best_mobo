@@ -9,3 +9,6 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 dist/
+# The video index and transcript cache are local-only and never enter git
+# (docs/DESIGN.md R21).
+data/
