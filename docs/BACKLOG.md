@@ -42,6 +42,23 @@ fixed, not that the objection lapsed.
   gitignored because the corpus never enters git (R21). The alias table is
   hand-authored input, not cached corpus, so a fresh clone would have none. Built
   at the stated path via `git add -f`; it belongs outside `data/`.
+- **`corpus-and-checkpoint` slice 3 — the slice's stated deliverable cannot be
+  reached from the command line, and the plan contradicts itself.** It promises
+  `uv run find-best-mobo aliases --check`, but its file list excludes
+  `src/find_best_mobo/cli.py`, and slice 1's design decision — the dispatcher
+  holds no subcommand table so no two slices edit it — means the top-level
+  `parse_args` rejects `--check` before dispatch: `error: unrecognized arguments:
+  --check`. Built to the file list, so `run(config, Namespace(check=True))` works
+  and is tested, while the CLI path does not. **This is the first item worth
+  ruling on:** it is not cosmetic, it blocks the deliverable, and it recurs for
+  every later subcommand that takes a flag — slices 4 and 5 both do. Fixing it
+  means one small change to `cli.py` (pass unrecognised arguments through to the
+  subcommand), which is a design decision about the dispatcher and therefore the
+  owner's.
+- **`corpus-and-checkpoint` slice 3 — the plan does not say where the alias
+  table is loaded from.** Both blind authors independently chose
+  `config.data_dir / "aliases.toml"` and so agreed, but the plan says only
+  `data/aliases.toml`, which reads as a fixed path. Worth stating.
 
 ## Proposed
 

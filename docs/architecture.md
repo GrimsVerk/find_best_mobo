@@ -17,11 +17,12 @@ agent from rediscovering the system by grepping.
 
 Delete these comments or leave them; they don't render. -->
 
-What exists today is the first two corpus stages: a CLI that enumerates the
-Buildzoid channel into a classified video index, and one that fetches and caches
-each kept video's captions behind a failure ledger. No selection, no excerpting,
-no model involvement — those are later slices of the `corpus-and-checkpoint`
-plan.
+What exists today is the first three corpus stages: a CLI that enumerates the
+Buildzoid channel into a classified video index, one that fetches and caches
+each kept video's captions behind a failure ledger, and one that folds the
+spacing damage auto-captions inflict on part numbers onto canonical board names.
+No selection, no excerpting, no model involvement — those are later slices of
+the `corpus-and-checkpoint` plan.
 
 ## Components
 
@@ -35,6 +36,9 @@ plan.
 | Transcripts (`transcripts.py`) | Parsing WebVTT into timed cues, and owning the on-disk transcript cache. Fetching and caching are deliberately separate: the fetch never consults the cache, so "reruns never refetch" lives in exactly one place. |
 | Failure ledger (`ledger.py`) | Recording every fetch failure with its class, carrying attempt counts across runs, and deciding when the run must halt. It is rewritten on every record, so evidence is on disk even when the run stops abruptly. |
 | `fetch` subcommand (`commands/fetch.py`) | The stage itself: read the index, fetch what is pending and uncached, print the summary — or, on a halt, the trigger and the ledger. |
+| Normalization (`normalize.py`) | Folding caption text and titles into one comparable form: case, scattered punctuation, and above all the spacing damage that renders `X670E` as `x 670 e`. Pure and total. |
+| Alias table (`aliases.py`, `data/aliases.toml`) | Mapping many surface forms onto one canonical entity, and finding those entities in normalized text with a single compiled pattern. The table is hand-authored input, not derived data. |
+| `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. |
 
 ## Data flow
 
@@ -44,7 +48,8 @@ plan.
 - `data/index.jsonl` --(pending video records)--> fetch stage
 - network boundary --(raw WebVTT)--> transcript parsing --(timed cues)--> `data/transcripts/<video_id>.json`
 - fetch failures --(class, detail, attempts)--> `data/failures.jsonl`, and back in as the retry list on the next run
-- `data/transcripts/` --(cached transcripts)--> later slices
+- `data/transcripts/` --(cached transcripts)--> normalization --(comparable text)--> alias matching
+- `data/aliases.toml` --(canonical entities and their surface forms)--> one compiled pattern --(mentions with timestamps)--> later slices
 
 ## Main paths
 
@@ -101,6 +106,28 @@ A rerun retries what failed and skips what succeeded, so the ledger shrinks as
 problems resolve. Transcripts are written one at a time and never all held in
 memory, so a 1000-video channel costs no more than one video's worth.
 
+### Inspecting the alias table
+
+1. The owner runs the `aliases` stage with `--check`. It reads the index and the
+   cached transcripts; without either it says which stage to run first.
+2. Every surface form in the table and every piece of text are put through the
+   same normalization, so the two meet in one space rather than the table
+   guessing at what captions look like.
+3. One compiled pattern carries every surface form, longest first, so a longer
+   name wins over a shorter one that is a substring of it.
+4. The report lists every canonical with the videos and mentions it matched and
+   the forms that actually fired — and **names the canonicals that matched
+   nothing at all**, which is the table's most important defect and the reason
+   this stage exists as something a person looks at.
+
+Ordering is deterministic, so two runs over the same cache print identically.
+
+**This stage is not reachable from the command line yet.** The top-level parser
+rejects `--check` before dispatch, because the dispatcher deliberately holds no
+subcommand table and this slice does not touch it. The stage works and is
+tested through its entry point; the wiring is an open plan question recorded in
+`docs/BACKLOG.md`.
+
 ## State and storage
 
 - `config.toml` (repository root) — every pipeline lever, flat keys. In git.
@@ -111,6 +138,10 @@ memory, so a 1000-video channel costs no more than one video's worth.
   reads instead of refetching.
 - `data/failures.jsonl` — this run's fetch failures, rewritten on every record.
   It doubles as the next run's retry list.
+- `data/aliases.toml` — the hand-authored alias table. Unlike everything else
+  under `data/`, this is **input rather than cache**: it is tracked in git
+  (forced past the ignore rule) because a fresh clone with no alias table would
+  match nothing. That it lives here at all is an open plan question.
 
 ## Known rough edges
 
@@ -133,6 +164,15 @@ memory, so a 1000-video channel costs no more than one video's worth.
 - **A corrupt cache entry reads as absent.** A damaged transcript file is
   refetched rather than crashing the run, which is right for a cache but means
   silent corruption costs a refetch instead of announcing itself.
+- **Normalization will not join a part number to an ordinary word.** The
+  rejoining rule is bounded: multi-letter words never participate, so `ryzen 9`
+  and `in 2023` survive intact. Without that bound `a 7800 X 3 D` welds into
+  `a7800x3d` and matches nothing — the fix for one kind of caption damage
+  silently causing another.
+- **The alias table's recall is a human judgement, not a measured one.** The
+  shipped table is a starting point covering the AM5 chipsets, five vendors, ten
+  board families and five CPUs. Nothing knows what it is missing; the `aliases`
+  stage exists to make that inspectable rather than to answer it.
 - **A run with no failures does not rewrite `data/failures.jsonl`.** The ledger
   is written when a failure is recorded, so a clean rerun after a failing one
   leaves the old file in place and it reads as current. Raised for a ruling
