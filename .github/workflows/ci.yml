@@ -1,0 +1,19 @@
+name: CI
+
+# Push triggers on ALL branches: agents work on branches and may push many
+# commits before a PR exists; every pushed commit gets CI (AGENTS.md).
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest

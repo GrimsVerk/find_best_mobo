@@ -1,0 +1,21 @@
+# CODEOWNERS — human ownership of the merge gates.
+#
+# Merges are mechanical: a PR merges when the required checks go green, with no
+# human necessarily reading the code. That makes the paths below load-bearing —
+# the pipeline must not be able to edit the things that check it. GitHub requires
+# a review from the owner below before any change to these paths can merge, even
+# under auto-merge. Keep this in sync with the required status checks in branch
+# protection.
+#
+# For this to bind, the human must (once) enable branch protection on the default
+# branch with "Require review from Code Owners" turned on. See the README.
+
+# CI (hard gate), the review check + its prompt, the CODEOWNERS file itself, and
+# the runner scripts all live under .github/ — one rule covers them.
+/.github/                    @GrimsVerk
+
+# Pre-commit (git-level gate).
+/.pre-commit-config.yaml     @GrimsVerk
+
+# Any root-level CODEOWNERS, in case one is added later.
+/CODEOWNERS                  @GrimsVerk

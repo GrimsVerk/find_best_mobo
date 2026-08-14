@@ -1,0 +1,57 @@
+name: Review
+
+# Soft review gate. An independent, read-only LLM reviews the PR diff against
+# AGENTS.md and docs/DESIGN.md and exits non-zero on any blocking finding. Mark
+# the `review` job a REQUIRED status check so a red review blocks merge exactly
+# like a failing test — but it is layered ON TOP of CI (the hard gate), never a
+# replacement for it. Only runs on pull requests (it needs the base..head diff).
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the base and head commits are both present for the
+          # base...head diff the review agent reviews.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # Install the configured review engine. Default is claude; switch
+      # REVIEW_ENGINE to codex once that engine's CI auth is wired (see below).
+      - name: Install review engine
+        env:
+          REVIEW_ENGINE: claude
+        run: |
+          case "$REVIEW_ENGINE" in
+            claude) npm install -g @anthropic-ai/claude-code ;;
+            codex)  npm install -g @openai/codex ;;
+            *) echo "unknown REVIEW_ENGINE: $REVIEW_ENGINE" >&2; exit 1 ;;
+          esac
+      - name: Headless review
+        env:
+          # Credentials come from a SUBSCRIPTION, not a metered API key.
+          # claude: run `claude setup-token` once and store the result as the
+          # CLAUDE_CODE_OAUTH_TOKEN secret (see README, manual setup). The metered
+          # ANTHROPIC_API_KEY is only a fallback if you happen to have one.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # codex (FUTURE — not wired yet): must also run on a ChatGPT/Codex
+          # SUBSCRIPTION, never a metered OPENAI_API_KEY. The Codex CLI keeps its
+          # login in ~/.codex/auth.json; to enable this path, add a step before
+          # this one that writes that file from a secret, then set REVIEW_ENGINE
+          # to codex. Left unwired until a codex subscription is in use.
+          REVIEW_ENGINE: claude
+          # REVIEW_MODEL is optional. A different model than the workers is a
+          # nice-to-have, not required — fresh context + read-only is the real
+          # independence. Leave empty to use the subscription's default model.
+          REVIEW_MODEL: ""
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: .github/scripts/review.sh

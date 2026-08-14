@@ -1,0 +1,35 @@
+name: Auto-merge
+
+# Mechanically arms GitHub native auto-merge on each PR. This does NOT decide to
+# merge: it enables auto-merge, and GitHub completes the merge only once ALL
+# required checks pass (CI hard gate + the review soft gate) and any required
+# CODEOWNERS review on gate paths is satisfied. No agent runs `gh pr merge` on
+# its own judgment — the merge is triggered by checks going green.
+#
+# Requires (human, once): "Allow auto-merge" enabled on the repo, and branch
+# protection on the default branch with the required status checks configured.
+# See the README's manual-setup section.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  arm-auto-merge:
+    # Draft PRs are not armed; mark ready for review to opt in.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge (merge commit)
+        # Merge commit (not squash): it preserves the exact commits CI tested and
+        # the audit trail of what each agent did — worth more here than a flat
+        # history, since nothing is human-reviewed before it lands. Reverting a
+        # bad PR is still one line: `git revert -m 1 <merge-sha>` (see README).
+        # Needs "Allow merge commits" enabled on the repo (the default).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --merge "$PR_URL"
