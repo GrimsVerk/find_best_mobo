@@ -17,10 +17,11 @@ agent from rediscovering the system by grepping.
 
 Delete these comments or leave them; they don't render. -->
 
-What exists today is the first corpus stage: a CLI that enumerates the
-Buildzoid channel and writes a classified video index to disk. No transcript
-fetching, no selection, no model involvement — those are later slices of the
-`corpus-and-checkpoint` plan.
+What exists today is the first two corpus stages: a CLI that enumerates the
+Buildzoid channel into a classified video index, and one that fetches and caches
+each kept video's captions behind a failure ledger. No selection, no excerpting,
+no model involvement — those are later slices of the `corpus-and-checkpoint`
+plan.
 
 ## Components
 
@@ -31,13 +32,19 @@ fetching, no selection, no model involvement — those are later slices of the
 | Network boundary (`ytdlp.py`) | The only code that touches `yt-dlp` or the network. Lists a channel's uploads via flat playlist extraction (no downloads), reusing one client for the whole run, and yields raw entry dicts. |
 | Index (`index.py`) | Classifying each raw entry into a video record (regular or Short; pending, excluded-as-Short, or out-of-range) and reading/writing the index as deterministic JSONL. Classification is pure — no I/O. |
 | `index` subcommand (`commands/index.py`) | The stage itself: enumerate, write `data/index.jsonl`, print the summary counts. |
+| Transcripts (`transcripts.py`) | Parsing WebVTT into timed cues, and owning the on-disk transcript cache. Fetching and caching are deliberately separate: the fetch never consults the cache, so "reruns never refetch" lives in exactly one place. |
+| Failure ledger (`ledger.py`) | Recording every fetch failure with its class, carrying attempt counts across runs, and deciding when the run must halt. It is rewritten on every record, so evidence is on disk even when the run stops abruptly. |
+| `fetch` subcommand (`commands/fetch.py`) | The stage itself: read the index, fetch what is pending and uncached, print the summary — or, on a halt, the trigger and the ledger. |
 
 ## Data flow
 
 - YouTube --(flat channel listing, one raw entry dict per upload)--> network boundary
 - network boundary --(raw entries)--> index classification --(video records)--> `data/index.jsonl`
 - `config.toml` --(levers)--> every component, loaded once by the CLI dispatcher
-- `data/index.jsonl` --(video records)--> later slices, via the index reader
+- `data/index.jsonl` --(pending video records)--> fetch stage
+- network boundary --(raw WebVTT)--> transcript parsing --(timed cues)--> `data/transcripts/<video_id>.json`
+- fetch failures --(class, detail, attempts)--> `data/failures.jsonl`, and back in as the retry list on the next run
+- `data/transcripts/` --(cached transcripts)--> later slices
 
 ## Main paths
 
@@ -71,11 +78,39 @@ Rerunning rewrites the index from a fresh listing; given the same listing and
 configuration the file is byte-identical (records sorted by upload date then
 video id, keys sorted within each record).
 
+### Fetching transcripts
+
+1. The owner runs `uv run find-best-mobo fetch`. Without an index it says so and
+   stops — the stages are deliberately separate commands.
+2. Only videos the index kept as pending are considered. Anything already in the
+   cache is skipped without a network call, which is what makes a rerun cheap
+   and resumable.
+3. Each remaining video's captions are fetched through the network boundary and
+   parsed into timed cues. A video with no caption track is an ordinary outcome,
+   not an error, and is recorded as such.
+4. Every failure goes to the ledger with its class, the underlying detail, and
+   how many runs have now tried it. The run continues past a failure — one bad
+   video must not end a corpus pass.
+5. After each failure the halt triggers are checked: three consecutive fetch
+   errors, fetch errors past 3% of the pending set, or missing captions past 5%.
+   A fired trigger stops the run, names itself, and prints the ledger.
+6. Otherwise a summary prints: pending, already cached, fetched this run, and
+   failures split by class.
+
+A rerun retries what failed and skips what succeeded, so the ledger shrinks as
+problems resolve. Transcripts are written one at a time and never all held in
+memory, so a 1000-video channel costs no more than one video's worth.
+
 ## State and storage
 
 - `config.toml` (repository root) — every pipeline lever, flat keys. In git.
 - `data/index.jsonl` — one JSON record per video. Local-only, gitignored, as
   the whole `data/` tree will be: the corpus never enters git.
+- `data/transcripts/<video_id>.json` — one cached transcript per video, timed
+  cues in file order. The cache is the resumability story: it is what a rerun
+  reads instead of refetching.
+- `data/failures.jsonl` — this run's fetch failures, rewritten on every record.
+  It doubles as the next run's retry list.
 
 ## Known rough edges
 
@@ -95,3 +130,10 @@ video id, keys sorted within each record).
   Short, and the second line says why that may be wrong.
 - **A missing upload date is recorded as `0001-01-01`.** The record keeps its
   out-of-range exclusion visible rather than inventing a plausible date.
+- **A corrupt cache entry reads as absent.** A damaged transcript file is
+  refetched rather than crashing the run, which is right for a cache but means
+  silent corruption costs a refetch instead of announcing itself.
+- **A run with no failures does not rewrite `data/failures.jsonl`.** The ledger
+  is written when a failure is recorded, so a clean rerun after a failing one
+  leaves the old file in place and it reads as current. Raised for a ruling
+  rather than fixed unilaterally — see the slice 2 pull request.
