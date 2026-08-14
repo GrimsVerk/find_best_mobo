@@ -39,9 +39,16 @@ One line per question, with your proposed default, then the ruling once given. -
 - **Q:** <the decision you're unsure about> — **proposed:** <your default>
   **Ruling:** <what the owner decided>
 
-## Slices
+## The work, sliced
 
-<!-- The plan is a list of VERTICAL slices. Each one delivers something
+<!-- This heading must NOT begin with the word "Slice".
+`.github/scripts/plan-parse.sh` treats every heading matching `^#+\s*Slice` as a
+slice, so a `## Slices` banner parses as a slice declaring no files and no
+estimate, and the whole plan is rejected — which empties the reviewer's
+mechanical facts table and blocks the pull request on `plan` and `review`
+together. Logged in `docs/escapes.md`.
+
+The plan is a list of VERTICAL slices. Each one delivers something
 observable end-to-end — a thing that works, however narrowly.
 
 Do NOT slice horizontally (all the storage, then all the logic, then all the

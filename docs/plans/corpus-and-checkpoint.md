@@ -63,7 +63,9 @@ it and never edit it.
 slice, so a bare `## Slices` section header is parsed as a slice that declares
 no files and no estimate, and the whole plan fails to parse — which empties the
 reviewer's facts table and blocks the pull request. `docs/plans/_TEMPLATE.md`
-has the same defect and needs the same fix upstream; see `docs/escapes.md`. -->
+carried the same defect and is fixed in the same pull request; the underlying
+parser behaviour is logged in `docs/escapes.md`, and the fix to the parser
+itself is the owner's, since it is a gate path. -->
 
 
 ## Slice 1 — The channel becomes a video index on disk
