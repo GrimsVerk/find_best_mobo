@@ -56,7 +56,15 @@ be edited by all five slices, which breaks parallel authorship. `config.py`
 declares every lever up front in slice 1 for the same reason — later slices read
 it and never edit it.
 
-## Slices
+## The work, sliced
+
+<!-- This heading deliberately does not begin with the word "Slice".
+`.github/scripts/plan-parse.sh` treats every heading matching `^#+\s*Slice` as a
+slice, so a bare `## Slices` section header is parsed as a slice that declares
+no files and no estimate, and the whole plan fails to parse — which empties the
+reviewer's facts table and blocks the pull request. `docs/plans/_TEMPLATE.md`
+has the same defect and needs the same fix upstream; see `docs/escapes.md`. -->
+
 
 ## Slice 1 — The channel becomes a video index on disk
 
@@ -133,6 +141,14 @@ resolved them differently:**
   `classification="short"` and `inclusion="excluded_short"` win over
   `excluded_out_of_range`, because the slice ties that classification and
   inclusion pair together unconditionally. Check the duration before the date.
+- **At most one video may report a zero duration.** A missing duration is read
+  as 0, which classifies as a Short and therefore excludes the video. That is
+  acceptable for exactly one video — a stream in progress reports no duration,
+  and he can only be live in one place at a time. Two or more zero-duration
+  videos mean the zero is caused by something other than being live, and videos
+  are being dropped silently. The `index` command must therefore report the
+  zero-duration count in its summary, and warn loudly when it exceeds one,
+  naming the affected video ids so the cause can be found.
 - **Flat channel listing carries no upload date.** `yt-dlp`'s flat playlist
   entries omit `upload_date` unless the `youtubetab:approximate_date` extractor
   argument is set, so a naive implementation classifies the entire channel as
