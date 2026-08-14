@@ -1,0 +1,72 @@
+[
+  {
+    "id": "b0ardLong01",
+    "title": "X670E Taichi VRM breakdown",
+    "duration": 3720,
+    "upload_date": "20240310",
+    "was_live": false,
+    "live_status": "not_live",
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=b0ardLong01"
+  },
+  {
+    "id": "sh0rtVid002",
+    "title": "This VRM heatsink is fake",
+    "duration": 45,
+    "upload_date": "20240501",
+    "was_live": false,
+    "live_status": "not_live",
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=sh0rtVid002"
+  },
+  {
+    "id": "o1dRange003",
+    "title": "B550 board rant from before the cutoff",
+    "duration": 2400,
+    "upload_date": "20221115",
+    "was_live": false,
+    "live_status": "not_live",
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=o1dRange003"
+  },
+  {
+    "id": "l1veStream4",
+    "title": "Hardcore overclocking livestream: B650E memory tuning",
+    "duration": 10800,
+    "upload_date": "20230920",
+    "was_live": true,
+    "live_status": "was_live",
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=l1veStream4"
+  },
+  {
+    "id": "nu11Durat05",
+    "title": "Entry whose duration the listing did not report",
+    "duration": null,
+    "upload_date": "20250102",
+    "was_live": false,
+    "live_status": "not_live",
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=nu11Durat05"
+  },
+  {
+    "id": "startDate06",
+    "title": "X670E Gene uploaded exactly on the start date",
+    "duration": 1500,
+    "upload_date": "20230101",
+    "was_live": false,
+    "live_status": "not_live",
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=startDate06"
+  },
+  {
+    "id": "recentVid07",
+    "title": "X870E VRM rankings, mid-2026 refresh",
+    "duration": 5400,
+    "upload_date": "20260401",
+    "was_live": false,
+    "live_status": "not_live",
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=recentVid07"
+  }
+]
