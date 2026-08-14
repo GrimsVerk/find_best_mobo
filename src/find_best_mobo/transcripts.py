@@ -25,8 +25,15 @@ from typing import Any
 
 from find_best_mobo.config import Config
 from find_best_mobo.index import Video
-from find_best_mobo.ledger import FetchFailure, HaltTriggered, Ledger
+from find_best_mobo.ledger import FetchFailure as FetchFailure
+from find_best_mobo.ledger import HaltTriggered, Ledger
 from find_best_mobo.ytdlp import fetch_caption_track
+
+# `FetchFailure` is re-exported above in mypy's explicit `X as X` form. It is
+# the ledger's record type and is defined there, but this module is where a
+# failure is CONSTRUCTED, so callers reasonably reach for it here. Defining it
+# in this module instead would be circular: `fetch_all` raises `HaltTriggered`
+# at run time, so the import of `ledger` cannot be deferred to type-checking.
 
 # `<c>`, `</c.colorE5E5E5>`, `<00:00:01.000>`, `<v Roger>` — WebVTT's inline
 # markup, all of which is presentation and none of which is speech.
