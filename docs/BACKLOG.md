@@ -22,8 +22,9 @@ Every `copier update` that conflicts fails the `template-sync` check and needs
 an owner bypass to land. It has happened on both updates that conflicted (#4 and
 #28) and it will happen on every future one, because the check demands a tree
 byte-identical to a replayed update while a conflict is precisely the case
-copier hands to a human. Logged as an incident in `docs/escapes.md`; this entry
-is the standing intent to fix it rather than keep paying it.
+copier hands to a human. This entry is the standing intent to fix it rather than
+keep paying it; the incident record is the ratchet's business and is being
+logged separately, so nothing here depends on it having landed.
 
 Three directions, not mutually exclusive, roughly in order of preference:
 
