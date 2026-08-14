@@ -11,6 +11,9 @@ dependencies = [
     "yt-dlp>=2026.7.4",
 ]
 
+[project.scripts]
+find-best-mobo = "find_best_mobo.cli:main"
+
 [dependency-groups]
 # Pinned to the same minor as the `rev` values in .pre-commit-config.yaml. An
 # open lower bound here lets `uv sync` resolve a different ruff than pre-commit

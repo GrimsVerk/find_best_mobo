@@ -1,0 +1,30 @@
+# Every lever the pipeline has, flat top-level keys named after the Config
+# fields. Values here mirror the in-code defaults; a key removed from this file
+# falls back to its default rather than crashing. Reasoning for the numbers
+# lives in docs/DESIGN.md (R17, R24 and the excerpt-window decision).
+
+channel_url = "https://www.youtube.com/@ActuallyHardcoreOverclocking"
+start_date = 2023-01-01
+data_dir = "data"
+
+# Classification: at or below this duration a video is a Short, and excluded.
+shorts_max_seconds = 120
+
+# Selection: minimum normalized alias mentions in the body (title hits bypass).
+mention_threshold = 3
+
+# Excerpting: asymmetric window, wide first — the verdict follows the analysis.
+window_before_seconds = 120
+window_after_seconds = 300
+per_video_excerpt_cap = 10
+
+# Bundling and batching.
+bundle_token_cap = 24000
+calibration_batch_size = 12
+batch_count = 3
+chars_per_token = 4.0
+
+# Halt triggers for transcript fetching (docs/DESIGN.md R24).
+consecutive_fetch_error_limit = 3
+fetch_error_rate_limit = 0.03
+missing_caption_rate_limit = 0.05
