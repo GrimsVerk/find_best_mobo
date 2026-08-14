@@ -83,25 +83,53 @@ def fetch_caption_track(video_id: str, config: Config) -> str | None:
     tell "there is nothing to fetch" from "we could not fetch it" — they are
     different rows in the failure ledger and different halt triggers.
     """
-    options = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "writesubtitles": True,
-        "writeautomaticsub": True,
-        "subtitlesformat": "vtt",
-    }
+    # `config` is unused: it is in the declared signature because the plan put
+    # it there, and every lever this function needs is a yt-dlp concern rather
+    # than a project one. Kept rather than dropped so the boundary the tests
+    # fake stays the boundary the plan declares.
+    del config
+    client = _caption_client()
     url = f"https://www.youtube.com/watch?v={video_id}"
-    with YoutubeDL(options) as client:
-        info = client.extract_info(url, download=False)
-        track_url = _caption_url(info)
-        if track_url is None:
-            return None
-        # `urlopen` on the client rather than a bare HTTP call: it carries the
-        # same cookies, headers and proxy settings the extraction used, and a
-        # caption URL fetched without them is frequently rejected.
-        raw: bytes = client.urlopen(track_url).read()
+    info = client.extract_info(url, download=False)
+    track_url = _caption_url(info)
+    if track_url is None:
+        return None
+    # `urlopen` on the client rather than a bare HTTP call: it carries the
+    # same cookies, headers and proxy settings the extraction used, and a
+    # caption URL fetched without them is frequently rejected.
+    raw: bytes = client.urlopen(track_url).read()
     return raw.decode("utf-8", errors="replace")
+
+
+# One client for every caption fetch in a run, built on first use.
+#
+# `docs/DECISIONS.md` rules that yt-dlp is used as a library precisely so one
+# client is reused across ~1000 videos instead of standing up fresh HTTP state
+# per video. This is the function called once per video, so it is where that
+# ruling actually bites — `list_channel_entries` runs once and never paid the
+# cost the ruling is about. Built lazily rather than at import so that merely
+# importing this module opens nothing, which is what keeps the offline test
+# suite honest.
+#
+# Deliberately not closed: it lives for the process, and the run ends with it.
+_CAPTION_CLIENT: Any = None
+
+
+def _caption_client() -> Any:
+    """The shared caption-fetching client, created once per process."""
+    global _CAPTION_CLIENT
+    if _CAPTION_CLIENT is None:
+        _CAPTION_CLIENT = YoutubeDL(
+            {
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+                "writesubtitles": True,
+                "writeautomaticsub": True,
+                "subtitlesformat": "vtt",
+            }
+        )
+    return _CAPTION_CLIENT
 
 
 def _caption_url(info: dict[str, Any]) -> str | None:
