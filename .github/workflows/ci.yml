@@ -65,6 +65,14 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # On a pull_request event the action lists the PR's commits through the API,
+    # which the default read-only token cannot do — it answers 403 "Resource not
+    # accessible by integration" and the job dies before scanning anything. Ask
+    # for pull-requests read explicitly; contents must be restated because
+    # naming any permission drops the rest to none.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:

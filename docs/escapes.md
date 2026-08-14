@@ -20,3 +20,5 @@ someone guessed at. If the same gate column keeps appearing, that is the signal.
 
 <!-- Append below, newest at the bottom. Never rewrite an entry; if one turns
 out to be wrong, append a correction. -->
+
+| 2026-08-14 | `secrets` job crashed with a 403 on every pull request — the default token cannot list PR commits, so gitleaks never scanned | CI (the gate was present but could not run on the event it matters for) | `secrets` now declares `pull-requests: read`, so the job scans instead of aborting |
