@@ -161,3 +161,43 @@ concerned. This entry is what closes that gap, and the general lesson is the one
 Recorded in `docs/escapes.md` (#13). Bootstrap, not precedent — the standing
 answer is a gate change that gives the design doc a path of its own, which is
 the owner's to make.
+
+## 2026-08-14 — Livestreams stay in the corpus; only Shorts are excluded
+
+The agent proposed excluding past livestreams by yt-dlp's live flag, warning
+that a duration ceiling would silently delete the best content — his normal
+uploads routinely run 40–90 minutes and some deep dives exceed two hours. Owner
+went further and ruled: include livestreams too. Only Shorts are excluded.
+
+Maximum recall, at the cost of substantially more transcript volume to fetch and
+store. The cost consequence is deliberately deferred rather than guessed: it
+shows up as a number at the checkpoint, where it can be acted on.
+
+## 2026-08-14 — Work bundles are XML structure with prose inside
+
+Owner asked whether XML could be used, on the understanding that it is the most
+token-efficient format. The agent corrected the premise: XML is *not* cheaper —
+closing tags cost tokens markdown headings do not. What is true is that XML tags
+are the recommended way to delimit sections in a Claude prompt, because tagged
+boundaries are attended to reliably.
+
+Chosen on the corrected reasoning: XML tags carry the structure and provenance
+(video id, title, timestamp, boards mentioned); the transcript text sits inside
+them as plain prose. Cheap body, reliable boundaries.
+
+## 2026-08-14 — `yt-dlp` is imported as a library, not shelled out to
+
+Owner asked whether the library would be faster given local execution. Partly:
+process startup is negligible, but reusing one client across ~1000 videos avoids
+standing up fresh HTTP state per video, which does add up. Testability does not
+decide it either way — the dependency is isolated behind one module and faked at
+that boundary regardless. Ruled: library.
+
+## 2026-08-14 — The MVP is five slices, not four
+
+Owner overrode the agent's four-slice proposal (index / fetch / select /
+estimate) in favour of five, splitting normalization and the alias table into a
+slice of their own. The reasoning is sound and worth recording: that slice is
+where the recall risk lives — if caption mangling defeats the alias table, the
+corpus is quietly wrong and nothing downstream reveals it — so it earns its own
+checkpoint rather than riding along inside selection.
