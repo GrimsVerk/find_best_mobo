@@ -134,6 +134,25 @@ on, branches as `template/<version>`, commits, pushes, and opens the pull
 request. `--no-pr` stops before the pull request; `--ref HEAD` pulls in a
 template change that has merged but is not tagged yet.
 
+**On a new machine, set the SSH rewrite first.** `_src_path` in
+`.copier-answers.yml` is an `https://` URL, because CI is the one consumer that
+cannot choose its own transport — a runner has no SSH key and cannot resolve a
+host alias from a personal `~/.ssh/config`. If you authenticate to GitHub over
+SSH, route that one URL back through it:
+
+```sh
+git config --global \
+  url."ssh://git@<your-ssh-host>/<owner>/<template-repo>.git".insteadOf \
+  "https://github.com/<owner>/<template-repo>.git"
+```
+
+Scoped to that single URL, so no other remote is affected. It lives in
+`~/.gitconfig`, so it is **per machine** and the repository does not carry it —
+a new laptop needs it again, and the symptom is a password prompt. Do not work
+around that by running `copier update` against the SSH URL directly: that
+rewrites `_src_path` to an alias only your machine can resolve, and
+`template-sync` then fails for everyone.
+
 It stops and hands back to you in exactly one case: a **conflict**, where the
 template changed a file this project also changed. Copier leaves both versions
 in the file with conflict markers around them, and no script can know which side
@@ -145,6 +164,14 @@ to `template-sync`, which replays the update from the base commit and fails
 unless this PR is exactly its output. So the branch may carry the template's
 changes and **nothing else** — if a hand fix is needed on top, it goes in its own
 pull request afterwards, with a plan.
+
+**If the template tightened a dependency pin, the lockfile lags.** `uv.lock`
+still records the old resolution and `uv sync --locked` refuses to install, so CI
+goes red on a change the template made. The template ships no lockfile, so there
+is nothing to fix upstream — run `uv lock` and land it as a **separate `chore/`
+pull request** after the template one merges. It cannot ride along: a `template/`
+branch must be pure `copier update` output, and a regenerated lockfile is not,
+so `template-sync` would reject it.
 
 Expect to approve it yourself. A template update usually touches `.github/` and
 `AGENTS.md`, which `CODEOWNERS` owns, and GitHub will not accept your approval on
