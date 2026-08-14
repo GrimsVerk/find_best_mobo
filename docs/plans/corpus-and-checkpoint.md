@@ -48,6 +48,31 @@ Asked at plan scope before any slice was written; rulings recorded as given.
   as a data file rather than Python; `data/` gitignored so the cache never
   enters git; JSONL for the index; chars÷4 as the starting token factor.
 
+**Raised later, when slice 2 was about to be built** (2026-08-14). The slice as
+written had no legal home for the caption download: `ytdlp.py` is the only
+module permitted to import yt-dlp, and it was not in slice 2's file list, so
+the fetch had nowhere to live and — worse — the blind test author had no
+declared surface to fake. That is the exact failure slice 1's signature block
+was written to prevent, reproduced one slice later. Proposals, for the owner's
+ruling as this revision merges:
+
+- **Q:** Where does the caption download live? — **proposed:** a second boundary
+  function `fetch_caption_track` in `ytdlp.py`, declared in the signatures
+  below, with `ytdlp.py` added to slice 2's file list and the estimate raised
+  from ~420 to ~460 lines. The alternative — importing yt-dlp inside
+  `transcripts.py` — would break the single-network-boundary rule that makes the
+  suite's offline guarantee checkable at one place.
+- **Q:** How is "this video has no captions" distinguished from "reaching
+  YouTube failed"? — **proposed:** the boundary returns `None` for a video with
+  no caption track and raises for anything else. The two are different outcomes
+  in the design's failure ledger (`no_captions` vs `fetch_error`), and a
+  boundary that folded them together would make that distinction guesswork
+  upstream.
+- **Q:** Does `fetch_transcript` read and write the cache, or does `fetch_all`?
+  — **proposed:** `fetch_all` owns the cache entirely. Splitting it leaves
+  "retry only what failed" spread across two functions with no single place to
+  check it.
+
 **One design decision made here, not in the design doc.** Each subcommand lives
 in its own module under `commands/`, and the CLI dispatches by importing the
 module named after the subcommand. This exists so that no two slices touch the
@@ -168,9 +193,9 @@ resolved them differently:**
   Covers R2, R24, R21, R22.
 - **Files:** `src/find_best_mobo/transcripts.py`,
   `src/find_best_mobo/ledger.py`, `src/find_best_mobo/commands/fetch.py`,
-  `tests/test_transcripts.py`, `tests/test_ledger.py`,
-  `tests/fixtures/captions_vtt.txt`
-- **Estimate:** ~420 lines
+  `src/find_best_mobo/ytdlp.py`, `tests/test_transcripts.py`,
+  `tests/test_ledger.py`, `tests/fixtures/captions_vtt.txt`
+- **Estimate:** ~460 lines
 
 ### Signatures
 
@@ -215,7 +240,34 @@ def cache_path(video_id: str, config: Config) -> Path: ...
 def load_cached(video_id: str, config: Config) -> Transcript | None: ...
 def fetch_transcript(video: Video, config: Config) -> Transcript: ...
 def fetch_all(videos: Iterable[Video], config: Config, ledger: Ledger) -> int: ...
+
+
+# The network boundary for captions, added to `ytdlp.py` beside
+# `list_channel_entries` — that module is the only one that imports yt-dlp, and
+# this slice must not be the exception. It is the ONLY surface a test may fake
+# for this slice, declared here for the same reason slice 1 declared its
+# boundary: a test author who has to guess fakes one level deeper, and the two
+# blind authors then disagree at the seam instead of on behaviour.
+#
+# Returns the raw caption track as WebVTT text. Returns None when the video has
+# no caption track at all — an ordinary outcome that the ledger classes as
+# "no_captions", not an error. Anything that goes wrong reaching YouTube raises,
+# and the caller classes it "fetch_error".
+def fetch_caption_track(video_id: str, config: Config) -> str | None: ...
 ```
+
+**Two behaviours the signatures cannot carry:**
+
+- **`fetch_transcript` never consults the cache and never writes it.** It
+  fetches, parses, and returns. `fetch_all` owns the cache: it checks
+  `load_cached` first, calls `fetch_transcript` only on a miss, and writes the
+  result. Keeping the decision in one place is what makes "retry only previously
+  failed videos on a rerun" a property of one function rather than an emergent
+  one.
+- **A halt raises `HaltTriggered` out of `fetch_all`, after the ledger has been
+  written to disk.** The command catches it, prints the ledger, and returns a
+  non-zero exit code. A halt is a deliberate stop with its evidence saved, not a
+  crash — everything fetched before it stays cached, and a rerun resumes.
 
 ## Slice 3 — Mangled caption text folds onto real model names
 
