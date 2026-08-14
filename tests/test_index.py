@@ -16,6 +16,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+
 from find_best_mobo.cli import main
 from find_best_mobo.commands.index import run
 from find_best_mobo.config import Config
@@ -242,7 +243,13 @@ class TestIndexFile:
         # Handed a plain iterator: the signature promises Iterable, not list.
         assert write_index(iter(videos), path) == 4
 
-        assert list(read_index(path)) == videos
+        # write_index emits a canonical order — upload date, then video id — so
+        # the file is byte-identical no matter what order the channel listing
+        # yields its entries (DESIGN R23). The round-trip is lossless, and the
+        # order on disk is the canonical one rather than the input's.
+        expected = sorted(videos, key=lambda video: (video.upload_date, video.video_id))
+        assert list(read_index(path)) == expected
+        assert expected != videos, "fixture must not already be in canonical order"
 
     def test_write_index_empty_round_trips(self, tmp_path: Path) -> None:
         path = tmp_path / "index.jsonl"
