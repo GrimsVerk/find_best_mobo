@@ -7,7 +7,9 @@ description = "Searching Buildzoid videos on YT to extract his top pick for an A
 readme = "README.md"
 requires-python = ">=3.12"
 # No `license` field, by design — see "Licensing" in AGENTS.md.
-dependencies = []
+dependencies = [
+    "yt-dlp>=2026.7.4",
+]
 
 [dependency-groups]
 # Pinned to the same minor as the `rev` values in .pre-commit-config.yaml. An
