@@ -11,9 +11,20 @@ on:
 permissions:
   contents: read
 
+# One review per pull request head at a time. Without this, every push to a PR
+# branch starts another review while the previous one is still running: the
+# older run is judging a diff that no longer exists, and both draw on the same
+# subscription budget as the workers that produced the change.
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   review:
     runs-on: ubuntu-latest
+    # A hung engine would otherwise sit on the runner for GitHub's six-hour
+    # default with the pull request showing "in progress" the whole time.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,6 +51,11 @@ jobs:
           # claude: run `claude setup-token` once and store the result as the
           # CLAUDE_CODE_OAUTH_TOKEN secret (see README, manual setup). The metered
           # ANTHROPIC_API_KEY is only a fallback if you happen to have one.
+          # Both are set unconditionally, so an unconfigured one arrives as the
+          # empty string rather than being absent. review.sh unsets any empty
+          # credential before invoking the engine — an empty ANTHROPIC_API_KEY
+          # is not "no API key", it is an API key that fails to authenticate,
+          # and it can take precedence over a perfectly good OAuth token.
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # codex (FUTURE — not wired yet): must also run on a ChatGPT/Codex
@@ -54,4 +70,7 @@ jobs:
           REVIEW_MODEL: ""
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Which plan this PR is judged against is resolved from the branch
+          # name (see .github/scripts/plan-resolve.sh).
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: .github/scripts/review.sh

@@ -35,13 +35,18 @@ goals — they're how scope stays honest and the build agent doesn't wander. -->
 path and the one or two edge cases that actually shape the design. -->
 
 ## 5. Requirements
-<!-- Functional: what it must DO. Non-functional: the qualities it must have. -->
+<!-- Functional: what it must DO. Non-functional: the qualities it must have.
+
+Give every requirement a stable id (R1, R2, ...). Plans declare which ids they
+implement in their `covers:` field, which is what makes "is the design actually
+built?" a question a script can answer instead of a feeling. Never renumber an
+existing id — append. -->
 
 **Functional**
--
+- **R1** —
 
-**Non-functional** <!-- fill only those that apply -->
-- Platform / targets: <!-- web, iOS, CLI, service, library, etc. -->
+**Non-functional** <!-- fill only those that apply; keep numbering continuous -->
+- **R2** — Platform / targets: <!-- web, iOS, CLI, service, library, etc. -->
 - Performance / scale:
 - Privacy / security / data handling:
 - Offline / connectivity:
@@ -79,7 +84,12 @@ expected — for a draft to leave things open here rather than inventing answers
 ## 12. Milestones / phasing
 <!-- Break the work into increments, MVP first. For each, a one-line scope and
 acceptance criteria (how you know it's done). The MVP should be the smallest thing
-that's actually useful and testable. -->
+that's actually useful and testable.
+
+A milestone here is a coarse phase, not an implementable unit. Breaking one down
+into vertical slices — with file paths, signatures, and estimates — happens in a
+plan (`docs/plans/<slug>.md`), one milestone at a time, when you're ready to
+build it. Don't do that work here. -->
 
 **MVP**
 - Scope:
@@ -90,4 +100,13 @@ that's actually useful and testable. -->
 
 ## 13. Success criteria
 <!-- How you'll know the whole thing worked. Concrete and checkable where possible,
-not "users are happy". Tie back to the goals in section 3. -->
+not "users are happy". Tie back to the goals in section 3.
+
+Give each one a stable id (S1, S2, ...). These are what the acceptance pass
+checks at the end, one row per id in `docs/acceptance.md`, with evidence. Write
+them so that evidence is possible: "startup under 2s on the target device" can be
+shown, "feels fast" cannot. Mark the ones only you can verify — anything needing
+real hardware, real users, or a judgement call — because an agent must not claim
+to have checked those. -->
+
+- **S1** —

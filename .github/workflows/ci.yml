@@ -6,14 +6,112 @@ on:
   push:
   pull_request:
 
+# Triggering on both push and pull_request means an open PR gets two runs per
+# push. That duplication is deliberate (a branch gets CI before any PR exists),
+# but a SUPERSEDED run is pure waste — it is testing a commit nobody will merge.
+# Cancel in progress, keyed per workflow and ref, which matters most on the
+# swift variant where every job is a macOS runner at ~10x the minute cost.
+# The raw-block wrapper below is required: this file is a Jinja template, and
+# Jinja would consume a dollar-brace-brace expression before GitHub ever saw it.
+# The other workflows are copied verbatim and need no such wrapper. (Do not name
+# the wrapper tag in a comment — Jinja reads it there too, and the comment opens
+# a real block. That mistake renders a broken workflow that still looks fine in
+# the template source.)
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Mechanical precondition, not a code judgment: does this PR resolve to exactly
+  # one plan? Kept a separate check from `review` on purpose — a red `plan` says
+  # the branch/plan wiring is broken, where a red `review` would read as "the
+  # reviewer rejected the code". Hard-fails: an estimate the reviewer never
+  # receives is a gate that quietly stopped working. Branches with an exempt
+  # prefix (chore/, docs/) pass without a plan. Always ubuntu — this is a text
+  # match, and it must not sit behind a macOS runner on the Swift variant.
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the check reads the plan as it exists at the merge
+          # base, and measures an exempt branch's size against it.
+          fetch-depth: 0
+      - name: Resolve the plan for this branch
+        # GITHUB_HEAD_REF is the PR's source branch, set by Actions on
+        # pull_request events. The base SHA is derived in the shell for the same
+        # reason as in test-the-tests below: this file is a Jinja template, and
+        # Jinja would consume a dollar-brace-brace expression before GitHub saw
+        # it. Do not "simplify" this into the github.event.pull_request context.
+        run: |
+          BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)"
+          PLAN="$(HEAD_REF="$GITHUB_HEAD_REF" BASE_SHA="$BASE_SHA" \
+                  .github/scripts/plan-resolve.sh)"
+          # An exempt branch resolves to no plan and has nothing to validate.
+          [ -n "$PLAN" ] || exit 0
+          # The plan must also be READABLE. A plan the parser cannot understand
+          # produces no estimates and no file list, which reaches the reviewer
+          # as an empty table it has been told to treat as ground truth — so it
+          # fails here instead, where the message can say what to fix.
+          git show "$BASE_SHA:$PLAN" | .github/scripts/plan-parse.sh >/dev/null
+
+  # Secret scanning belongs in CI, not only in a local hook. gitleaks runs in
+  # pre-commit too, but pre-commit requires `pre-commit install` on every clone
+  # — an agent working in a fresh worktree, or anyone who skipped that step,
+  # bypasses it entirely. A committed credential is exactly the thing that must
+  # not depend on someone having run a setup command.
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: a secret removed in a later commit is still in the
+          # repository, and still needs rotating.
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync
+      # --locked, not a bare sync: it fails if uv.lock is missing or out of date
+      # with pyproject.toml, rather than silently resolving something different
+      # from what anyone tested locally. Commit uv.lock.
+      - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest
+
+  # The ratchet's one seeded check (AGENTS.md): revert the implementation, keep
+  # the new tests, and fail if the suite still passes — tests that pass without
+  # the code under test are testing nothing.
+  test-the-tests:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the check diffs the PR against its merge base.
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - name: Tests must fail without the implementation
+        # The SHAs are derived in the shell rather than from a GitHub Actions
+        # expression on purpose: this file is a Jinja template, and Jinja would
+        # consume a dollar-brace-brace expression before GitHub ever saw it.
+        # Do not "simplify" this into the github.event.pull_request context.
+        run: |
+          BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
+          HEAD_SHA="$(git rev-parse HEAD)" \
+          .github/scripts/test-the-tests.sh
+

@@ -19,9 +19,27 @@ permissions:
 
 jobs:
   arm-auto-merge:
+    # Two conditions, and the second one matters more than it looks.
+    #
     # Draft PRs are not armed; mark ready for review to opt in.
-    if: github.event.pull_request.draft == false
+    #
+    # Only PRs from a branch IN THIS REPOSITORY are armed. Required approvals is
+    # 0 by design (see the README), so arming a fork's pull request would mean
+    # any outside contributor's change merges the moment checks go green, with
+    # nobody having read it. Today fork PRs happen to fail the review gate
+    # anyway — secrets are not exposed to them, so the credential is missing and
+    # the job fails closed — but that is an accident of how GitHub scopes
+    # secrets, not a policy, and it would silently stop protecting anything the
+    # day the review gate learned to run without one.
+    #
+    # This also covers bot PRs from forks. A dependency bot pushing to a branch
+    # in this repository IS still armed: that is the intended behaviour for a
+    # repo that opted into auto-merge, and the review gate and CI still gate it.
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Enable auto-merge (merge commit)
         # Merge commit (not squash): it preserves the exact commits CI tested and

@@ -1,9 +1,9 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-_commit: v0.3.0
+_commit: v0.4.0
 _src_path: git+ssh://git@github.com-grimsverk/GrimsVerk/grimsverk-template.git
 auto_merge: true
 code_owner: '@GrimsVerk'
 description: Searching Buildzoid videos on YT to extract his top pick for an AMD mobo.
 language: python
 project_name: Finding Best Mobo by Buildzoid
-project_slug: find_best_mobo
+project_slug: find-best-mobo

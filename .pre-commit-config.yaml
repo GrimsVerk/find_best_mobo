@@ -1,5 +1,10 @@
 # Git-level enforcement. This (plus CI) is the gate that holds regardless of
 # which tool or agent wrote the code. Enable with: pre-commit install
+# VERSION PINNING. The `rev` values here and the version constraints in
+# pyproject.toml's dev group must agree. If pre-commit runs ruff 0.15 while CI
+# runs whatever `uv sync` resolved, the two disagree about formatting and you
+# get the worst debugging loop there is: green locally, red in CI, with no diff
+# to explain it. Bump both together, in the same commit.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.22

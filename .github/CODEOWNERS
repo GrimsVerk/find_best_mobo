@@ -19,3 +19,29 @@
 
 # Any root-level CODEOWNERS, in case one is added later.
 /CODEOWNERS                  @GrimsVerk
+
+# The gates' INPUTS, which are load-bearing for exactly the same reason as the
+# gates themselves. The review check judges each diff against these documents;
+# left unowned, a pull request could rewrite the rule it violates, restate the
+# design it diverges from, or adjust the estimates it overran, and the gate would
+# grade it against the edited version. The scripts read them at the base commit
+# so a single PR cannot do this — CODEOWNERS is what stops it being done in two.
+/AGENTS.md                   @GrimsVerk
+/CLAUDE.md                   @GrimsVerk
+/docs/DESIGN.md              @GrimsVerk
+/docs/plans/                 @GrimsVerk
+
+# The append-only ledgers. Their value is that entries are never quietly
+# revised — an escape edited out of the log is an escape that buys no check.
+/docs/escapes.md             @GrimsVerk
+/docs/acceptance.md          @GrimsVerk
+
+# The Claude permission deny list. Vendor-specific and deletable, but while it
+# exists an agent must not be able to widen its own permissions.
+/.claude/settings.json       @GrimsVerk
+
+# The template-owned glossary. Replaced wholesale by `copier update`, so an edit
+# here is not just unreviewed, it is about to be silently lost — words belong in
+# GLOSSARY.project.md, which is deliberately NOT owned so it can grow freely
+# during a project.
+/GLOSSARY.md                 @GrimsVerk

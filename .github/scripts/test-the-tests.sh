@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+#
+# test-the-tests.sh — do the new tests actually test anything?
+#
+# Reverts the IMPLEMENTATION portion of the pull request, leaves the tests at
+# their new state, and re-runs the suite. If the suite STILL PASSES, the new
+# tests do not depend on the code they claim to cover — they are testing nothing,
+# and this check fails.
+#
+# This is the one seeded check of the ratchet (AGENTS.md). It is the highest
+# value single check available to a maintainer who does not read the tests: a
+# test suite that passes without its implementation is worse than no suite, it
+# is a green light wired to nothing. Every further check should be added because
+# docs/escapes.md asked for it, not on speculation.
+#
+# It runs only when a PR changes BOTH implementation and tests. A PR touching
+# only one of the two has nothing to cross-check, and is skipped rather than
+# guessed at.
+#
+# Required env:
+#   BASE_SHA, HEAD_SHA   commits bounding the PR diff (base...head)
+
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+: "${BASE_SHA:?BASE_SHA is required}"
+: "${HEAD_SHA:?HEAD_SHA is required}"
+
+skip() { echo "test-the-tests: SKIP — $*"; exit 0; }
+
+# Language is detected from the files present, so this script stays the same for
+# every variant; only the runner in ci.yml differs.
+if [[ -f pyproject.toml ]]; then
+  IMPL_DIR="src"; TEST_DIR="tests"
+elif [[ -f project.yml ]]; then
+  IMPL_DIR="Sources"; TEST_DIR="Tests"
+else
+  skip "no pyproject.toml or project.yml — cannot tell implementation from tests"
+fi
+
+changed() { git diff --name-only "${BASE_SHA}...${HEAD_SHA}" -- "$1"; }
+[[ -n "$(changed "$IMPL_DIR")" ]] || skip "this PR changes no files under $IMPL_DIR/"
+[[ -n "$(changed "$TEST_DIR")" ]] || skip "this PR changes no files under $TEST_DIR/"
+
+run_suite() {
+  if [[ "$IMPL_DIR" == "src" ]]; then
+    if command -v uv >/dev/null 2>&1; then uv run pytest -q; else pytest -q; fi
+  else
+    # The .xcodeproj is generated from project.yml and is not committed, so it
+    # must be regenerated after the working tree changes underneath it.
+    xcodegen generate >/dev/null
+    local proj scheme
+    proj="$(find . -maxdepth 1 -name '*.xcodeproj' | head -1)"
+    scheme="$(basename "$proj" .xcodeproj)"
+    xcodebuild test -project "$proj" -scheme "$scheme" \
+      -destination 'platform=iOS Simulator,name=iPhone 16' \
+      CODE_SIGNING_ALLOWED=NO
+  fi
+}
+
+# shellcheck disable=SC2317  # invoked via the EXIT trap below, not inline
+restore() { git checkout "$HEAD_SHA" -- "$IMPL_DIR" 2>/dev/null || true; }
+trap restore EXIT
+
+echo "test-the-tests: reverting $IMPL_DIR/ to $BASE_SHA, keeping $TEST_DIR/ at $HEAD_SHA"
+
+# Files this PR ADDED under the implementation dir won't be removed by a checkout
+# of the base tree — they simply didn't exist there — so delete them explicitly.
+while IFS= read -r f; do
+  [[ -n "$f" ]] && rm -f "$f"
+done < <(git diff --diff-filter=A --name-only "${BASE_SHA}...${HEAD_SHA}" -- "$IMPL_DIR")
+
+# Restore the rest to their base state, if the directory existed at base at all.
+if git rev-parse --verify --quiet "${BASE_SHA}:${IMPL_DIR}" >/dev/null 2>&1; then
+  git checkout "$BASE_SHA" -- "$IMPL_DIR"
+fi
+
+set +e
+run_suite
+SUITE_RC=$?
+set -e
+
+echo
+if [[ "$SUITE_RC" -eq 0 ]]; then
+  cat >&2 <<EOF
+test-the-tests: FAIL
+
+The suite PASSED with this PR's implementation reverted. The tests added here do
+not exercise the code they are supposed to cover — they would stay green if the
+implementation were deleted, so they cannot tell you it works.
+
+Usual causes:
+  - the test asserts on a mock or fixture rather than the real code path
+  - the test only checks that something doesn't raise
+  - the behaviour under test is never actually invoked
+  - the test duplicates an existing one and the new code is untested
+
+Fix the tests, not this check. If you believe this is a false positive, it is an
+escape: record it in docs/escapes.md with the reasoning.
+EOF
+  exit 1
+fi
+
+echo "test-the-tests: PASS — the suite fails without the implementation, so the tests depend on it."
+exit 0
