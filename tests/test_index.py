@@ -414,3 +414,137 @@ class TestRunAndCli:
         assert main(["index"]) == 0
 
         assert (tmp_path / "data" / "index.jsonl").is_file()
+
+
+# Stable markers for the zero-duration ruling, taken from the ruling's own
+# words ("zero duration", "warn loudly") rather than any particular prose the
+# summary might use.
+ZERO_DURATION_MARKER = re.compile(r"zero[\s-]?duration", re.IGNORECASE)
+WARNING_MARKER = re.compile(r"warn", re.IGNORECASE)
+
+
+class TestZeroDurationReporting:
+    """Owner's ruling (plan amendment): at most one zero duration is benign.
+
+    A missing duration reads as 0 and excludes the video as a Short. Exactly
+    one such video is explained — a stream in progress reports no duration,
+    and he can only be live in one place at a time. Two or more mean the zero
+    has some other cause and videos are being dropped silently, so the summary
+    must always report the zero-duration count and warn loudly, naming the
+    affected video ids, when it exceeds one.
+    """
+
+    @pytest.fixture
+    def channel_entries(self, request: pytest.FixtureRequest) -> list[dict[str, object]]:
+        """Override the module fixture: a listing with N zero-duration entries.
+
+        The parameter is the number of zero-duration entries. Both ways a zero
+        can arrive — a null duration and a literal 0 — are represented, since
+        the ruling counts videos that "report a zero duration" either way.
+        """
+        zero_count: int = request.param
+        entries = [
+            make_entry(),
+            make_entry(
+                id="sh0rtVid002",
+                title="This VRM heatsink is fake",
+                duration=45,
+                upload_date="20240501",
+            ),
+        ]
+        entries.extend(
+            make_entry(
+                id=f"zeroDur{i:04d}",
+                title=f"Listing entry {i} with no reported duration",
+                duration=None if i % 2 == 0 else 0,
+                upload_date="20240701",
+            )
+            for i in range(zero_count)
+        )
+        return entries
+
+    @staticmethod
+    def _zero_ids(channel_entries: list[dict[str, object]]) -> list[str]:
+        return [str(entry["id"]) for entry in channel_entries if not entry["duration"]]
+
+    @staticmethod
+    def _zero_duration_report(out: str) -> str:
+        lines = [line for line in out.splitlines() if ZERO_DURATION_MARKER.search(line)]
+        assert lines, f"summary never reports the zero-duration count: {out!r}"
+        return "\n".join(lines)
+
+    @pytest.mark.parametrize("channel_entries", [0, 1], indirect=True)
+    def test_counts_of_zero_and_one_are_reported_without_warning(
+        self,
+        boundary_calls: list[tuple[str, date]],
+        channel_entries: list[dict[str, object]],
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        zero_count = len(self._zero_ids(channel_entries))
+
+        assert run(make_config(tmp_path / "data"), Namespace()) == 0
+
+        captured = capsys.readouterr()
+        # The count is reported even when it is 0, on the same line that names
+        # the zero-duration concept, so 0 cannot be confused with silence.
+        report = self._zero_duration_report(captured.out)
+        assert re.search(rf"\b{zero_count}\b", report), (
+            f"zero-duration report omits the count {zero_count}: {report!r}"
+        )
+        # One zero is the live-stream-in-progress case: explained, no warning.
+        assert not WARNING_MARKER.search(captured.out + captured.err)
+
+    @pytest.mark.parametrize("channel_entries", [2, 3], indirect=True)
+    def test_two_or_more_warn_and_name_the_affected_videos(
+        self,
+        boundary_calls: list[tuple[str, date]],
+        channel_entries: list[dict[str, object]],
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        zero_ids = self._zero_ids(channel_entries)
+
+        # A warning, not a failure: the ruling changes reporting only.
+        assert run(make_config(tmp_path / "data"), Namespace()) == 0
+
+        captured = capsys.readouterr()
+        everything = captured.out + captured.err
+        report = self._zero_duration_report(captured.out)
+        assert re.search(rf"\b{len(zero_ids)}\b", report)
+        assert WARNING_MARKER.search(everything), (
+            f"no warning for {len(zero_ids)} zero-duration videos: {everything!r}"
+        )
+        # The ids are what let the cause be chased; the calm summary never
+        # prints ids, so their presence is attributable to the warning.
+        for video_id in zero_ids:
+            assert video_id in everything, f"warning does not name {video_id}: {everything!r}"
+
+    @pytest.mark.parametrize("channel_entries", [2], indirect=True)
+    def test_warning_changes_reporting_only_not_classification(
+        self,
+        boundary_calls: list[tuple[str, date]],
+        channel_entries: list[dict[str, object]],
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        # Guard against a future "fix" that reacts to the warning by keeping
+        # the videos: zero-duration videos are still excluded Shorts, and the
+        # summary's kept/excluded counts are unchanged by the warning.
+        config = make_config(tmp_path / "data")
+        assert run(config, Namespace()) == 0
+
+        by_id = {video.video_id: video for video in read_index(config.data_dir / "index.jsonl")}
+        assert len(by_id) == 4
+        for video_id in self._zero_ids(channel_entries):
+            assert by_id[video_id].duration_seconds == 0
+            assert by_id[video_id].classification == "short"
+            assert by_id[video_id].inclusion == "excluded_short"
+        kept = [video for video in by_id.values() if video.inclusion == "pending"]
+        assert [video.video_id for video in kept] == ["b0ardLong01"]
+
+        out = capsys.readouterr().out
+        # 4 found, 1 kept, 3 Shorts (the real Short plus both zero-duration
+        # videos) — all distinct from the zero-duration count of 2.
+        for count in (4, 1, 3):
+            assert re.search(rf"\b{count}\b", out), f"summary omits the count {count}: {out!r}"
