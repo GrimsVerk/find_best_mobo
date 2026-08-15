@@ -11,7 +11,7 @@ name: Auto-merge
 # See the README's manual-setup section.
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, synchronize]
+    types: [opened, reopened, ready_for_review, synchronize, closed]
 
 permissions:
   contents: write
@@ -36,6 +36,7 @@ jobs:
     # in this repository IS still armed: that is the intended behaviour for a
     # repo that opted into auto-merge, and the review gate and CI still gate it.
     if: >-
+      github.event.action != 'closed' &&
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -47,6 +48,10 @@ jobs:
         # history, since nothing is human-reviewed before it lands. Reverting a
         # bad PR is still one line: `git revert -m 1 <merge-sha>` (see README).
         # Needs "Allow merge commits" enabled on the repo (the default).
+        #
+        # NOTE: --delete-branch does NOT survive --auto, and the branch cleanup
+        # lives in the job below instead. See the comment there — it was tried
+        # here first and silently did nothing.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -64,4 +69,55 @@ jobs:
         #
         # `contents: write` above already covers the deletion; nothing else is
         # needed, and nothing about branch protection changes.
-        run: gh pr merge --auto --merge --delete-branch "$PR_URL"
+        run: gh pr merge --auto --merge "$PR_URL"
+
+  # Delete the head branch once the pull request has actually merged.
+  #
+  # WHY THIS IS A JOB AND NOT A FLAG, WHICH IS WHAT WAS TRIED FIRST.
+  #
+  # Two mechanisms look like they already cover this, and neither does when the
+  # merge is completed by auto-merge:
+  #
+  #   - the repository setting "Automatically delete head branches". Observed
+  #     downstream: every pull request a HUMAN merged in the UI had its branch
+  #     removed, and every one completed by auto-merge did not. Twenty-two
+  #     branches accumulated that way against two that cleaned up correctly;
+  #   - `gh pr merge --auto --delete-branch`. This was the first fix and it is a
+  #     NO-OP. `gh` deletes the branch itself, after performing the merge — but
+  #     with --auto it hands the merge to GitHub and returns immediately, so the
+  #     deletion step it would have run never runs. It exits 0 and says nothing,
+  #     which is how the fix looked correct for a whole release. The flag is
+  #     gone from the step above rather than left as decoration.
+  #
+  # So the deletion is done here, keyed on the one event that is unambiguous:
+  # the pull request closed AND merged. That is independent of who merged it,
+  # how, and whether auto-merge was involved.
+  #
+  # A CLOSED-BUT-UNMERGED pull request keeps its branch. The work is unmerged by
+  # definition, and deleting it would destroy the only copy over what is often a
+  # temporary decision.
+  delete-merged-branch:
+    # Same-repository branches only: a fork's branch is not ours to delete.
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Delete the merged head branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        # `|| true` on the delete, deliberately: the repository setting may have
+        # got there first, and a race that leaves the branch already gone is the
+        # desired end state, not a failure. Anything else prints and is visible
+        # in the run.
+        run: |
+          if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$HEAD_REF"; then
+            echo "Deleted $HEAD_REF."
+          else
+            echo "Could not delete $HEAD_REF — it may already be gone." >&2
+          fi

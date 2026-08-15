@@ -92,6 +92,12 @@ DESIGN_DOC="${DESIGN_DOC:-docs/DESIGN.md}"
 # no entry here — it is already inside PLANS_DIR.
 ORACLE_DOC="${ORACLE_DOC:-docs/DESIGN.oracle.md}"
 ORACLE_DIR="${ORACLE_DIR:-docs/oracle}"
+# docs/VISION.md belongs here for exactly the same reasons as the design doc: it
+# is CODEOWNERS-owned, no plan can cover it, and a filled-in one runs to well
+# over a hundred lines. Left out, the single document the whole oracle
+# arrangement depends on was the one document that could not be written — the
+# branch writing it failed the plan check at 114 added lines.
+VISION_DOC="${VISION_DOC:-docs/VISION.md}"
 
 ROOT="$(git rev-parse --show-toplevel)"
 PLANS_DIR="${PLANS_DIR:-docs/plans}"
@@ -122,14 +128,15 @@ for prefix in "${EXEMPT_PREFIXES[@]}"; do
     while IFS= read -r path; do
       [[ -z "$path" ]] && continue
       case "$path" in
-        "$PLANS_DIR"/*|"$DESIGN_DOC"|"$ORACLE_DOC"|"$ORACLE_DIR"/*) ;;
+        "$PLANS_DIR"/*|"$DESIGN_DOC"|"$ORACLE_DOC"|"$ORACLE_DIR"/*|"$VISION_DOC") ;;
         *) planning_only=0; break ;;
       esac
     done < <(git -C "$ROOT" diff --name-only "${BASE_SHA}...${HEAD_SHA}")
 
     if [[ "$planning_only" -eq 1 && "$added" -gt "$EXEMPT_MAX_ADDED" ]]; then
       echo "plan-resolve: branch '$HEAD_REF' adds $added lines, all of them in \
-$PLANS_DIR/, $DESIGN_DOC, $ORACLE_DOC or $ORACLE_DIR/ — the planning documents \
+$PLANS_DIR/, $DESIGN_DOC, $VISION_DOC, $ORACLE_DOC or $ORACLE_DIR/ — the \
+planning documents \
 themselves, which no plan can cover. Exempt from the size cap; the owner still \
 reviews $DESIGN_DOC and $PLANS_DIR/ via CODEOWNERS, and $ORACLE_DOC is \
 constrained by the oracle-decisions check instead." >&2
@@ -145,8 +152,8 @@ this size needs a plan: copy $PLANS_DIR/_TEMPLATE.md to $PLANS_DIR/<slug>.md,
 land it, then branch with the slug in the branch name.
 
 The cap does not apply to a branch whose additions are ENTIRELY within
-$PLANS_DIR/, $DESIGN_DOC, $ORACLE_DOC or $ORACLE_DIR/ — writing a plan is not
-skipping planning. This
+$PLANS_DIR/, $DESIGN_DOC, $VISION_DOC, $ORACLE_DOC or $ORACLE_DIR/ — writing a
+plan is not skipping planning. This
 branch touches something else as well, so it is not that case. Split it: the
 planning documents on one branch, the rest on its own with a plan behind it.
 
