@@ -52,12 +52,20 @@ simply being unavailable until BL-5 is ruled on.
 - **Q:** Should `install.sh` install `uv` itself, or only detect it and tell the
   owner what to run? — **proposed:** install it, since "two commands" is the
   stated goal and a script that stops to give instructions is not that.
-  **Ruling:** _pending_
+  **Ruling:** 2026-08-15 — install it, **and check it is up to date when it is
+  already present**: "see if uv is installed, if it is (and up to date), then
+  proceed, if not, install uv". So the present-and-current case is not a bare
+  skip; the script asks uv to update itself, which is both halves of the check in
+  one call. A uv owned by a package manager cannot self-update, and that is
+  reported and stepped over rather than failing a working machine.
 - **Q:** Should the BL-5 Python workaround ship, or should `aliases` be omitted
   until BL-5 is ruled on? — **proposed:** ship it, commented and naming BL-5,
   because the recall report is the one thing that tells the owner whether the
   alias table is any good before a full run.
-  **Ruling:** _pending_
+  **Ruling:** 2026-08-15 — ship it, on the owner's stated trust in the
+  recommendation rather than on an independent judgement of the trade. Worth
+  recording as such: the workaround stays visible and reverts to a plain CLI call
+  when BL-5 is ruled on.
 
 ## The slices
 
