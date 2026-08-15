@@ -15,9 +15,9 @@ covers `uv sync` and `uv run pytest` and says nothing about running the thing.
 The owner wants **two commands**: one that makes the machine ready, once, and one
 that runs everything.
 
-- **`scripts/install.sh`** — checks for `uv` and installs it **only if missing**,
-  then `uv sync --locked`, then verifies the package imports. Idempotent; every
-  step reports whether it acted or skipped.
+- **`scripts/install.sh`** — installs `uv` if it is missing and **checks it is up
+  to date if it is present** (owner ruling, below), then `uv sync --locked`, then
+  verifies the package imports. Idempotent; every step reports what it did.
 - **`scripts/run.sh`** — `index → fetch → select → estimate`, in order, stopping
   on first failure, and stopping at the cost projection because there is no code
   that continues.
@@ -33,8 +33,10 @@ Decisions the owner could refuse:
   visible rather than buried, and it reverts to a plain CLI call once BL-5 is
   ruled on. **A visible workaround for a known defect, not a fix for it.**
 - **`install.sh` runs the official `astral.sh` installer** when `uv` is absent —
-  a `curl | sh` from a third-party host. Skipped entirely when `uv` is present,
-  which on the owner's machine it already is.
+  a `curl | sh` from a third-party host. Not reached when `uv` is present, which
+  on the owner's machine it already is — that case runs `uv self update` instead,
+  and a failure there (a package-manager-owned `uv`, a rate-limited check) is
+  reported and stepped over rather than failing an otherwise working machine.
 - **No caching work is needed and none is done.** `fetch_all` already skips any
   video in `data/transcripts/` and reports "N already cached"; that is `R2`.
 - **These scripts add no product behaviour and cover no requirement**, so
@@ -43,9 +45,8 @@ Decisions the owner could refuse:
 
 Costs: one new directory of shell, and a `curl | sh` path the owner may not want.
 
-Open questions for the owner: whether the `curl | sh` install path is acceptable,
-and whether the BL-5 workaround should exist at all rather than the diagnostic
-simply being unavailable until BL-5 is ruled on.
+Open questions for the owner: none remaining. Both were ruled on 2026-08-15 and
+the rulings are recorded under **Uncertainties** below.
 
 ## Uncertainties
 
