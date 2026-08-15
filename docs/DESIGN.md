@@ -183,9 +183,12 @@ specific fact I would need to confirm myself before buying.
   one for the channel, to sharpen a boundary that is a preference rather than a
   rule.
 - **R26** — Total model spend for the extraction effort is capped at 10% of the
-  owner's weekly subscription limits. The pipeline cannot read those limits, so
-  the cap is enforced by owner readings taken before and after the calibration
-  batch, against which the projection is corrected.
+  owner's weekly subscription limits. The cap is enforced against real readings
+  rather than the projection: the agent takes one before a batch, one after it,
+  and one part-way through a long batch, so a run stops before crossing the line
+  instead of discovering the overrun afterwards. The reading is approximate and
+  counts only local sessions on this machine, so the owner's own figure remains
+  authoritative for §13.
 - **R27** — No completed work is lost to an overrun. Every model output is
   written to disk as it is produced rather than at the end of a batch, and full
   transcripts are retained after excerpting rather than discarded. Exceeding the
