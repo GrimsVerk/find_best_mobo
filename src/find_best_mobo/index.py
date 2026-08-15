@@ -12,13 +12,24 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from find_best_mobo.config import Config
 from find_best_mobo.ytdlp import list_channel_entries
 
 _LIVE_STATUSES = frozenset({"is_live", "was_live", "post_live"})
+
+# Fixed by owner ruling, not configuration: the listing's dates are bucketed to
+# roughly mid-month, so the comparison date is moved back far enough that no
+# video uploaded on or after config.start_date can be excluded. Two months is
+# deliberately more than the observed bucketing needs.
+DATE_SLOP_DAYS: int = 62
+
+
+def effective_start_date(config: Config) -> date:
+    """The date videos are compared against: the configured start, minus slop."""
+    return config.start_date - timedelta(days=DATE_SLOP_DAYS)
 
 
 @dataclass(frozen=True)
@@ -39,12 +50,21 @@ def classify(entry: dict[str, object], config: Config) -> Video:
     Short uploaded before the start date is excluded as a Short (owner ruling
     recorded in the plan). Livestreams are never excluded, and neither is any
     duration above the Shorts threshold — only Shorts are excluded.
+
+    The date comes from `upload_date` (yt-dlp's `YYYYMMDD` string, the
+    per-video extraction path) or, when that is absent or unparseable, from
+    `timestamp` (epoch seconds as UTC, the flat channel listing path). The
+    listing's dates are bucketed, so the range comparison uses
+    `effective_start_date` rather than the configured start — but the date
+    recorded on the `Video` is always the real one, never the shifted one.
     """
     duration = _duration(entry.get("duration"))
     upload_date = _upload_date(entry.get("upload_date"))
+    if upload_date is None:
+        upload_date = _timestamp_date(entry.get("timestamp"))
     if duration <= config.shorts_max_seconds:
         classification, inclusion = "short", "excluded_short"
-    elif upload_date is None or upload_date < config.start_date:
+    elif upload_date is None or upload_date < effective_start_date(config):
         classification, inclusion = "regular", "excluded_out_of_range"
     else:
         classification, inclusion = "regular", "pending"
@@ -115,6 +135,16 @@ def _upload_date(value: object) -> date | None:
     try:
         return date(int(value[:4]), int(value[4:6]), int(value[6:8]))
     except ValueError:
+        return None
+
+
+def _timestamp_date(value: object) -> date | None:
+    """Interpret epoch seconds as a UTC date; zero is 1970-01-01, not missing."""
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return None
+    try:
+        return datetime.fromtimestamp(value, tz=UTC).date()
+    except (OverflowError, OSError, ValueError):
         return None
 
 
