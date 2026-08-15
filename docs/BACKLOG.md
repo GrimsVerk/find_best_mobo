@@ -59,6 +59,12 @@ fixed, not that the objection lapsed.
   table is loaded from.** Both blind authors independently chose
   `config.data_dir / "aliases.toml"` and so agreed, but the plan says only
   `data/aliases.toml`, which reads as a fixed path. Worth stating.
+- **`corpus-and-checkpoint` slice 5 — a missing index makes the projection
+  understate itself silently.** `project` counts `videos_indexed` as 0 when
+  `data/index.jsonl` is absent, so `estimate` still prints a projection whose
+  denominator reads as a real number rather than an absence. Neither plan nor
+  contract said what to do, so it was built the forgiving way. A cost projection
+  the owner spends against should probably refuse rather than under-report.
 
 ## Proposed
 
