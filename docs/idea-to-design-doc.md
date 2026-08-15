@@ -144,8 +144,13 @@ Write the finished doc back into `docs/DESIGN.md`, replacing the skeleton.
 plan anything. I have just read a finished design, which is the point at which
 "what would you trade away" is easiest to answer honestly.
 
-Both documents land on the same pull request when they are written together.
-`CODEOWNERS` owns them both, so merging it is my ruling on both.
+**Then push the branch and stop. Do not open the pull request.** I open it, read
+the diff, and merge — and that reading is the point, because these two documents
+are what everything else gets judged against. It is checked rather than trusted:
+`.github/scripts/owner-authored.sh` fails a pull request touching either file
+that I did not open. Tell me the branch name in your report.
+
+Both documents can travel on the same branch when they are written together.
 
 ## After the design doc: the plan
 

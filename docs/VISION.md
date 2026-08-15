@@ -11,18 +11,22 @@ the statement here that it leaned on (`docs/DESIGN.oracle.md`). When a decision
 comes out wrong, the owner edits the statement rather than arguing with the
 decision, and every future decision moves with it.
 
-**No agent AUTHORS this file. An agent may only TRANSCRIBE it**, and the
-difference is the whole point. Writing down what the owner said in an interview
-— in their words, on a pull request they then approve — is how the file gets
-filled in at all; `/design` does exactly that. What no agent may do is decide
-what belongs here, revise a statement on its own judgement, soften one that
-produced an inconvenient decision, or add a sentence the owner never said. An
-agent that could do any of those would be steering itself, which is the one
-thing this arrangement exists to prevent.
+**An agent may WRITE this file. Only the owner LANDS it.** `/design` interviews
+the owner and writes their answers into a branch, which is most of the work —
+and then stops. The owner opens the pull request themselves, reads the diff, and
+merges. That is checked, not asked for: `.github/scripts/owner-authored.sh`
+fails any pull request touching this file that the owner did not open.
 
-So the test is not "did an agent touch the file". It is: **is every sentence
-here one the owner actually said?** A transcription pull request carries that
-and nothing else, and the owner's merge is the confirmation.
+The reason is one line long. **If any agent can land the design, there is no
+reason for `docs/DESIGN.oracle.md` to exist** — an agent that can edit the
+design does not need an evidence ledger, it just edits the design. That second
+document is how an agent corrects the design from real evidence while nobody is
+awake, and it only means anything while this one is out of reach.
+
+`CODEOWNERS` on its own would not draw that line. It requires the owner's
+approval, which is a click on a diff someone else composed and opened. The check
+requires their authorship of the pull request, which is a different claim: it
+means the owner has actually read what these two documents say.
 
 "Best" means **safe**, and safe has a specific technical meaning here. Buildzoid
 has shown, with an oscilloscope, that some boards deliver voltage spikes to the

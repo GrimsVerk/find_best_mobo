@@ -90,6 +90,22 @@ jobs:
         run: |
           BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
             .github/scripts/oracle-decisions.sh
+      - name: The design and the vision are landed by their owner
+        # Not CODEOWNERS twice over: that requires the owner's APPROVAL, which is
+        # one click on a diff someone else composed. This requires the owner's
+        # AUTHORSHIP of the pull request. If any agent can LAND docs/DESIGN.md,
+        # docs/DESIGN.oracle.md has no reason to exist — an agent that can edit
+        # the design does not need an evidence ledger.
+        #
+        # An agent may still write both documents and push the branch; what it
+        # may not do is open the pull request. Plans, the oracle ledger and the
+        # handoffs are untouched by this.
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
+          HEAD_SHA="$(git rev-parse HEAD)" \
+            .github/scripts/owner-authored.sh
       - name: The vision must be finished before work is planned
         # Fires only on a pull request that adds or edits a plan, because that
         # is where implementation begins. The vision does NOT have to be written

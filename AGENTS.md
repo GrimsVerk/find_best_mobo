@@ -162,14 +162,26 @@ already landed — an `ESC-<n>` or a `BL-<n>` — so a design change can only ev
 superseded rather than revised; ids start at **R1000** because requirement ids
 share one integer space; and each decision names the `docs/VISION.md` statement
 it relied on, so the owner steers by editing that statement rather than by
-arguing with each decision. `docs/VISION.md` is `CODEOWNERS`-owned, and **no
-agent AUTHORS it — an agent may only TRANSCRIBE it.** Writing down what the
-owner said in an interview, in their words, on a pull request they approve, is
-how it gets filled in at all and is what `/design` does. Deciding what belongs
-there, revising a statement on your own judgement, or adding one the owner never
-said is authorship and is forbidden: an agent that could do that would be
-steering itself. The test is not whether an agent touched the file but whether
-every sentence in it is one the owner actually said.
+arguing with each decision.
+
+**`docs/DESIGN.md` and `docs/VISION.md` are WRITTEN by agents and LANDED by the
+owner.** You may write them, commit them, and push the branch — that is most of
+the work, and `/design` does exactly that. You may not open the pull request:
+`.github/scripts/owner-authored.sh` fails any pull request touching either file
+that the owner did not open, and it is a required check. Push the branch, say
+its name in your report, and stop.
+
+The reason is short. **If any agent can land the design, `docs/DESIGN.oracle.md`
+has no reason to exist** — an agent that can edit the design does not need an
+evidence ledger. That ledger is how the design gets corrected from real evidence
+overnight, and it only means something while the design itself is out of reach.
+`CODEOWNERS` would give you the owner's approval on a diff they did not compose;
+this gives their authorship, which means they have read it.
+
+Nothing else moves: plans, `docs/DESIGN.oracle.md` and the handoffs are all
+still written AND opened by agents. This guards project setup, not ongoing work
+— once both documents exist, the orchestrator runs to completion without it
+firing again.
 
 Writing there is the **oracle's** job and nobody else's. If you are not the
 oracle and you believe the design is wrong, that belongs in `docs/BACKLOG.md`
