@@ -35,6 +35,7 @@
 #              as it exists here
 # Optional env:
 #   PLANS_DIR  where plans live (default: docs/plans)
+#   ORACLE_DOC the oracle's design ledger (default: docs/DESIGN.oracle.md)
 #   LEDGER     the escapes ledger (default: docs/escapes.md)
 
 set -euo pipefail
@@ -43,6 +44,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 : "${BASE_SHA:?BASE_SHA is required (the PR base commit)}"
 PLANS_DIR="${PLANS_DIR:-docs/plans}"
 LEDGER="${LEDGER:-docs/escapes.md}"
+ORACLE_DOC="${ORACLE_DOC:-docs/DESIGN.oracle.md}"
 
 # Ids that exist at the base. An absent or empty ledger is not an error here:
 # it just means every citation dangles, which is exactly the right answer for
@@ -62,11 +64,16 @@ have() {
 DOCS=()
 [[ -f "$ROOT/AGENTS.md" ]] && DOCS+=("AGENTS.md")
 [[ -f "$ROOT/docs/DESIGN.md" ]] && DOCS+=("docs/DESIGN.md")
+# The second design document. An oracle decision cites its evidence by id, and
+# an ESC- citation there is exactly as capable of dangling as one in a plan —
+# more so, since it is written unattended.
+[[ -f "$ROOT/$ORACLE_DOC" ]] && DOCS+=("$ORACLE_DOC")
 if [[ -d "$ROOT/$PLANS_DIR" ]]; then
   while IFS= read -r f; do
     [[ "$(basename "$f")" == _* ]] && continue
     DOCS+=("${f#"$ROOT"/}")
-  done < <(find "$ROOT/$PLANS_DIR" -maxdepth 1 -name '*.md' | sort)
+    # No -maxdepth: plans also live in subdirectories (docs/plans/oracle/).
+  done < <(find "$ROOT/$PLANS_DIR" -name '*.md' | sort)
 fi
 
 declare -a DANGLING=()

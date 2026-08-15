@@ -53,7 +53,11 @@ while IFS= read -r file; do
     echo "plan-lint: ${file#"$ROOT"/} DOES NOT PARSE"
     printf '%s\n' "$out" | sed 's/^/  /'
   fi
-done < <(find "$DIR" -maxdepth 1 -name '*.md' | sort)
+  # No -maxdepth: plans also live in subdirectories (docs/plans/oracle/, written
+  # by a steward). A depth limit left those unparsed — and a plan nothing parses
+  # reaches the reviewer as an empty facts table it was told to trust, which is
+  # the exact failure this script exists for.
+done < <(find "$DIR" -name '*.md' | sort)
 
 echo
 if [[ ${#BROKEN[@]} -gt 0 ]]; then

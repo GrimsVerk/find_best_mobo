@@ -13,6 +13,12 @@ project (docs, CI, and pre-commit are untouched).
 - **Command:** `/orchestrate <feature slug>` (see `.claude/commands/orchestrate.md`).
 - **Primitive:** `.claude/scripts/spawn-worker.sh` (one worker per call).
 
+Two further roles exist for unattended runs, and the orchestrator spawns both:
+the **oracle** (`/oracle`), which corrects `docs/DESIGN.oracle.md` from logged
+evidence and leaves a handoff, and the **steward** (`/steward`), which turns one
+of its decisions into a plan. The oracle spawns nothing — see "Deciding and
+commissioning are separate" below.
+
 ## The shape
 
 ```
@@ -46,6 +52,46 @@ It does not violate the one-layer rule below. That rule stops an *agent* from
 spawning an orchestrator, which is what makes a process tree unpredictable and
 leaves nothing that knows what is running. You opening a second window is not
 that: you know what is running, because you started both.
+
+## Deciding and commissioning are separate
+
+The oracle rules on the design. The orchestrator reads its handoff and decides
+what to act on, and spawns the stewards. The oracle spawns nothing.
+
+An agent that both ruled on the design and hired the labour to act on its own
+ruling would be the one arrangement this repository consistently refuses — the
+same separation as code from tests, and as reviewing from merging. It also makes
+the handoff an artifact rather than a private prompt: a prompt is read once by
+one agent and then gone, where a file under `docs/oracle/` is still there when
+someone asks why a plan exists.
+
+It costs nothing structurally. The orchestrator was already the single place
+that knows what is running, and this keeps it that way.
+
+## Roles: model, effort, and reach
+
+`spawn-worker.sh --role <role>` carries the defaults for a kind of work. The
+table and the reasoning behind each entry are in the script's header, which is
+the source of truth; the shape is: **oracle** on Fable at high effort because
+its output is permanent and unreviewed overnight, **steward**, **test-writer**
+and **reviewer** on Opus at high, **coder** on Opus at *medium*, and **explore**
+at low. The orchestrator is Opus at high and is not spawned by this script — it
+is the session you are in.
+
+Two of those are worth understanding rather than just obeying. The coder is
+deliberately a tier below the test-writer: the tests are written blind and in
+parallel, so a coder failure is recoverable by construction, which makes it
+**diagnostic** — a model that cannot pass tests written from the same contract is
+usually telling you the contract is wrong, and a stronger coder would paper over
+that signal instead of raising it. And the test-writer is deliberately not
+cheaper than the coder, because blind authorship assumes two peers; making one
+side cheaper quietly turns the shared contract into whatever the other side
+thought it said.
+
+Role tool grants are the FIRST of two enforcements and not the binding one. A
+grant constrains one agent in one worktree; the required checks constrain every
+route to the default branch. Treat a narrow grant as a way to make the intended
+path the easy one, never as the thing standing between an agent and a document.
 
 ## The one-layer rule
 

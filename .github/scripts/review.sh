@@ -113,6 +113,29 @@ read_at_base() {
 # a wiring fault surfaces as one clearly-named red check rather than two.
 PLAN_PATH="$(HEAD_REF="${HEAD_REF:-}" "${HERE}/plan-resolve.sh" 2>/dev/null || true)"
 
+# Is this a template sync? The reviewer has to be told, or it blocks every
+# template update that touches a workflow — which is most of them, since the
+# template's whole job is shipping the gates. It is not asked to take the
+# branch name on trust: `template-sync` is a REQUIRED check that replays
+# `copier update` and fails unless the tree is byte-for-byte the result, so a
+# hand edit cannot merge whatever this review concludes. That is the same
+# reasoning that makes plan-resolve.sh step aside for these branches.
+#
+# The replay is NOT re-run here. It needs copier, which this job does not
+# install, and duplicating a required check inside a soft one buys nothing: the
+# merge is already conditional on the real one being green.
+TEMPLATE_SYNC_NOTE=""
+case "${HEAD_REF:-}" in
+  template/*)
+    TEMPLATE_SYNC_NOTE="TEMPLATE SYNC: this pull request is on the branch \
+'${HEAD_REF}'. The separate REQUIRED check \`template-sync\` replays \
+\`copier update\` from the base commit and fails unless this tree is \
+byte-for-byte the result, so gate-path edits here are the TEMPLATE's output \
+and this pull request cannot merge unless that is mechanically true. See \
+criterion 5 in your instructions."
+    ;;
+esac
+
 # Section delimiters carry a per-run random nonce. Without one, the delimiters
 # are a fixed string that appears verbatim in this script — so a diff could
 # contain its own "===== END ... =====" line followed by forged instructions,
@@ -127,6 +150,16 @@ $(read_at_base AGENTS.md)
 
 ===== docs/DESIGN.md (intended design, as of the base commit) =====
 $(read_at_base docs/DESIGN.md)
+
+===== docs/DESIGN.oracle.md (evidence-driven design decisions, as of the base commit) =====
+The second design document: append-only decisions an agent may write unattended,
+each citing logged evidence and the docs/VISION.md statement it relied on. Read
+it as part of the intended design. Without it, a pull request implementing an
+oracle requirement is judged against a design that lacks it and reads as
+unjustified scope — which is a review blocking correct work for a reason that is
+an artifact of what the gate was shown.
+
+$(read_at_base docs/DESIGN.oracle.md)
 
 ===== THE PLAN this PR is judged against ($PLAN_PATH) =====
 $(if [[ -n "$PLAN_PATH" ]]; then read_at_base "$PLAN_PATH"; else
@@ -145,6 +178,8 @@ This is a broken gate, not an absence of findings. Treat it as blocking.")
 $("${HERE}/blind-tests.sh" 2>&1 \
   || echo "!!!!! blind-tests.sh FAILED — no blind-authorship facts were computed.
 This is a broken gate, not an absence of findings. Treat it as blocking.")
+
+${TEMPLATE_SYNC_NOTE}
 
 ===== END MECHANICAL FACTS [$NONCE] =====
 

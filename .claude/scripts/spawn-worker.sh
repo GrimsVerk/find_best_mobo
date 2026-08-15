@@ -12,8 +12,14 @@
 #
 # Usage:
 #   spawn-worker.sh --id <name> (--prompt <string> | --prompt-file <path>)
-#                   [--engine codex|claude] [--model <m>] [--base <branch>]
+#                   [--role <role>] [--engine codex|claude] [--model <m>]
+#                   [--effort <level>] [--base <branch>]
 #                   [--bypass-sandbox] [--skip-preflight] [--print-command]
+#
+# --role selects the defaults for that kind of work: which model, how much
+# reasoning effort, and which tools it may reach. See "ROLES" below. An explicit
+# --model or --effort overrides the role's default; SPAWN_WORKER_ALLOWED_TOOLS
+# overrides its tool grants.
 #
 # Env:
 #   SPAWN_PREFLIGHT_CODEX / SPAWN_PREFLIGHT_CLAUDE   override the engine probe
@@ -87,6 +93,8 @@ PROMPT=""
 PROMPT_FILE=""
 ENGINE="codex"
 MODEL=""
+EFFORT=""
+ROLE=""
 BASE=""
 BYPASS=0
 SKIP_PREFLIGHT=0
@@ -99,6 +107,8 @@ while [[ $# -gt 0 ]]; do
     --prompt-file)     PROMPT_FILE="${2:-}"; shift 2 ;;
     --engine)          ENGINE="${2:-}"; shift 2 ;;
     --model)           MODEL="${2:-}"; shift 2 ;;
+    --effort)          EFFORT="${2:-}"; shift 2 ;;
+    --role)            ROLE="${2:-}"; shift 2 ;;
     --base)            BASE="${2:-}"; shift 2 ;;
     --bypass-sandbox)  BYPASS=1; shift ;;
     --skip-preflight)  SKIP_PREFLIGHT=1; shift ;;
@@ -132,13 +142,116 @@ fi
 #
 # Override with SPAWN_WORKER_ALLOWED_TOOLS as a COMMA-separated list; the
 # patterns contain spaces, so commas are the only safe separator here.
-ALLOWED_TOOLS=(
+GIT_TOOLS=(
   "Bash(git add:*)" "Bash(git commit:*)" "Bash(git status:*)"
   "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)"
+)
+BUILD_TOOLS=(
   "Bash(uv run:*)" "Bash(uv sync:*)"
   "Bash(swiftformat:*)" "Bash(swiftlint:*)"
   "Bash(xcodegen:*)" "Bash(xcodebuild:*)"
 )
+ALLOWED_TOOLS=("${GIT_TOOLS[@]}" "${BUILD_TOOLS[@]}")
+PERM_MODE="acceptEdits"
+
+# ROLES — model, effort, and reach, per kind of work.
+#
+# Owner rulings, and the reasoning matters more than the table because the table
+# will be edited and the reasoning is what should survive the edit.
+#
+#   oracle       fable-5 high   Its decisions are append-only, permanent, and
+#                               written unattended. It runs once per run and
+#                               writes little, so it is the cheapest place to
+#                               spend more in absolute terms and the one where a
+#                               mistake is least recoverable.
+#   steward      opus-5 high    Turns a decision into a plan, and plan quality
+#                               is the binding constraint on everything
+#                               downstream: blind authorship faithfully builds a
+#                               wrong contract, and the suite goes green on it.
+#   test-writer  opus-5 high    Deliberately the same tier as the steward and
+#                               ABOVE the coder. Blind authorship assumes two
+#                               peers; making the test side cheaper quietly
+#                               turns the contract into "whatever the coder
+#                               thought".
+#   reviewer     opus-5 high    Reads a diff against fixed documents — a
+#                               narrower job than writing one.
+#   coder        opus-5 medium  Lower ON PURPOSE, and this is the ruling worth
+#                               keeping. The tests are written blind and in
+#                               parallel, so a coder failure is recoverable by
+#                               construction — it gets another attempt and
+#                               nothing merges either way. That makes the
+#                               failure diagnostic: if this model cannot write
+#                               code that passes the tests, the likely fault is
+#                               the TASK DEFINITION, not the coding. Running the
+#                               coder at the steward's tier would mask that
+#                               signal by letting a stronger coder paper over a
+#                               weak contract.
+#   explore      opus-5 low     Read-only search, the highest-volume spawn.
+#
+# The orchestrator is opus-5 high. It is not spawned by this script — it is the
+# session you are sitting in — so it is recorded here and set by /config.
+#
+# `--effort` is passed to the `claude` engine only. codex spells reasoning
+# effort differently and is UNVERIFIED here (no codex on the machine this was
+# written on), so rather than guess a flag, a codex role gets its model and no
+# effort setting, and says so.
+#
+# THE REACH COLUMN IS NOT THE REAL ENFORCEMENT. It is the first of two: the CI
+# checks at merge time are what bind, because a tool grant constrains one agent
+# in one worktree while a required check constrains every route to the default
+# branch. Treat a narrow grant as a way to make the intended path the easy one,
+# never as the thing standing between an agent and a document.
+ORACLE_TOOLS=(
+  "Read" "Grep" "Glob"
+  "Write(docs/DESIGN.oracle.md)" "Edit(docs/DESIGN.oracle.md)"
+  "Write(docs/oracle/**)"
+  "${GIT_TOOLS[@]}"
+)
+STEWARD_TOOLS=(
+  "Read" "Grep" "Glob"
+  "Write(docs/plans/oracle/**)" "Edit(docs/plans/oracle/**)"
+  "${GIT_TOOLS[@]}"
+)
+READ_ONLY_TOOLS=("Read" "Grep" "Glob")
+
+if [[ -n "$ROLE" ]]; then
+  # Every role names a Claude model, and codex spells reasoning effort
+  # differently. Silently applying a claude model id to codex would fail deep
+  # inside the run as an unrecognised model, which reads as anything but a
+  # mismatched engine — the same shape of misdiagnosis --full-auto produced.
+  [[ "$ENGINE" == "claude" ]] || die "--role is defined for the 'claude' engine \
+(every role names a Claude model, and codex spells effort differently). Pass \
+--engine claude, or drop --role and set --model yourself."
+  case "$ROLE" in
+    coder)
+      ROLE_MODEL="claude-opus-5"; ROLE_EFFORT="medium" ;;
+    test-writer)
+      ROLE_MODEL="claude-opus-5"; ROLE_EFFORT="high" ;;
+    oracle)
+      ROLE_MODEL="claude-fable-5"; ROLE_EFFORT="high"
+      ALLOWED_TOOLS=("${ORACLE_TOOLS[@]}"); PERM_MODE="default" ;;
+    steward)
+      ROLE_MODEL="claude-opus-5"; ROLE_EFFORT="high"
+      ALLOWED_TOOLS=("${STEWARD_TOOLS[@]}"); PERM_MODE="default" ;;
+    reviewer)
+      ROLE_MODEL="claude-opus-5"; ROLE_EFFORT="high"
+      ALLOWED_TOOLS=("${READ_ONLY_TOOLS[@]}"); PERM_MODE="default" ;;
+    explore)
+      ROLE_MODEL="claude-opus-5"; ROLE_EFFORT="low"
+      ALLOWED_TOOLS=("${READ_ONLY_TOOLS[@]}"); PERM_MODE="default" ;;
+    *)
+      die "unknown --role '$ROLE'.
+Known roles: coder, test-writer, oracle, steward, reviewer, explore.
+A typo would otherwise land silently on the engine's own defaults — a wide tool
+grant and whatever model happened to be configured — which is the opposite of
+what naming a role was for." ;;
+  esac
+  # An explicit flag always wins over the role's default. The role is where the
+  # default lives, not a lock.
+  MODEL="${MODEL:-$ROLE_MODEL}"
+  EFFORT="${EFFORT:-$ROLE_EFFORT}"
+fi
+
 if [[ -n "${SPAWN_WORKER_ALLOWED_TOOLS:-}" ]]; then
   IFS=',' read -r -a ALLOWED_TOOLS <<< "$SPAWN_WORKER_ALLOWED_TOOLS"
 fi
@@ -177,9 +290,10 @@ else
   if [[ "$BYPASS" -eq 1 ]]; then
     CMD+=(--dangerously-skip-permissions)
   else
-    CMD+=(--allowed-tools "${ALLOWED_TOOLS[@]}" --permission-mode acceptEdits)
+    CMD+=(--allowed-tools "${ALLOWED_TOOLS[@]}" --permission-mode "$PERM_MODE")
   fi
   [[ -n "$MODEL" ]] && CMD+=(--model "$MODEL")
+  [[ -n "$EFFORT" ]] && CMD+=(--effort "$EFFORT")
   CMD+=("$PROMPT")
 fi
 
