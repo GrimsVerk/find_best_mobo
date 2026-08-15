@@ -5,6 +5,24 @@
 This exists solely for me to collect as much of Buildzoid's motherboard
 expertise as possible and use it to inform one buying decision: which AM5 board
 to buy.
+`CODEOWNERS` puts this file behind the owner, and that is not a restriction
+bolted on — it is the mechanism. The oracle names, in every decision it writes,
+the statement here that it leaned on (`docs/DESIGN.oracle.md`). When a decision
+comes out wrong, the owner edits the statement rather than arguing with the
+decision, and every future decision moves with it.
+
+**No agent AUTHORS this file. An agent may only TRANSCRIBE it**, and the
+difference is the whole point. Writing down what the owner said in an interview
+— in their words, on a pull request they then approve — is how the file gets
+filled in at all; `/design` does exactly that. What no agent may do is decide
+what belongs here, revise a statement on its own judgement, soften one that
+produced an inconvenient decision, or add a sentence the owner never said. An
+agent that could do any of those would be steering itself, which is the one
+thing this arrangement exists to prevent.
+
+So the test is not "did an agent touch the file". It is: **is every sentence
+here one the owner actually said?** A transcription pull request carries that
+and nothing else, and the owner's merge is the confirmation.
 
 "Best" means **safe**, and safe has a specific technical meaning here. Buildzoid
 has shown, with an oscilloscope, that some boards deliver voltage spikes to the
