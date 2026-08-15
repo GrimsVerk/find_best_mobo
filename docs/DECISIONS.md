@@ -237,3 +237,59 @@ The owner named the trade-off when giving the ruling: it is suboptimal, and it
 is preferred to blocking. If it produces real friction or waste, that is
 evidence for `docs/escapes.md` — including where the cause is the owner's own
 availability. Logged when it costs something, not in advance of it.
+
+## 2026-08-16 — Approximate upload dates, with a fixed slop constant
+
+The first real run kept 0 of 1215 videos: `classify` reads `upload_date`, which
+a flat channel listing never returns. Fixing that raised a real choice, because
+the listing's dates are bucketed to roughly mid-month and two different videos
+were observed sharing one timestamp.
+
+Options: fetch each video individually for an exact date (~1215 network calls
+instead of one), or accept the listing's approximate dates. Owner ruled:
+approximate, no per-video fetching.
+
+The boundary is therefore a **fixed constant, not a configuration lever** —
+owner's explicit wording — chosen so that anything uploaded from 2023-01-01
+onward is guaranteed to be included, accepting that some 2022 videos come along
+for the ride. Two months of slop, on the reasoning that the cutoff is a
+preference rather than a rule, and that a missed 2023 video is a real loss while
+an extra 2022 video costs only a little processing.
+
+## 2026-08-16 — A saturated video is sent whole, not as excerpts
+
+Excerpting around every keyword mention was found to multiply cost roughly
+fivefold on videos that mention boards constantly, because the windows overlap
+and the merged result approaches the whole transcript anyway.
+
+Owner ruled: measure, per video, the total characters of its excerpts against
+the characters of its full transcript. At **80% or more**, send the whole
+transcript and ask for a full review. Below that, send the excerpts as now.
+
+The feature is kept rather than abandoned — it earns its keep on videos that
+mention a board once in passing. The rule only removes the case where it stops
+paying: past that ratio you are buying excerpt overhead plus duplication to
+deliver nearly the whole text, and a model reads one continuous transcript
+better than overlapping fragments of it.
+
+## 2026-08-16 — Ten percent of the weekly limit, and nothing wasted on the way
+
+Owner set the budget for the whole extraction effort at **10% of their weekly
+subscription limits**. Two consequences ruled at the same time:
+
+- The agent cannot read those limits — no tool exposes them — so the ceiling is
+  enforced by owner readings before and after the calibration batch, and the
+  projection is calibrated against them. This is why `docs/DESIGN.md` §13 marks
+  that criterion owner-verified.
+- **If the estimate is wrong and the budget is exceeded, nothing already spent
+  may be lost.** Every model output is written as it is produced, and full
+  transcripts are kept rather than discarded after excerpting — they are already
+  downloaded. Overrunning the estimate should cost the overrun, never the work.
+
+## 2026-08-16 — Batch shape confirmed against the first real run
+
+Owner confirmed the design's staging with the numbers now known: run the first
+batch, produce a cost estimate from what it actually consumed, then 3–4 further
+batches, then reassess. Unchanged from the design's intent; recorded because it
+was re-affirmed after the corpus turned out to be 1215 videos rather than the
+500–1000 assumed while drafting.
