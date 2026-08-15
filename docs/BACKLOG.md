@@ -119,6 +119,42 @@ fixed, not that the objection lapsed.
 
 ## Proposed
 
+### Send whole transcripts instead of excerpts
+
+Owner's proposal, after the real-transcript run. Excerpting exists to cut cost;
+measured against real data it does the opposite.
+
+On the one real video: the transcript is 28,438 characters (~7,100 tokens at the
+current factor). Excerpting it produced 137,246 characters (~34,312 tokens).
+**Sending the whole transcript is about 4.8x CHEAPER than sending the excerpts
+cut from it**, on the only real measurement that exists.
+
+The quality argument runs the same way. A seven-minute window truncates exactly
+what makes him worth reading — the caveat three minutes later, the "but
+actually" reversal, the passage where he revises an earlier verdict. An agent
+holding the whole transcript can weigh a claim against everything else said
+about it, which is the analysis the tiering in the design depends on.
+
+It would also delete a whole class of defect at once: window tuning, the merge
+double-count, the per-video cap, and the excerpt-window levers in R17 all stop
+existing rather than needing to be got right.
+
+What it does NOT remove: the index, the transcript cache and the failure ledger
+are all still needed, and **selection still matters** — deciding WHICH videos to
+send is the thing that bounds the spend. Only the excerpting stage becomes
+unnecessary.
+
+Worth weighing before adopting:
+- A ~33-minute video is ~7k tokens, so ~1000 videos is ~7M tokens if everything
+  were sent. Selection is what keeps that from being the real number.
+- Long livestreams are included by owner ruling and could be far larger than any
+  bundle cap, so a per-video size ceiling probably still has to exist somewhere.
+- Bundling several whole transcripts into one request still needs a cap; that
+  part of slice 5 survives even if excerpting does not.
+
+This touches `docs/DESIGN.md` R5, R6 and R17, so it is recorded here as a
+proposal and neither the design nor any plan has been edited.
+
 ### Make template updates stop costing a manual intervention
 
 Every `copier update` that conflicts fails the `template-sync` check and needs
