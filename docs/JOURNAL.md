@@ -244,3 +244,45 @@ three guessed decisions listed for the owner's ruling.
 
 Next session: land #29, #30, #32, then build slice 2 (transcripts and the
 failure ledger) off the revised plan, then slices 3–5. Nothing else is blocked.
+
+## 2026-08-15 — the MVP milestone, complete and pending the owner
+
+Template v0.4.8 landed (#28), then slices 1–5 of `corpus-and-checkpoint` in
+order: the uncommitted zero-duration rule (#31), transcripts and the failure
+ledger (#36), normalization and the alias table (#38), selection (#39), and
+excerpts, bundles and the cost projection (#40). 447 tests. No model is invoked
+anywhere and there is no code path that would — a test parses the two `estimate`
+modules and asserts it, with a negative control pointed at `ytdlp.py` so the
+check cannot pass by reading nothing.
+
+**The product is done to the checkpoint. The project is not done.** See
+`docs/acceptance.md`: two criteria evidenced, one half, the rest pending on a
+real run or on M2–M4 stages that deliberately do not exist yet.
+
+### What this session learned about the process, which cost more than the code
+
+- **Blind authorship works, and the contract block is the load-bearing part.**
+  Five slices, five pairs of agents, one reconciliation needed across all of them
+  — and that one was a fault in the contract, not in either agent. Twice both
+  agents independently found the same trap in a contract I wrote and closed it
+  the same way. When they disagree, suspect the contract first.
+- **A rule recited is not a rule followed.** Two pull requests were blocked for
+  defects whose rules were quoted in the same pull request bodies that broke them
+  (`ESC-19`, `ESC-20`). Writing an objection into a pull request body is the one
+  place it cannot be answered before it costs something. Ask, or file it.
+- **One open pull request at a time.** Four at once turned one blocked branch
+  into three and put manual branch-updating on the owner. Where an ordering
+  exists — ledger entry, then the document citing it, then the work — obey it
+  rather than opening the chain in parallel.
+- **Build the plan as written; log the objection.** The owner's ruling while plan
+  approval was unavailable. `docs/BACKLOG.md` "Plan rework" now carries seven
+  items found this way, including one — the alias table under a gitignored path
+  — caught before building rather than during.
+- **`template-sync` cannot pass a conflicted `copier update`** (`ESC-17`). Second
+  occurrence; both times it blocked the update it exists to authorise.
+
+### Next session
+
+Nothing is blocked on an agent. The owner runs the pipeline (commands in
+`docs/acceptance.md`), reads the `aliases --check` output first, and rules on the
+rework queue. M2 gets planned only after the calibration batch.
