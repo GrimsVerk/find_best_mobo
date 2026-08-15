@@ -17,7 +17,7 @@ agent from rediscovering the system by grepping.
 
 Delete these comments or leave them; they don't render. -->
 
-What exists today is the first four corpus stages: a CLI that enumerates the
+What exists today is the whole corpus milestone, five stages: a CLI that enumerates the
 Buildzoid channel into a classified video index, one that fetches and caches
 each kept video's captions behind a failure ledger,, one that folds the
 spacing damage auto-captions inflict on part numbers onto canonical board names,
@@ -42,6 +42,10 @@ excerpting and no model involvement — those are the last slice of the
 | `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. |
 | Selection (`select.py`) | Deciding which videos are actually about AM5 boards, and saying what the threshold currently costs. A title hit is an automatic include; otherwise the video needs enough DISTINCT boards mentioned in the body. Pure decision logic, plus its own deterministic JSONL. |
 | `select` subcommand (`commands/select.py`) | The stage itself: read index and cached transcripts, write `data/selected.jsonl`, print the threshold's effect. |
+| Excerpting (`excerpt.py`) | Cutting a wide asymmetric window around each mention, merging windows that overlap, and capping how many survive per video. Pure — it never reads the disk. |
+| Bundling (`bundle.py`) | Grouping excerpts into token-capped work bundles, assigning them to a calibration batch and larger batches after it, and rendering each as XML on disk. |
+| Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it. |
+| `estimate` subcommand (`commands/estimate.py`) | The stage itself, and the end of the milestone: cut, merge, cap, pack, batch, write, print the projection, stop. |
 
 ## Data flow
 
@@ -53,7 +57,9 @@ excerpting and no model involvement — those are the last slice of the
 - fetch failures --(class, detail, attempts)--> `data/failures.jsonl`, and back in as the retry list on the next run
 - `data/transcripts/` --(cached transcripts)--> normalization --(comparable text)--> alias matching
 - `data/aliases.toml` --(canonical entities and their surface forms)--> one compiled pattern --(mentions with timestamps)--> selection
-- index + transcripts + matcher --(one decision per video, exclusions included)--> `data/selected.jsonl` --> the excerpting slice
+- index + transcripts + matcher --(one decision per video, exclusions included)--> `data/selected.jsonl`
+- selections + cached transcripts --(windows around mentions, merged and capped)--> excerpts --(packed to a token cap)--> bundles --> `data/bundles/batch-N/*.xml`
+- bundles + selections --(counts and a stated token factor)--> the printed projection, and then nothing
 
 ## Main paths
 
@@ -154,6 +160,35 @@ tested through its entry point; the wiring is an open plan question recorded in
 That last part is the tuning lever made visible: the threshold can be moved and
 the stage re-run from cache, with no refetching (R17).
 
+### Estimating the cost, and stopping
+
+1. The `estimate` stage reads the selections and takes only the included ones,
+   most recent video first — recency is what the batches are ordered by, so the
+   first batch is the most useful one to spend on.
+2. Around every mention it cuts a window: **2 minutes before, 5 minutes after**.
+   Asymmetric because a verdict follows the analysis rather than preceding it,
+   and wide on purpose, to be narrowed later on evidence rather than guessed
+   tight now. Narrowing re-runs from cache and refetches nothing (R17).
+3. Windows that overlap or touch are merged, so one dense passage is one excerpt
+   rather than five copies of itself.
+4. Each video keeps at most a configured number of excerpts, ranked by how many
+   distinct boards they mention — density of boards being the best available
+   proxy for "this is the comparison passage".
+5. Excerpts are packed greedily into bundles under a token cap. An excerpt too
+   big for the cap gets a bundle to itself rather than being dropped or split:
+   losing evidence to a cap must be visible, never silent.
+6. Bundles go to a small calibration batch first, then to larger batches. The
+   calibration batch exists to turn the projection into a measurement before the
+   larger spend.
+7. Each bundle is written as XML — tags carry the structure and provenance, the
+   transcript sits inside them as prose, because tagged boundaries are attended
+   to reliably by a model.
+8. The projection prints: videos indexed and selected, excerpt volume, bundle
+   count, tokens per batch and in total, and **the chars-per-token factor
+   itself**, stated openly as an estimate rather than buried as a constant.
+
+Then it stops. Nothing downstream of this exists yet, deliberately.
+
 ## State and storage
 
 - `config.toml` (repository root) — every pipeline lever, flat keys. In git.
@@ -166,6 +201,8 @@ the stage re-run from cache, with no refetching (R17).
   It doubles as the next run's retry list.
 - `data/selected.jsonl` — one record per pending video: the video, why it was
   included or excluded, its body mentions, and its distinct-canonical count.
+- `data/bundles/batch-N/bundle-NNN.xml` — the work bundles, one file each,
+  byte-identical across runs given the same cache and configuration.
 - `data/aliases.toml` — the hand-authored alias table. Unlike everything else
   under `data/`, this is **input rather than cache**: it is tracked in git
   (forced past the ignore rule) because a fresh clone with no alias table would
@@ -202,6 +239,18 @@ the stage re-run from cache, with no refetching (R17).
   tangentially-titled video enters the corpus on that alone. Deliberate — recall
   matters more than precision at this stage, and the excerpting slice will find
   nothing to excerpt in a video that only mentions a board in passing.
+- **A merged excerpt double-counts its overlap.** `merge_overlapping` has no
+  access to the cues and cannot re-cut the text, so where two windows partially
+  overlap it concatenates them and the shared words appear twice. The effect is
+  to slightly OVER-estimate tokens, which is the safe direction for a number the
+  owner is deciding to spend against. De-duplicating by matching prose was
+  rejected as guesswork.
+- **The token projection is a guess until the calibration batch runs.** The
+  chars-per-token factor starts at 4.0 and is configuration, not a measurement.
+  It is printed with the projection precisely so it is not mistaken for one.
+- **`estimate` reports zero videos indexed if the index is missing** rather than
+  refusing to run. The projection stays otherwise correct, but its denominator
+  reads as a real number when it is an absence.
 - **The alias table's recall is a human judgement, not a measured one.** The
   shipped table is a starting point covering the AM5 chipsets, five vendors, ten
   board families and five CPUs. Nothing knows what it is missing; the `aliases`
