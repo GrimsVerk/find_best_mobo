@@ -17,12 +17,13 @@ agent from rediscovering the system by grepping.
 
 Delete these comments or leave them; they don't render. -->
 
-What exists today is the first three corpus stages: a CLI that enumerates the
+What exists today is the first four corpus stages: a CLI that enumerates the
 Buildzoid channel into a classified video index, one that fetches and caches
-each kept video's captions behind a failure ledger, and one that folds the
-spacing damage auto-captions inflict on part numbers onto canonical board names.
-No selection, no excerpting, no model involvement — those are later slices of
-the `corpus-and-checkpoint` plan.
+each kept video's captions behind a failure ledger,, one that folds the
+spacing damage auto-captions inflict on part numbers onto canonical board names,
+and one that narrows the corpus to the videos carrying real alias evidence. No
+excerpting and no model involvement — those are the last slice of the
+`corpus-and-checkpoint` plan and the milestones beyond it.
 
 ## Components
 
@@ -39,6 +40,8 @@ the `corpus-and-checkpoint` plan.
 | Normalization (`normalize.py`) | Folding caption text and titles into one comparable form: case, scattered punctuation, and above all the spacing damage that renders `X670E` as `x 670 e`. Pure and total. |
 | Alias table (`aliases.py`, `data/aliases.toml`) | Mapping many surface forms onto one canonical entity, and finding those entities in normalized text with a single compiled pattern. The table is hand-authored input, not derived data. |
 | `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. |
+| Selection (`select.py`) | Deciding which videos are actually about AM5 boards, and saying what the threshold currently costs. A title hit is an automatic include; otherwise the video needs enough DISTINCT boards mentioned in the body. Pure decision logic, plus its own deterministic JSONL. |
+| `select` subcommand (`commands/select.py`) | The stage itself: read index and cached transcripts, write `data/selected.jsonl`, print the threshold's effect. |
 
 ## Data flow
 
@@ -49,7 +52,8 @@ the `corpus-and-checkpoint` plan.
 - network boundary --(raw WebVTT)--> transcript parsing --(timed cues)--> `data/transcripts/<video_id>.json`
 - fetch failures --(class, detail, attempts)--> `data/failures.jsonl`, and back in as the retry list on the next run
 - `data/transcripts/` --(cached transcripts)--> normalization --(comparable text)--> alias matching
-- `data/aliases.toml` --(canonical entities and their surface forms)--> one compiled pattern --(mentions with timestamps)--> later slices
+- `data/aliases.toml` --(canonical entities and their surface forms)--> one compiled pattern --(mentions with timestamps)--> selection
+- index + transcripts + matcher --(one decision per video, exclusions included)--> `data/selected.jsonl` --> the excerpting slice
 
 ## Main paths
 
@@ -128,6 +132,28 @@ subcommand table and this slice does not touch it. The stage works and is
 tested through its entry point; the wiring is an open plan question recorded in
 `docs/BACKLOG.md`.
 
+### Narrowing the corpus
+
+1. The `select` stage reads the index, keeps the videos the index left pending,
+   and loads each one's cached transcript in turn.
+2. An alias hit in the **title** is an automatic include. He titles videos after
+   what they are about, so a title hit is the strongest signal available and it
+   does not need corroborating.
+3. Otherwise the video must mention at least N **distinct** canonicals in the
+   body. Distinct, not total: ten mentions of one board is one board being
+   discussed, while three different boards is the comparison passage the
+   shortlist actually needs. N is configuration and defaults to 3.
+4. Every video gets a record, excluded ones included — exclusions are recorded,
+   never implied, the same rule the index follows.
+5. The report says what the threshold is currently costing: how many came in on
+   a title, how many on the count, how many were excluded, and — stated as
+   directions rather than bare numbers — how many MORE would enter if it were
+   one lower and how many would DROP if it were one higher. Title hits are
+   immune to both, so they are never counted in either.
+
+That last part is the tuning lever made visible: the threshold can be moved and
+the stage re-run from cache, with no refetching (R17).
+
 ## State and storage
 
 - `config.toml` (repository root) — every pipeline lever, flat keys. In git.
@@ -138,6 +164,8 @@ tested through its entry point; the wiring is an open plan question recorded in
   reads instead of refetching.
 - `data/failures.jsonl` — this run's fetch failures, rewritten on every record.
   It doubles as the next run's retry list.
+- `data/selected.jsonl` — one record per pending video: the video, why it was
+  included or excluded, its body mentions, and its distinct-canonical count.
 - `data/aliases.toml` — the hand-authored alias table. Unlike everything else
   under `data/`, this is **input rather than cache**: it is tracked in git
   (forced past the ignore rule) because a fresh clone with no alias table would
@@ -169,6 +197,11 @@ tested through its entry point; the wiring is an open plan question recorded in
   and `in 2023` survive intact. Without that bound `a 7800 X 3 D` welds into
   `a7800x3d` and matches nothing — the fix for one kind of caption damage
   silently causing another.
+- **A title hit needs no corroboration at all.** A video whose title mentions a
+  board is included even with an empty transcript, so a mistitled or
+  tangentially-titled video enters the corpus on that alone. Deliberate — recall
+  matters more than precision at this stage, and the excerpting slice will find
+  nothing to excerpt in a video that only mentions a board in passing.
 - **The alias table's recall is a human judgement, not a measured one.** The
   shipped table is a starting point covering the AM5 chipsets, five vendors, ten
   board families and five CPUs. Nothing knows what it is missing; the `aliases`
