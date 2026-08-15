@@ -81,6 +81,29 @@ fixed, not that the objection lapsed.
   no rule change, but hand-maintained), or matching against a
   whitespace-stripped copy of the text as a second pass. Needs a ruling before
   either is built.
+- **`corpus-and-checkpoint` slice 3 — an ITX board's own chipset is invisible.**
+  ITX boards are named `<chipset>I` — `B850I`, `X870I`, `B650I` — and the
+  matcher's right boundary `(?![a-z0-9])` refuses to match `b850` inside
+  `b850i`. Measured against a real 33-minute review of the MSI MPG B850I Edge
+  TI: **`B850` matched zero times**, in a video that is about nothing else. It
+  fails in titles too, so the automatic title-hit include misses as well. Every
+  ITX review in the corpus is affected, and ITX is exactly where one-DIMM-per-
+  channel memory overclocking lives. The boundary is right in general (it stops
+  `b650` matching inside a longer token); the fix is probably explicit `b850i`
+  -style surface forms, or a suffix rule. Needs a ruling.
+- **`corpus-and-checkpoint` slice 5 — merged excerpts inflate the corpus about
+  fivefold, and the cost projection with it.** `merge_overlapping` concatenates
+  on partial overlap, and with many overlapping windows the concatenation
+  compounds. Measured on the same real video: a 28,438-character transcript
+  produced a single 137,246-character excerpt — **4.8x the entire transcript**,
+  spanning the whole video. `docs/architecture.md` described this as a slight
+  over-estimate; that description was written from theory and is corrected in
+  the same commit as this entry. The inflation scales with mention density, so
+  it is not a fixed factor that can be divided out. This makes the checkpoint's
+  projected token count materially wrong, which is the one number the checkpoint
+  exists to produce. Fixing it means giving `merge_overlapping` access to the
+  cues so it can re-cut the merged span rather than concatenate — a signature
+  change, so it is a plan question.
 
 ## Proposed
 

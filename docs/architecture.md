@@ -239,12 +239,15 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
   tangentially-titled video enters the corpus on that alone. Deliberate — recall
   matters more than precision at this stage, and the excerpting slice will find
   nothing to excerpt in a video that only mentions a board in passing.
-- **A merged excerpt double-counts its overlap.** `merge_overlapping` has no
-  access to the cues and cannot re-cut the text, so where two windows partially
-  overlap it concatenates them and the shared words appear twice. The effect is
-  to slightly OVER-estimate tokens, which is the safe direction for a number the
-  owner is deciding to spend against. De-duplicating by matching prose was
-  rejected as guesswork.
+- **A merged excerpt double-counts its overlap, and not slightly.**
+  `merge_overlapping` has no access to the cues and cannot re-cut, so on partial
+  overlap it concatenates — and with many overlapping windows the concatenation
+  compounds. Measured against a real 33-minute review: a 28,438-character
+  transcript became one 137,246-character excerpt, **4.8x the whole transcript**.
+  This entry previously called the effect slight; that was written from theory,
+  before any real transcript existed to check it against. The inflation scales
+  with mention density rather than being a constant factor, so the projected
+  token count cannot be corrected by dividing. Recorded in `docs/BACKLOG.md`.
 - **The token projection is a guess until the calibration batch runs.** The
   chars-per-token factor starts at 4.0 and is configuration, not a measurement.
   It is printed with the projection precisely so it is not mistaken for one.
