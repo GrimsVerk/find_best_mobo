@@ -9,9 +9,36 @@ name: Auto-merge
 # Requires (human, once): "Allow auto-merge" enabled on the repo, and branch
 # protection on the default branch with the required status checks configured.
 # See the README's manual-setup section.
+#
+# WHY THERE IS AN OPTIONAL TOKEN, AND WHY IT IS NOT COSMETIC.
+#
+# GitHub does not create workflow runs from events caused by the built-in
+# GITHUB_TOKEN. That guard exists to stop a workflow triggering itself, and it
+# is correct — but it means an auto-merge armed with GITHUB_TOKEN completes as
+# `github-actions[bot]` and the resulting `pull_request: closed` event
+# DISPATCHES NOTHING. Observed downstream: two pull requests merged by
+# auto-merge, both with the delete job present and wired, and no workflow run
+# created for either close. The job was never skipped — it was never reached.
+#
+# So set AUTO_MERGE_TOKEN to a fine-grained PAT with pull-requests:write and
+# contents:write, and the merge is attributed to a real account: the close event
+# fires, this file's delete job runs, and the repository's own "Automatically
+# delete head branches" setting starts working too. Without the secret this
+# falls back to GITHUB_TOKEN and everything still merges — only the cleanup goes
+# quiet, which is what the scheduled sweep below exists to cover.
+#
+# The PAT is the only privilege increase in this file, and it is worth naming:
+# a token that can merge is a token that can bypass nothing (branch protection
+# and required checks still apply) but that acts as you. Scope it to this
+# repository.
 on:
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize, closed]
+  # The sweep below. Scheduled runs are NOT suppressed by the GITHUB_TOKEN rule,
+  # which is precisely why the cleanup has a second path that does not depend on
+  # the token being configured.
+  schedule:
+    - cron: "17 4 * * *"
 
 permissions:
   contents: write
@@ -36,6 +63,7 @@ jobs:
     # in this repository IS still armed: that is the intended behaviour for a
     # repo that opted into auto-merge, and the review gate and CI still gate it.
     if: >-
+      github.event_name == 'pull_request' &&
       github.event.action != 'closed' &&
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -53,7 +81,10 @@ jobs:
         # lives in the job below instead. See the comment there — it was tried
         # here first and silently did nothing.
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The PAT when it exists, the built-in token otherwise. See the header:
+          # with GITHUB_TOKEN the merge dispatches no events, so nothing cleans
+          # up after it until the scheduled sweep runs.
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         # --delete-branch is NOT redundant with the repository's "Automatically
         # delete head branches" setting, and this is the part that surprises.
@@ -99,6 +130,7 @@ jobs:
   delete-merged-branch:
     # Same-repository branches only: a fork's branch is not ours to delete.
     if: >-
+      github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -121,3 +153,66 @@ jobs:
           else
             echo "Could not delete $HEAD_REF — it may already be gone." >&2
           fi
+
+  # The backstop, and the only path that works with no token configured.
+  #
+  # Scheduled runs are not suppressed by the GITHUB_TOKEN rule, so this catches
+  # every branch the close-event job could not — including everything already
+  # accumulated before this workflow existed. It is periodic rather than
+  # instant, which is the trade: a branch may outlive its merge by a day.
+  #
+  # Deletes ONLY a branch whose pull request actually merged, that lives in this
+  # repository, and that no open pull request still refers to as head or base.
+  # A closed-but-unmerged pull request keeps its branch: the work is unmerged by
+  # definition and the branch is often the only copy of it.
+  sweep-merged-branches:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Delete branches whose pull requests have merged
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          OWNER="${REPO%%/*}"
+
+          # Head branches of merged pull requests, this repository only — a
+          # fork's branch is not ours to delete.
+          gh pr list --repo "$REPO" --state merged --limit 200 \
+            --json headRefName,headRepositoryOwner \
+            --jq ".[] | select(.headRepositoryOwner.login == \"$OWNER\") | .headRefName" \
+            | sort -u > /tmp/merged.txt
+
+          # Anything an OPEN pull request still needs, as head or as base. A
+          # stacked pull request based on another's branch would otherwise lose
+          # its base the moment the lower one merged.
+          gh pr list --repo "$REPO" --state open --limit 200 \
+            --json headRefName,baseRefName \
+            --jq '.[] | .headRefName, .baseRefName' \
+            | sort -u > /tmp/inuse.txt
+
+          deleted=0; skipped=0
+          while IFS= read -r branch; do
+            [ -n "$branch" ] || continue
+            if [ "$branch" = "$DEFAULT_BRANCH" ]; then continue; fi
+            if grep -qxF "$branch" /tmp/inuse.txt; then
+              echo "keep   $branch — an open pull request still refers to it"
+              skipped=$((skipped + 1)); continue
+            fi
+            # Already gone is the desired end state, not a failure.
+            if ! gh api "repos/$REPO/branches/$branch" >/dev/null 2>&1; then continue; fi
+            if gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1; then
+              echo "delete $branch"
+              deleted=$((deleted + 1))
+            else
+              echo "FAILED $branch — check branch protection and token scope" >&2
+            fi
+          done < /tmp/merged.txt
+
+          echo "sweep: deleted $deleted, kept $skipped in use." >> "$GITHUB_STEP_SUMMARY"
