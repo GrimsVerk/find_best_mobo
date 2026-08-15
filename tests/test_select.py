@@ -141,10 +141,23 @@ def make_mention(canonical: str, video_id: str = "vid", start: float = 0.0) -> M
     )
 
 
+def _canonical(index: int) -> str:
+    """A distinct canonical name for any index, not just the first few.
+
+    CANONICALS is a realistic hand-written list, and a test asking for more
+    distinct canonicals than it holds must still get DISTINCT ones — repeating a
+    name would silently make a distinct-count test assert something weaker than
+    it reads.
+    """
+    if index < len(CANONICALS):
+        return CANONICALS[index]
+    return f"BOARD-{index}"
+
+
 def make_selection(reason: str, distinct: int, video_id: str = "vid") -> Selection:
     """A selection whose `mentions` are consistent with its distinct count."""
     mentions = tuple(
-        make_mention(CANONICALS[index], video_id, float(index)) for index in range(distinct)
+        make_mention(_canonical(index), video_id, float(index)) for index in range(distinct)
     )
     return Selection(
         video=make_video(video_id),
