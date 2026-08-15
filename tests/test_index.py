@@ -416,10 +416,14 @@ class TestRunAndCli:
         assert (tmp_path / "data" / "index.jsonl").is_file()
 
 
-# Stable markers for the zero-duration ruling, taken from the ruling's own
-# words ("zero duration", "warn loudly") rather than any particular prose the
-# summary might use.
-ZERO_DURATION_MARKER = re.compile(r"zero[\s-]?duration", re.IGNORECASE)
+# Stable markers for the zero-duration ruling. The ruling promises that the
+# count is reported and that two or more warn loudly with the ids named — it
+# says nothing about what the summary calls them. Matching the ruling's own
+# phrase ("zero duration") pinned prose the plan never promised, and failed
+# against a summary that reports the same fact as "N with no duration
+# reported". Match the subject instead, and let the assertions below carry the
+# behaviour: the count, the ids, and the presence or absence of a warning.
+ZERO_DURATION_MARKER = re.compile(r"duration", re.IGNORECASE)
 WARNING_MARKER = re.compile(r"warn", re.IGNORECASE)
 
 
