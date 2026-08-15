@@ -162,7 +162,14 @@ already landed — an `ESC-<n>` or a `BL-<n>` — so a design change can only ev
 superseded rather than revised; ids start at **R1000** because requirement ids
 share one integer space; and each decision names the `docs/VISION.md` statement
 it relied on, so the owner steers by editing that statement rather than by
-arguing with each decision. `docs/VISION.md` is owned and **no agent edits it**.
+arguing with each decision. `docs/VISION.md` is `CODEOWNERS`-owned, and **no
+agent AUTHORS it — an agent may only TRANSCRIBE it.** Writing down what the
+owner said in an interview, in their words, on a pull request they approve, is
+how it gets filled in at all and is what `/design` does. Deciding what belongs
+there, revising a statement on your own judgement, or adding one the owner never
+said is authorship and is forbidden: an agent that could do that would be
+steering itself. The test is not whether an agent touched the file but whether
+every sentence in it is one the owner actually said.
 
 Writing there is the **oracle's** job and nobody else's. If you are not the
 oracle and you believe the design is wrong, that belongs in `docs/BACKLOG.md`
