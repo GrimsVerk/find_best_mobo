@@ -104,6 +104,18 @@ fixed, not that the objection lapsed.
   exists to produce. Fixing it means giving `merge_overlapping` access to the
   cues so it can re-cut the merged span rather than concatenate — a signature
   change, so it is a plan question.
+- **`corpus-and-checkpoint` — the video description is never read, and it is
+  where the chipset actually is.** The pipeline matches against the title and
+  the transcript only. The real video's description carries
+  `#AMD #ryzen #MSI #B850 #ITX` — the bare `#B850` that normalizes to `b850` and
+  matches the canonical cleanly, on the very video whose title (`B850i`) and
+  whose spoken audio both miss it. Hashtags are author-written, short, and
+  unmangled by speech-to-text, so they are the highest-signal field available and
+  the design does not use them. This is a `docs/DESIGN.md` question rather than a
+  plan one: R1's index records id, title, date and duration, and nothing
+  downstream has a description to read. Worth weighing against the cost — flat
+  playlist extraction does not return descriptions, so fetching them is an extra
+  request per video.
 
 ## Proposed
 
