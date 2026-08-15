@@ -292,6 +292,11 @@ fresh explanation each time is what stops it sticking.
 - **port** (as a verb) — moving working software to a new language, platform or
   framework without changing what it does. A **port** is predictable work
   precisely because the target behaviour already exists to compare against.
+- **recall** — a filter's **recall** is how much of the real signal it keeps. If
+  fifty items genuinely match and the filter finds forty, its recall is 80% —
+  and the ten it dropped are invisible, because nothing in the output says they
+  existed. That is why **recall** is usually the risk worth watching: a filter
+  that returns only correct results can still be badly wrong by omission.
 
 ---
 

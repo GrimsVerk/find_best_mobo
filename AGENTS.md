@@ -26,14 +26,37 @@ rather than derive, and stop for the owner's ruling — then record the rulings 
 the plan.
 
 **The stop is conditional on there being something to stop for.** If every
-decision was derived from `docs/DESIGN.md` rather than guessed, write "no
-uncertainties — every decision derived from the design" in that section and keep
-going. A gate that fires when it has nothing to report trains people to click
+decision was derived from the design — `docs/DESIGN.md` and
+`docs/DESIGN.oracle.md`, which are read together — rather than guessed, write
+"no uncertainties — every decision derived from the design" in that section and
+keep going. A gate that fires when it has nothing to report trains people to click
 through it, which is how it stops working on the day it matters. The plan is
 still reviewed by the owner before it merges, so a falsely empty list is visible
 where it counts. The estimate is a **tripwire, not a target**: never compress code,
 drop error handling, or thin tests to come in under it. An overrun does not fail
 the build; CI reports the delta and the reviewer asks whether it was justified.
+
+**A plan opens with a decision-complete summary.** One document, not two: a
+short plan the owner approves and a long one an agent builds from will drift,
+and then the approval covered something that was not built. So the plan starts
+with a `## Summary` the owner can approve from alone.
+
+- **Decision-complete** — every choice the owner could say no to appears there.
+  Nothing they would refuse may live only in the body.
+- **One screen**, ~40 lines, a hard ceiling. Not fitting is itself a signal that
+  the plan is doing too much.
+- **It carries** what is being built and the requirement or evidence it serves;
+  each decision expensive to reverse; each thing deliberately *not* done; and
+  anything that costs the owner something — a gate change, a new required check,
+  money, a manual step.
+- **It leaves out** file lists, signatures, test matrices, sequencing, and prose
+  defending choices nobody would contest. Those belong in the body, which is
+  written for the agent that builds it and may be as long as that needs.
+- **It ends with the open questions** — an explicit "what I need you to rule on"
+  list. Scattered through the body, those are the reason reading a plan end to
+  end is the only safe way to approve one.
+- **Promotion rule.** The body may elaborate a summary decision; it may never
+  introduce one. If a detail turns out to be a decision, move it up.
 
 **A plan lands before the code it plans.** Commit it on its own `docs/` branch,
 let it merge, and only then branch off the default branch to build it. This is
@@ -66,8 +89,8 @@ scrutinise exempt branches harder rather than to relax, because an unplanned
 change is less checked than a planned one, not more trusted.
 
 **The planning documents themselves are exempt from that cap**, and only they: a
-branch whose entire diff sits inside `docs/plans/` or `docs/DESIGN.md` passes at
-any size. A completed design doc runs to hundreds of lines and the plan template
+branch whose entire diff sits inside `docs/plans/`, `docs/DESIGN.md`,
+`docs/DESIGN.oracle.md` or `docs/oracle/` passes at any size. A completed design doc runs to hundreds of lines and the plan template
 is over a hundred before anything is filled in, so the cap made the two
 documents this process demands the two documents it could not accept — and no
 plan can cover them anyway, since a plan branch cannot resolve to a plan that
@@ -112,6 +135,26 @@ it is the file a future agent reads to get its bearings from the repository
 alone, and a human reading the same file is what keeps it honest. A slice isn't
 finished until it's accurate.
 
+**The design is two documents.** `docs/DESIGN.md` is the owner's and is
+`CODEOWNERS`-owned: changing it waits for them. `docs/DESIGN.oracle.md` is the
+evidence-driven ledger an agent may append to unattended, and is deliberately
+**not** owned — ownership there would stop overnight work, which is the point of
+having it. Read them together; a requirement is a requirement whichever document
+declares it, and `coverage.sh` unions both.
+
+What keeps the second one safe is mechanical, not a promise
+(`.github/scripts/oracle-decisions.sh`): every decision cites evidence that
+already landed — an `ESC-<n>` or a `BL-<n>` — so a design change can only ever
+*metabolise something logged*, never be invented; decisions are append-only and
+superseded rather than revised; ids start at **R1000** because requirement ids
+share one integer space; and each decision names the `docs/VISION.md` statement
+it relied on, so the owner steers by editing that statement rather than by
+arguing with each decision. `docs/VISION.md` is owned and **no agent edits it**.
+
+Writing there is the **oracle's** job and nobody else's. If you are not the
+oracle and you believe the design is wrong, that belongs in `docs/BACKLOG.md`
+where every other objection goes.
+
 **Dependencies.** No new dependencies without the owner's approval — ask
 first, in chat.
 
@@ -141,8 +184,9 @@ stand-in and leave the real fix for the owner.
 
 **Done.** "Everything merged" is a statement about the queue, not about the
 product. A slice is done when its tests pass against it; a plan is done when it
-has merged; the **project** is done when every `docs/DESIGN.md` §5 requirement
-is covered by a merged plan *and* every §13 success criterion has recorded
+has merged; the **project** is done when every requirement of the design — both
+`docs/DESIGN.md` §5 and anything `docs/DESIGN.oracle.md` added — is covered by a
+merged plan *and* every §13 success criterion has recorded
 evidence in `docs/acceptance.md`. Coverage is mechanical
 (`.github/scripts/coverage.sh`); acceptance is not, which is exactly why it is
 written down rather than inferred from the code. Never report the project as
@@ -157,9 +201,18 @@ and how it flows → `docs/architecture.md`, anything that escaped to the owner 
 `docs/escapes.md`, evidence that a success criterion holds →
 `docs/acceptance.md`, session notes and hand-offs → `docs/JOURNAL.md` (one dated
 entry per working session), a term the owner had to ask about →
-`GLOSSARY.project.md` (create it on the first word; never edit `GLOSSARY.md`,
-which the template owns), user-facing behaviour → `README.md`. `BACKLOG.md` is the standing queue of what
+`GLOSSARY.project.md`, user-facing behaviour → `README.md`. `BACKLOG.md` is the standing queue of what
 *might* be built; a plan covers the one change being built now.
+
+**The project glossary is a staging buffer, not a record.**
+`GLOSSARY.project.md` exists only because a session may not have the template
+repository attached, so it is the one place a word can be added mid-project.
+Create it on the first word; never edit `GLOSSARY.md`, which the template owns
+and replaces wholesale on every update. Its words are periodically merged into
+the template's glossary and this file is then **wiped back to empty** — they
+return here, and reach every other project, on the next template update. There
+are deliberately no lasting project-specific glossaries, so do not treat this
+file as somewhere vocabulary lives permanently.
 
 **Honesty about verification.** Never claim something is verified in an
 environment where you could not observe it. Record what was verified where;
@@ -182,6 +235,22 @@ enough to land. This applies to conversation with the owner, not to commit
 messages, pull request bodies, code comments, or the CI review agent, all of
 which are written for a technical reader.
 
+## Working with the owner
+
+**The owner replies as they read, not after.** A response to an early paragraph
+may be overtaken by a later one in the same message, and an instruction may be
+retracted a sentence after it was given, once they reach the part that answers
+it. Two consequences, and they are standing rules rather than courtesies:
+
+- **Read the whole message before acting on any part of it.** The last word on a
+  point wins. Starting work off the first paragraph is how you end up building
+  something the fourth paragraph cancelled.
+- **Say so when an instruction contradicts something already established.** The
+  owner has explicitly asked to be called out rather than quietly obeyed. Being
+  argued out of a position is a normal outcome here, in both directions — the
+  point is that the disagreement happens before the work, not in a pull request
+  body after it.
+
 ## Enforcement
 
 Pre-commit hooks (`.pre-commit-config.yaml`) and CI
@@ -201,7 +270,7 @@ required checks go green. Four of them, three mechanical and one judgment:
 - **`test-the-tests`** — reverts this PR's implementation, keeps its new tests,
   and fails if the suite still passes.
 - **review** (`.github/workflows/review.yml`) — an independent read-only LLM
-  reviewing the diff against this file, `docs/DESIGN.md`, the plan, and the
+  reviewing the diff against this file, both design documents, the plan, and the
   mechanical facts CI computed, with fresh context. A different model than the
   author is a nice-to-have, not required. It is an added check, never a
   replacement for CI.
@@ -242,8 +311,8 @@ a change to any of them requires human review even under auto-merge. Do not
 weaken, skip, or route around a gate to get green.
 
 The same applies to the things that check the code's **intent** — this file,
-`docs/DESIGN.md`, and everything under `docs/plans/` — plus the append-only
-ledgers `docs/escapes.md` and `docs/acceptance.md`. They are what the review
+`docs/DESIGN.md`, `docs/VISION.md`, and everything under `docs/plans/` — plus
+the append-only ledgers `docs/escapes.md` and `docs/acceptance.md`. They are what the review
 gate measures a change against, so a change may not carry its own revision of
 them: the review scripts read all of them at the pull request's base commit, and
 `CODEOWNERS` requires the owner's review to change any of them. Revise them on
@@ -263,7 +332,7 @@ it, then reference it.
 entry carries an id — `ESC-<n>`, the next unused integer — and a gated document
 cites an entry by that id alone, only once the entry exists on the default
 branch. This is checked, not asked for: CI resolves every `ESC-` citation in
-this file, `docs/DESIGN.md`, and `docs/plans/` against `docs/escapes.md` at the
+this file, both design documents, and `docs/plans/` against `docs/escapes.md` at the
 pull request's base commit (`.github/scripts/escape-refs.sh`) and fails when one
 dangles, so a claim about the ledger can never be false at the moment it is
 checked. And the entry-first ordering is cheap to obey, because an entry may

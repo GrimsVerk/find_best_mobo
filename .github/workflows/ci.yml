@@ -75,6 +75,21 @@ jobs:
         run: |
           BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
             .github/scripts/escape-refs.sh
+      - name: Oracle decisions are append-only and evidence-backed
+        # docs/DESIGN.oracle.md is the one design document an agent may write
+        # unattended, so it is deliberately NOT behind CODEOWNERS — ownership
+        # there would stop overnight work, which is the point of having it. This
+        # check is what makes that safe: every decision cites evidence that
+        # already landed, nothing already decided is revised, and each decision
+        # names the docs/VISION.md statement it leaned on so the owner steers by
+        # editing that statement rather than by arguing with each decision.
+        #
+        # Exits 0 with nothing to say on a project that has no oracle document,
+        # rather than being skipped with an `if:` — a skipped job counts as
+        # PASSING for a required check.
+        run: |
+          BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
+            .github/scripts/oracle-decisions.sh
 
   # The other half of the planning story. A `template/` branch is exempt from
   # the `plan` check above, because a template update is specified in the

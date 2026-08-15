@@ -86,6 +86,12 @@ EXEMPT_PREFIXES=(chore/ docs/)
 SYNC_PREFIXES=(template/)
 EXEMPT_MAX_ADDED="${EXEMPT_MAX_ADDED:-50}"
 DESIGN_DOC="${DESIGN_DOC:-docs/DESIGN.md}"
+# The oracle's documents are planning documents for the same reason: no plan can
+# cover the design that plans are written against, and a handoff naming what
+# needs planning this run is not itself plannable work. docs/plans/oracle/ needs
+# no entry here — it is already inside PLANS_DIR.
+ORACLE_DOC="${ORACLE_DOC:-docs/DESIGN.oracle.md}"
+ORACLE_DIR="${ORACLE_DIR:-docs/oracle}"
 
 ROOT="$(git rev-parse --show-toplevel)"
 PLANS_DIR="${PLANS_DIR:-docs/plans}"
@@ -116,16 +122,17 @@ for prefix in "${EXEMPT_PREFIXES[@]}"; do
     while IFS= read -r path; do
       [[ -z "$path" ]] && continue
       case "$path" in
-        "$PLANS_DIR"/*|"$DESIGN_DOC") ;;
+        "$PLANS_DIR"/*|"$DESIGN_DOC"|"$ORACLE_DOC"|"$ORACLE_DIR"/*) ;;
         *) planning_only=0; break ;;
       esac
     done < <(git -C "$ROOT" diff --name-only "${BASE_SHA}...${HEAD_SHA}")
 
     if [[ "$planning_only" -eq 1 && "$added" -gt "$EXEMPT_MAX_ADDED" ]]; then
       echo "plan-resolve: branch '$HEAD_REF' adds $added lines, all of them in \
-$PLANS_DIR/ or $DESIGN_DOC — the planning documents themselves, which no plan \
-can cover. Exempt from the size cap; the owner still reviews them via \
-CODEOWNERS." >&2
+$PLANS_DIR/, $DESIGN_DOC, $ORACLE_DOC or $ORACLE_DIR/ — the planning documents \
+themselves, which no plan can cover. Exempt from the size cap; the owner still \
+reviews $DESIGN_DOC and $PLANS_DIR/ via CODEOWNERS, and $ORACLE_DOC is \
+constrained by the oracle-decisions check instead." >&2
       exit 0
     fi
 
@@ -138,7 +145,8 @@ this size needs a plan: copy $PLANS_DIR/_TEMPLATE.md to $PLANS_DIR/<slug>.md,
 land it, then branch with the slug in the branch name.
 
 The cap does not apply to a branch whose additions are ENTIRELY within
-$PLANS_DIR/ or $DESIGN_DOC — writing a plan is not skipping planning. This
+$PLANS_DIR/, $DESIGN_DOC, $ORACLE_DOC or $ORACLE_DIR/ — writing a plan is not
+skipping planning. This
 branch touches something else as well, so it is not that case. Split it: the
 planning documents on one branch, the rest on its own with a plan behind it.
 
@@ -174,7 +182,10 @@ while IFS= read -r file; do
   fi
   SLUGS+=("$slug")
   PATHS+=("${file#"$ROOT"/}")
-done < <(find "$DIR" -maxdepth 1 -name '*.md' | sort)
+  # No -maxdepth: a steward's plans live under $PLANS_DIR/oracle/, and a depth
+  # limit made them unresolvable — the branch would fail with "no plan slug
+  # appears in this branch" while the plan sat right there.
+done < <(find "$DIR" -name '*.md' | sort)
 
 if [[ ${#SLUGS[@]} -eq 0 ]]; then
   msg="no plan in $PLANS_DIR/ declares a slug."

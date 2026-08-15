@@ -128,6 +128,16 @@ $(read_at_base AGENTS.md)
 ===== docs/DESIGN.md (intended design, as of the base commit) =====
 $(read_at_base docs/DESIGN.md)
 
+===== docs/DESIGN.oracle.md (evidence-driven design decisions, as of the base commit) =====
+The second design document: append-only decisions an agent may write unattended,
+each citing logged evidence and the docs/VISION.md statement it relied on. Read
+it as part of the intended design. Without it, a pull request implementing an
+oracle requirement is judged against a design that lacks it and reads as
+unjustified scope — which is a review blocking correct work for a reason that is
+an artifact of what the gate was shown.
+
+$(read_at_base docs/DESIGN.oracle.md)
+
 ===== THE PLAN this PR is judged against ($PLAN_PATH) =====
 $(if [[ -n "$PLAN_PATH" ]]; then read_at_base "$PLAN_PATH"; else
     echo "(no plan resolved — this branch is exempt from planning, or the plan"

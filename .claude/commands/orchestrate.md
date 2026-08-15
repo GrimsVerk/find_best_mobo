@@ -18,6 +18,37 @@ $ARGUMENTS
 
 Follow these steps.
 
+## 0. If the oracle left a handoff
+
+Look for the newest `docs/oracle/handoff-<date>-<n>.md`. If there is one you
+have not acted on, deal with it before anything else — it names design decisions
+that have landed in `docs/DESIGN.oracle.md` and have no plan yet, and building a
+feature against a design those decisions have already corrected is wasted work.
+
+**You spawn the stewards; the oracle does not.** That split is deliberate: an
+agent that both rules on the design and hires the labour to act on its own
+ruling is the one arrangement this repository consistently refuses, the same way
+it keeps code apart from tests and reviewing apart from merging. It also makes
+the handoff an artifact rather than a private prompt — something later readable,
+which a prompt never is.
+
+One steward per decision, in parallel, each given exactly one `OD-<n>`:
+
+```sh
+.claude/scripts/spawn-worker.sh --id steward-<od> --role steward \
+  --engine claude --base docs/oracle-plans --prompt "<steward prompt>" &
+```
+
+The steward prompt is `.claude/commands/steward.md` plus the decision id. Read
+which decisions the handoff says NOT to act on yet, and do not act on them.
+
+Their plans land on their own pull requests, before any code, exactly like every
+other plan. Only then does a feature branch off to build one. If the handoff
+names a decision that makes an *existing* plan partly wrong, say so in your
+report — reworking that plan is the owner's call, not yours.
+
+If there is no handoff, or you have already acted on the newest one, continue.
+
 ## 1. Load the plan
 
 The feature must already have a plan at `docs/plans/<slug>.md`, and that plan
@@ -142,9 +173,20 @@ Never hand a worker `spawn-worker.sh` or any orchestration tooling.
 Spawn every worker **in parallel**, each via the primitive:
 
 ```sh
-.claude/scripts/spawn-worker.sh --id <slug>-<n>       --base feat/<slug> --prompt "<coder prompt>" &
-.claude/scripts/spawn-worker.sh --id <slug>-<n>-tests --base feat/<slug> --prompt "<test prompt>" &
+.claude/scripts/spawn-worker.sh --id <slug>-<n>       --role coder \
+  --base feat/<slug> --prompt "<coder prompt>" &
+.claude/scripts/spawn-worker.sh --id <slug>-<n>-tests --role test-writer \
+  --base feat/<slug> --prompt "<test prompt>" &
 ```
+
+`--role` carries the model and effort defaults for that kind of work, and the
+tools it may reach — pass it rather than `--model`, so the defaults live in one
+place. The test-writer's default is deliberately a tier ABOVE the coder's: blind
+authorship assumes two peers, and a cheaper test side quietly turns the shared
+contract into whatever the coder happened to think. The coder is a tier lower on
+purpose too — with the tests written blind, a coder failure is recoverable and
+therefore *diagnostic*: when it cannot pass tests written from the same
+contract, suspect the contract before the coding.
 
 Pairing **doubles the worker count** — a 5-slice feature is 10 processes, close
 to the 12 cap. You may skip the pair and let the coder write its own tests for a
