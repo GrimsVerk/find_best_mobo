@@ -1,0 +1,178 @@
+# The alias table: canonical AM5 entities and the ways a transcript spells them.
+#
+# THIS IS A STARTING POINT, NOT A COMPLETE LIST. It was seeded from what an AM5
+# motherboard discussion is likely to name, not from the corpus, so it is
+# expected to be missing boards, families, and spellings that actually appear.
+# Run `find-best-mobo aliases --check` to see which canonicals never matched
+# anything and which surface forms carried the weight, then extend this file —
+# it is data precisely so that it can be edited without touching code.
+#
+# Each entry is one canonical entity:
+#
+#   [[alias]]
+#   canonical = "X670E"        # printed in reports; free-form text
+#   kind = "chipset"           # board | family | chipset | cpu | vendor
+#   surface_forms = ["x670e"]  # what to look for, normalized before matching
+#
+# Surface forms are passed through `normalize` before they enter the matcher, so
+# the mangled spacing an auto-caption produces — `x 670 e`, `x-670-e`, `x 6 70 e`
+# — already folds onto `x670e` and does not need its own entry. Variants that do
+# NOT fold that way are the ones worth listing: `m s i` for MSI, `tai chi` for
+# Taichi, plural and shortened family names.
+#
+# Bare three-digit forms (`670`, `850`) are deliberately absent: they match
+# prices, temperatures, and wattages. The `670e`-style forms are kept because the
+# trailing E makes them distinctive.
+
+# --- Chipsets -----------------------------------------------------------------
+
+[[alias]]
+canonical = "X870E"
+kind = "chipset"
+surface_forms = ["x870e", "x 870 e", "870e", "x870 e"]
+
+[[alias]]
+canonical = "X870"
+kind = "chipset"
+surface_forms = ["x870", "x 870"]
+
+[[alias]]
+canonical = "B850"
+kind = "chipset"
+surface_forms = ["b850", "b 850"]
+
+[[alias]]
+canonical = "B840"
+kind = "chipset"
+surface_forms = ["b840", "b 840"]
+
+[[alias]]
+canonical = "X670E"
+kind = "chipset"
+surface_forms = ["x670e", "x 670 e", "x 6 70 e", "670e", "x670 e"]
+
+[[alias]]
+canonical = "X670"
+kind = "chipset"
+surface_forms = ["x670", "x 670"]
+
+[[alias]]
+canonical = "B650E"
+kind = "chipset"
+surface_forms = ["b650e", "b 650 e", "650e", "b650 e"]
+
+[[alias]]
+canonical = "B650"
+kind = "chipset"
+surface_forms = ["b650", "b 650"]
+
+[[alias]]
+canonical = "A620"
+kind = "chipset"
+surface_forms = ["a620", "a 620"]
+
+# --- Vendors ------------------------------------------------------------------
+
+[[alias]]
+canonical = "ASRock"
+kind = "vendor"
+surface_forms = ["asrock", "as rock", "az rock", "ass rock"]
+
+[[alias]]
+canonical = "ASUS"
+kind = "vendor"
+surface_forms = ["asus", "a sus", "assus"]
+
+[[alias]]
+canonical = "Gigabyte"
+kind = "vendor"
+surface_forms = ["gigabyte", "giga byte"]
+
+[[alias]]
+canonical = "MSI"
+kind = "vendor"
+surface_forms = ["msi", "m s i", "em es eye"]
+
+[[alias]]
+canonical = "Biostar"
+kind = "vendor"
+surface_forms = ["biostar", "bio star"]
+
+# --- Board families -----------------------------------------------------------
+
+[[alias]]
+canonical = "Taichi"
+kind = "family"
+surface_forms = ["taichi", "tai chi", "ty chi"]
+
+[[alias]]
+canonical = "Steel Legend"
+kind = "family"
+surface_forms = ["steel legend", "steel legends", "steal legend"]
+
+[[alias]]
+canonical = "ROG Crosshair"
+kind = "family"
+surface_forms = ["rog crosshair", "crosshair", "cross hair", "r o g crosshair"]
+
+[[alias]]
+canonical = "ROG Strix"
+kind = "family"
+surface_forms = ["rog strix", "strix", "stryx", "r o g strix"]
+
+[[alias]]
+canonical = "TUF Gaming"
+kind = "family"
+surface_forms = ["tuf gaming", "tuf", "tough gaming"]
+
+[[alias]]
+canonical = "Aorus Master"
+kind = "family"
+surface_forms = ["aorus master", "aorus masters", "orus master"]
+
+[[alias]]
+canonical = "Aorus Elite"
+kind = "family"
+surface_forms = ["aorus elite", "orus elite"]
+
+[[alias]]
+canonical = "MPG Carbon"
+kind = "family"
+surface_forms = ["mpg carbon", "m p g carbon", "carbon wifi"]
+
+[[alias]]
+canonical = "MAG Tomahawk"
+kind = "family"
+surface_forms = ["mag tomahawk", "tomahawk", "tomohawk", "m a g tomahawk"]
+
+[[alias]]
+canonical = "Pro RS"
+kind = "family"
+surface_forms = ["pro rs", "pro r s", "pro-rs"]
+
+# --- CPUs ---------------------------------------------------------------------
+
+[[alias]]
+canonical = "7800X3D"
+kind = "cpu"
+surface_forms = ["7800x3d", "7800 x 3 d", "78 00 x 3 d"]
+
+[[alias]]
+canonical = "9800X3D"
+kind = "cpu"
+surface_forms = ["9800x3d", "9800 x 3 d", "98 00 x 3 d"]
+
+[[alias]]
+canonical = "9950X3D"
+kind = "cpu"
+surface_forms = ["9950x3d", "9950 x 3 d"]
+
+[[alias]]
+canonical = "7950X"
+kind = "cpu"
+surface_forms = ["7950x", "7950 x"]
+
+[[alias]]
+canonical = "9950X"
+kind = "cpu"
+surface_forms = ["9950x", "9950 x"]
