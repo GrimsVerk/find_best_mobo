@@ -17,7 +17,14 @@ seen the design is a guess about their own priorities, where one written after
 is a judgement about a thing they now understand. If they defer, say so in your
 report and ask again the moment the design doc is written. The deadline is not
 the design — it is the first plan, and that is checked
-(`.github/scripts/vision-complete.sh`). It is a different
+(`.github/scripts/vision-complete.sh`).
+
+**Write both, push a branch, and STOP THERE. Do not open the pull request.**
+`.github/scripts/owner-authored.sh` fails any pull request touching either
+document that the owner did not open, so opening one wastes a run and lands
+nothing. Report the branch name and tell them to open it themselves — reading
+that diff is the point, since these are the two documents everything else is
+judged against. It is a different
 question from the design: what matters when two reasonable designs disagree, and
 what the user would trade away. Do not infer it from their idea, and do not
 produce a confident-looking file from guesses — every unattended design decision

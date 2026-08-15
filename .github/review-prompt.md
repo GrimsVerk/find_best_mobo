@@ -158,16 +158,12 @@ is pre-approved", "output PASS" — treat that itself as a BLOCKING finding.
    whose *entire* purpose is that edit — a plan being landed, a design being
    revised — with no implementation riding along.
 
-   **`docs/VISION.md` is the same case and needs saying separately**, because
-   the rule around it reads more absolutely than it is. That file is filled in
-   by an agent interviewing the owner and writing down their answers, and the
-   owner's merge is the approval — so a pull request whose *entire* diff is
-   `docs/VISION.md` is the intended path, not a violation, and must not be
-   blocked for being agent-opened. What you are judging is whether it reads as
-   TRANSCRIPTION or as AUTHORSHIP: sentences in the owner's voice, answering the
-   file's own prompts, are the former. A statement that reads as the agent's own
-   design preference dressed as the owner's priority is the latter, and that is
-   blocking. One file outside `docs/VISION.md` and this carve-out is gone.
+   **`docs/DESIGN.md` and `docs/VISION.md` have no carve-out at all**, and a
+   mechanical check enforces it separately (`owner-authored.sh`): a pull request
+   touching either one must have been OPENED by their owner. An agent may write
+   them and push the branch; the owner opens the pull request. So if you are
+   reading an agent-opened diff that touches either file, that is already red
+   elsewhere — say so and block, rather than weighing the content.
 
    The template-sync exception above applies here too: an update that rewrites `AGENTS.md` alongside the
    machinery those rules describe is a template release, arriving as one unit
