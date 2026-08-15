@@ -184,11 +184,12 @@ specific fact I would need to confirm myself before buying.
   rule.
 - **R26** — Total model spend for the extraction effort is capped at 10% of the
   owner's weekly subscription limits. The cap is enforced against real readings
-  rather than the projection: the agent takes one before a batch, one after it,
-  and one part-way through a long batch, so a run stops before crossing the line
-  instead of discovering the overrun afterwards. The reading is approximate and
-  counts only local sessions on this machine, so the owner's own figure remains
-  authoritative for §13.
+  rather than the projection: `claude -p "/usage"` returns them headlessly, so a
+  reading is taken before a batch, after it, and part-way through a long one,
+  and a run stops before crossing the line instead of discovering the overrun
+  afterwards. The Python pipeline itself still cannot read them, and the reading
+  is approximate — it counts only local sessions on the owner's machine — so the
+  owner's own figure remains authoritative for §13.
 - **R27** — No completed work is lost to an overrun. Every model output is
   written to disk as it is produced rather than at the end of a batch, and full
   transcripts are retained after excerpting rather than discarded. Exceeding the
