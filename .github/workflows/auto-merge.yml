@@ -50,4 +50,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --merge "$PR_URL"
+        # --delete-branch is NOT redundant with the repository's "Automatically
+        # delete head branches" setting, and this is the part that surprises.
+        # That setting is what the merge UI pre-fills for a human; an auto-merge
+        # armed through the API records its own merge method AND its own
+        # delete-branch choice, and THAT is what GitHub honours when the checks
+        # finally go green. Omitting the flag records "do not delete", so every
+        # auto-merged branch survives its own pull request while every branch a
+        # human merged in the UI disappears — which reads exactly like the
+        # setting being broken, and is not. Observed downstream: sixteen merged
+        # branches still on the remote, all of them auto-merged, alongside two
+        # human merges that had cleaned up correctly.
+        #
+        # `contents: write` above already covers the deletion; nothing else is
+        # needed, and nothing about branch protection changes.
+        run: gh pr merge --auto --merge --delete-branch "$PR_URL"

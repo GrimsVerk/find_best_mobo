@@ -31,6 +31,26 @@
 /docs/DESIGN.md              @GrimsVerk
 /docs/plans/                 @GrimsVerk
 
+# The oracle's tiebreaker: what the owner values and what they would trade away.
+# It is what an unattended agent reaches for when the evidence is ambiguous, and
+# the decisions it produces each name the statement here they leaned on — so the
+# owner steers by editing this file. An agent that could edit it would be
+# steering itself.
+#
+# Deliberately NOT owned, and this is the pairing that makes the arrangement
+# work: /docs/DESIGN.oracle.md, /docs/oracle/ and /docs/plans/oracle/. Ownership
+# on those would stop overnight work, which is the whole point of having them.
+# They are constrained by .github/scripts/oracle-decisions.sh instead — a
+# required check needs nobody awake, where a code owner does.
+/docs/VISION.md              @GrimsVerk
+
+# ...and the carve-out that makes it real. `/docs/plans/` above would otherwise
+# own the steward's plans too, since a directory rule covers everything beneath
+# it. A pattern with NO owner clears ownership for the paths it matches, and
+# later rules win — so this line, and only this line, releases the oracle's
+# planning directory. Everything else under /docs/plans/ stays owned.
+/docs/plans/oracle/
+
 # The append-only ledgers. Their value is that entries are never quietly
 # revised — an escape edited out of the log is an escape that buys no check.
 /docs/escapes.md             @GrimsVerk

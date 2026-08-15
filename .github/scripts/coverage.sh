@@ -48,44 +48,93 @@
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
-DESIGN="${DESIGN:-$ROOT/docs/DESIGN.md}"
+# A LIST, space-separated. There are two design documents: the owner's, and the
+# oracle's evidence-driven ledger (docs/DESIGN.oracle.md), which an agent may
+# append to unattended. Requirements are the UNION of both — a plan covering an
+# oracle requirement was otherwise reported as "an id the design doesn't
+# define", which reads as a typo and is not one.
+DESIGN="${DESIGN:-$ROOT/docs/DESIGN.md $ROOT/docs/DESIGN.oracle.md}"
 PLANS_DIR="${PLANS_DIR:-$ROOT/docs/plans}"
 
-[[ -f "$DESIGN" ]] || {
-  echo "coverage: no $DESIGN — run /design first" >&2
+read -r -a DESIGN_DOCS <<< "$DESIGN"
+declare -a PRESENT=()
+for doc in "${DESIGN_DOCS[@]}"; do
+  [[ -f "$doc" ]] && PRESENT+=("$doc")
+done
+
+[[ ${#PRESENT[@]} -gt 0 ]] || {
+  echo "coverage: no ${DESIGN_DOCS[0]} — run /design first" >&2
   exit 2
 }
 
-# Requirement ids, taken from section 5 only so that an "R1" mentioned in prose
-# elsewhere doesn't invent a requirement.
-mapfile -t REQS < <(awk '
-  /^## 5\./ { in5 = 1; next }
-  /^## /    { in5 = 0 }
-  in5 {
-    line = $0
-    while (match(line, /\*\*R[0-9]+\*\*/)) {
-      id = substr(line, RSTART + 2, RLENGTH - 4)
-      if (!(id in seen)) { seen[id] = 1; print id }
-      line = substr(line, RSTART + RLENGTH)
-    }
-  }' "$DESIGN")
+# Requirement ids from one document. Two rules, applied uniformly to every
+# design document so there is no per-file magic:
+#
+#   - section 5 only, so that an "R1" mentioned in prose elsewhere doesn't
+#     invent a requirement. This is what docs/DESIGN.md uses;
+#   - `**Requirements added:**` lines, which is how a decision in the oracle
+#     ledger declares the ids it introduces. That document is a list of dated
+#     decisions and has no section 5, and its rationales legitimately mention
+#     ids they did NOT define — a superseded one, for instance — so reading the
+#     whole file would invent requirements out of prose.
+#
+#     The line must START with a list marker, and that is not cosmetic. The
+#     shipped ledger skeleton documents its own schema in an INDENTED code
+#     block, example ids and all — so a rule that matched the label anywhere
+#     defined R1000 and R1001 in every generated project on day one, as
+#     requirements no plan would ever cover and that no amount of work could
+#     clear. Column-anchoring excludes the indented example and matches every
+#     real decision, which writes the field at column 0.
+#
+# A document that has neither shape simply contributes nothing.
+ids_from() {
+  awk '
+    /^## 5\./ { in5 = 1; next }
+    /^## /    { in5 = 0 }
+    in5 || /^[-*] \*\*Requirements added:\*\*/ {
+      line = $0
+      if (!in5) sub(/^.*\*\*Requirements added:\*\*/, "", line)
+      while (match(line, /\*\*R[0-9]+\*\*/)) {
+        print substr(line, RSTART + 2, RLENGTH - 4)
+        line = substr(line, RSTART + RLENGTH)
+      }
+      if (!in5) {
+        # Split on non-alphanumerics rather than using a word-boundary escape:
+        # \b is a backspace to awk, not a boundary, and the difference is
+        # silent — the pattern simply never matches and every oracle
+        # requirement vanishes from the coverage report.
+        n = split(line, parts, /[^A-Za-z0-9]+/)
+        for (i = 1; i <= n; i++) if (parts[i] ~ /^R[0-9]+$/) print parts[i]
+      }
+    }' "$1"
+}
 
-# Malformed ids anywhere in the design — not just section 5. An id-shaped token
-# in section 12's milestones or section 13's criteria is read as an id by every
-# human who passes it, so it has to be one.
-mapfile -t BAD_IDS < <(awk '
-  {
-    line = $0
-    while (match(line, /\*\*[RS][0-9][^*]*\*\*/)) {
-      id = substr(line, RSTART + 2, RLENGTH - 4)
-      if (id !~ /^[RS][0-9]+$/ && !(id in seen)) { seen[id] = 1; print id }
-      line = substr(line, RSTART + RLENGTH)
-    }
-  }' "$DESIGN")
+mapfile -t REQS < <(
+  for doc in "${PRESENT[@]}"; do ids_from "$doc"; done | awk '!seen[$0]++'
+)
+
+# Malformed ids anywhere in a design document — not just section 5. An id-shaped
+# token in section 12's milestones or section 13's criteria is read as an id by
+# every human who passes it, so it has to be one.
+mapfile -t BAD_IDS < <(
+  for doc in "${PRESENT[@]}"; do
+    awk -v doc="${doc#"$ROOT"/}" '
+      {
+        line = $0
+        while (match(line, /\*\*[RS][0-9][^*]*\*\*/)) {
+          id = substr(line, RSTART + 2, RLENGTH - 4)
+          if (id !~ /^[RS][0-9]+$/ && !(id in seen)) {
+            seen[id] = 1; print id " (in " doc ")"
+          }
+          line = substr(line, RSTART + RLENGTH)
+        }
+      }' "$doc"
+  done
+)
 
 if [[ ${#BAD_IDS[@]} -gt 0 ]]; then
-  echo "coverage: malformed requirement id(s) in ${DESIGN#"$ROOT"/}:" >&2
-  printf '  **%s**\n' "${BAD_IDS[@]}" >&2
+  echo "coverage: malformed requirement id(s):" >&2
+  printf '  %s\n' "${BAD_IDS[@]}" >&2
   cat >&2 <<'MSG'
 
 An id is R or S followed by digits — R1, R12, S3. Anything else cannot be
@@ -100,7 +149,7 @@ MSG
 fi
 
 if [[ ${#REQS[@]} -eq 0 ]]; then
-  echo "coverage: no requirement ids (R1, R2, ...) found in section 5 of ${DESIGN#"$ROOT"/}."
+  echo "coverage: no requirement ids (R1, R2, ...) found in ${PRESENT[*]#"$ROOT"/}."
   echo "          Give each requirement a stable id so coverage can be checked."
   exit 2
 fi
@@ -132,7 +181,10 @@ if [[ -d "$PLANS_DIR" ]]; then
         UNKNOWN+=("$id (in $plan)")
       fi
     done
-  done < <(find "$PLANS_DIR" -maxdepth 1 -name '*.md' | sort)
+    # No -maxdepth: plans also live in subdirectories (docs/plans/oracle/),
+    # and a depth limit made those invisible to coverage — silently, which is
+    # the worst way for a coverage report to be wrong.
+  done < <(find "$PLANS_DIR" -name '*.md' | sort)
 fi
 
 if [[ ${#MALFORMED[@]} -gt 0 ]]; then
