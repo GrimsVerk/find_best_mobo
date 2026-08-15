@@ -51,17 +51,6 @@ uv sync --locked
 echo "==> Verifying the package imports"
 uv run python -c "import find_best_mobo; print('    find_best_mobo imports cleanly')"
 
-# Optional and non-fatal: the git-level checks. Only relevant if you commit from
-# this machine, so a failure here is reported and ignored rather than fatal.
-echo "==> Git hooks (optional)"
-if [ -f .git/hooks/pre-commit ]; then
-  echo "    pre-commit hooks already installed — skipping."
-elif uv run pre-commit install >/dev/null 2>&1; then
-  echo "    pre-commit hooks installed."
-else
-  echo "    could not install pre-commit hooks; not required to run the pipeline."
-fi
-
 cat <<'DONE'
 
 Done. Nothing else to install.
