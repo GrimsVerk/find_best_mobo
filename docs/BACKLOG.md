@@ -65,6 +65,22 @@ fixed, not that the objection lapsed.
   denominator reads as a real number rather than an absence. Neither plan nor
   contract said what to do, so it was built the forgiving way. A cost projection
   the owner spends against should probably refuse rather than under-report.
+- **`corpus-and-checkpoint` slice 3 — a split compound word is invisible to the
+  alias table.** Auto-captions routinely split product names, and the folding
+  rule in `normalize` only joins letter-to-digit transitions, never two
+  multi-letter words — so `toma hawk`, `aor us master` and `air us elite` match
+  nothing at all, silently. Found offline, before any real run: of 52 mangled
+  variants tested against the shipped table, 49 matched and these were the real
+  failures. (A hyphenated family name — `steel-legend` against the table's
+  `steel legend` — fails for the related reason that `normalize` keeps hyphens;
+  marginal, since real product naming rarely hyphenates a family name.)
+  Not a simple fix, which is why it is here rather than done: joining any two
+  multi-letter words is exactly what welds `the b650` into `theb650` and makes
+  the chipset unmatchable, the trap both blind authors independently avoided.
+  Plausible directions: split-tolerant surface forms in the table itself (cheap,
+  no rule change, but hand-maintained), or matching against a
+  whitespace-stripped copy of the text as a second pass. Needs a ruling before
+  either is built.
 
 ## Proposed
 
