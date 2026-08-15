@@ -1,21 +1,16 @@
 # Glossary — words met in this project
 
-A **staging buffer, not a record.** This file exists only because a session may
-not have the template repository attached, so it is the one place a word can be
-added mid-project. `GLOSSARY.md` holds the settled vocabulary and the rules for
-how to talk to me; the union of the two is "what the owner knows".
-
-Its words are merged upstream into the template's `GLOSSARY.md` periodically,
-and this file is then **wiped back to empty**. They return here — and reach every
-other project — on the next `copier update`. There are deliberately no lasting
-project-specific glossaries, so do not treat this file as somewhere vocabulary
-lives permanently. Never edit `GLOSSARY.md`, which the template owns and
-replaces wholesale on every update.
-
-Merged upstream so far: **recall** (template v0.4.9).
+Words met during *this* project. `GLOSSARY.md` holds the settled vocabulary and
+the rules for how to talk to me; this file is never overwritten by a template
+update. The union of the two is "what the owner knows".
 
 ## Words I'm learning
 
-_(nothing pending — add words here as they come up)_
+- **recall** — a filter's **recall** is how much of the real signal it keeps. If
+  fifty videos genuinely discuss AM5 boards and our keyword filter finds forty,
+  its recall is 80% — and the ten it dropped are invisible, because nothing in
+  the output says they existed. That is why recall is the risk worth watching
+  here: a filter that returns only correct results can still be quietly wrong by
+  omission.
 
 ## Words I've learned

@@ -23,15 +23,12 @@ is the agenda for the next plan revision; an item leaving it means the plan was
 fixed, not that the objection lapsed.
 
 **Every item carries a `BL-<n>` id**, the next unused integer, and ids are never
-reused — a resolved item keeps its number rather than freeing it. The ids exist
-so an item can be CITED. `docs/DESIGN.oracle.md` requires every design decision
-to name the evidence it resolves, by rigid id, and
-`.github/scripts/oracle-decisions.sh` resolves each citation against this file
-at the pull request's base commit. An item with no id is not evidence as far as
-that check is concerned, so it can never become a design correction — which is
-the whole route by which a logged objection turns into a corrected design.
+reused — a resolved item keeps its number rather than freeing it, so a citation
+written today still means the same thing in six months.
 
-Ids run across both sections: a proposal is evidence too.
+The ids exist so an item can be CITED by id rather than by quoting its text,
+the way `docs/escapes.md` entries already are. Ids run across both sections,
+because a proposal is evidence about the design exactly as a rework item is.
 
 - **BL-1** — **`corpus-and-checkpoint` slice 2 — a clean rerun leaves a stale failure
   ledger.** `data/failures.jsonl` is rewritten when a failure is recorded, so a
