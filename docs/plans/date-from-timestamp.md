@@ -3,7 +3,7 @@ slug: date-from-timestamp
 status: draft
 created: 2026-08-16
 design: MVP — Corpus and the cost checkpoint (no inference)
-covers: [R1]
+covers: [R1, R25]
 ---
 
 # Upload dates from the listing's timestamp — Plan
@@ -15,10 +15,41 @@ excluded as out of range — including videos squarely on topic and in range.
 
 The `youtubetab:approximate_date` extractor argument is present and does work.
 It fills `timestamp`, not `upload_date`. The corpus plan asserted otherwise and
-nothing checked, which is logged in `docs/escapes.md`.
+nothing checked — logged as ESC-21.
 
 This is one slice. It is a bug fix, not a feature, and it is planned because
 every change gets a plan — not because it is large.
+
+## Summary
+
+Fix the bug that made the first real run useless: 1215 videos enumerated, none
+kept. `classify` reads `upload_date`; the flat channel listing returns
+`timestamp` instead, so every video fell back to a sentinel date and was
+excluded as out of range — including an on-topic X870E analysis from December
+2025 the owner spot-checked.
+
+Decisions the owner has already made, and what this plan does with them:
+
+- **Approximate dates, no per-video fetching.** One network call for the whole
+  channel, not 1215. Ruled 2026-08-15.
+- **A fixed two-month slop constant, not a config lever.** The listing's dates
+  are bucketed to roughly mid-month, so the comparison date moves back far
+  enough that nothing uploaded from 2023-01-01 onward can be excluded. Some 2022
+  videos come along; that is the accepted trade, and it means the index will
+  contain 2022 videos marked `pending`.
+- **The recorded date stays the real one.** Only the comparison shifts, so the
+  index never claims a video was uploaded on a date it wasn't.
+
+One slice, ~140 lines, in `src/find_best_mobo/index.py` and its tests. Planned
+because every change is planned, not because it is large.
+
+The fixture matters more than the code. 452 tests passed while the corpus was
+empty, because every fixture entry supplied `upload_date` — the shape the plan
+claimed, not the shape yt-dlp sends. The test fixture must therefore carry
+entries in the real listing shape, or this class of bug stays invisible.
+
+Not in scope: the eight zero-duration videos, and anything downstream of the
+index — `fetch`, `select` and `estimate` were never wrong, only starved.
 
 ## Uncertainties
 
