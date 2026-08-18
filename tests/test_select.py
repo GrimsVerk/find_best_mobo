@@ -225,17 +225,50 @@ def lines_with(output: str, token: str) -> list[str]:
     return [line for line in output.splitlines() if token.lower() in line.lower()]
 
 
+# Filesystem paths are incidental text, not the report's vocabulary, and every
+# one of these assertions reads a line that may carry one. pytest names its temp
+# directory after the run counter AND the test, so the path under this very test
+# reads `.../pytest-2/test_the_lower_threshold_what_0/...` — which supplies both
+# a bare `2` and the word "lower" to a search looking for exactly those. The
+# result passed on run 1 and failed on run 2 of the same unchanged suite, which
+# is how acceptance/S9.sh (two runs, counts compared) surfaced it.
+_PATH = re.compile(r"\S*/\S*")
+
+
+def without_paths(line: str) -> str:
+    """`line` with any path-like token blanked, so only prose is matched."""
+    return _PATH.sub(" ", line)
+
+
 def has_number(line: str, value: int) -> bool:
-    return re.search(rf"(?<![\d.]){value}(?![\d.])", line) is not None
+    return re.search(rf"(?<![\d.]){value}(?![\d.])", without_paths(line)) is not None
 
 
 def directional_line(output: str, markers: Sequence[str], value: int) -> str:
     """The report line stating `value` in the direction `markers` describes."""
     for line in output.splitlines():
-        lowered = line.lower()
+        lowered = without_paths(line).lower()
         if has_number(line, value) and any(marker in lowered for marker in markers):
             return line
     raise AssertionError(f"no line states {value} together with any of {tuple(markers)}:\n{output}")
+
+
+class TestReportMatchingIgnoresPaths:
+    """These helpers must read the report, never the temp path printed inside it."""
+
+    def test_a_number_inside_a_path_is_not_the_report_stating_it(self) -> None:
+        line = "Wrote 9 selections to /tmp/pytest-of-me/pytest-2/data/selected.jsonl"
+
+        assert not has_number(line, 2)
+        assert has_number(line, 9)
+
+    def test_a_direction_word_inside_a_path_does_not_select_that_line(self) -> None:
+        output = (
+            "Wrote 9 selections to /tmp/pytest-2/test_the_lower_threshold_0/out.jsonl\n"
+            "Lowering the threshold to 2 would include 4 more videos\n"
+        )
+
+        assert directional_line(output, LOWER_MARKERS, 2).startswith("Lowering")
 
 
 class TestSelectVideoTitleHits:
