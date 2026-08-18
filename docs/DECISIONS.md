@@ -414,3 +414,27 @@ reports `percent` as a **fraction of one** — `0.35` means 35%, not 0.35%.
     session=10 week=36 week_model=25 reset=Aug 20, 10:59am (Europe/Amsterdam)
 
 Both readings remain approximate and count local sessions on this machine only.
+
+## 2026-08-19 — Owner's standing ruling for the first unattended run
+
+Recorded from the owner, in their words, as the instruction this run operates
+under:
+
+> you will work endlessly and tirelessly until this project is done as is
+> already defined in these files. use the oracle if you run into places where
+> you would need my ruling, that is what the oracle is for, to be my second in
+> command.
+
+Three things follow, and they bind every session this run commissions:
+
+- **The design layer is the finish line.** "Done" means what the vision, the
+  design and its success criteria already say — not a new scope invented while
+  building. Nothing here authorises widening the work.
+- **The oracle is the escalation, not the owner.** A question that would
+  previously have stopped for a ruling is filed and ruled through the oracle
+  chain. Stopping to wait for the owner is the last resort, not the first.
+- **Bugs are dug into and fixed, not stepped around.** Each one is recorded, and
+  a defect belonging to the *template* is recorded separately in
+  `docs/template-bugs.md` so the fixes can be taken upstream after the run.
+  A fix applied here to a template-owned file is drift, and saying so is part of
+  logging it.
