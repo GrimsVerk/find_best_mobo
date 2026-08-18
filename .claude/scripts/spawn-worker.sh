@@ -329,7 +329,10 @@ else
   fi
   [[ -n "$MODEL" ]] && CMD+=(--model "$MODEL")
   [[ -n "$EFFORT" ]] && CMD+=(--effort "$EFFORT")
-  CMD+=("$PROMPT")
+  # `--` terminates option parsing. Without it a prompt beginning `---` (every
+  # command file opens with YAML frontmatter) is read as an option and rejected
+  # — `error: unknown option '---` — and no role can ever start.
+  CMD+=(-- "$PROMPT")
 fi
 
 if [[ "$PRINT_COMMAND" -eq 1 ]]; then

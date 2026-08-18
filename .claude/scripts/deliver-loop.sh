@@ -661,7 +661,16 @@ while :; do
     fi
   fi
 
-  # What next? Recomputed from the world, never remembered.
+  # Frontmatter is metadata for the slash-command loader, not prompt text: passing
+# it on tells the model to read its own catalogue entry as an instruction, and
+# the leading `---` is what the CLI mistook for an option.
+role_prompt() { # role_prompt <path>
+  awk 'NR==1 && $0=="---" { fm=1; next }
+       fm && $0=="---"     { fm=0; body=1; next }
+       !fm                 { print }' "$1"
+}
+
+# What next? Recomputed from the world, never remembered.
   PHASE=""; PR=""; HEADREF=""; UNRULED=""; UNCITED=""; ODS=""; REQS=""; SLUG=""; REASON=""
   CRITERIA=""
   while IFS='=' read -r k v; do
@@ -694,7 +703,7 @@ while :; do
     ORACLE)
       scope="Scope for this run: ${UNRULED:+rule on the filed uncertainties: $UNRULED.} ${UNCITED:+work the logged evidence: $UNCITED.}"
       run_worker "oracle-$(date -u +%Y%m%d%H%M%S)" oracle \
-        "$(cat .claude/commands/oracle.md)
+        "$(role_prompt .claude/commands/oracle.md)
 
 UNATTENDED RUN. The delivery driver commissioned this session. $scope" \
         "docs/oracle-$(date -u +%Y%m%d%H%M%S)" \
@@ -703,14 +712,14 @@ UNATTENDED RUN. The delivery driver commissioned this session. $scope" \
     STEWARD)
       od="${ODS%% *}"
       run_worker "steward-${od,,}" steward \
-        "$(cat .claude/commands/steward.md)
+        "$(role_prompt .claude/commands/steward.md)
 
 UNATTENDED RUN. The decision to plan: $od" \
         "docs/oracle-plan-${od,,}" \
         "Plan for $od" || true ;;
     PLAN)
       run_worker "plan-$(date -u +%Y%m%d%H%M%S)" steward \
-        "$(cat .claude/commands/plan.md)
+        "$(role_prompt .claude/commands/plan.md)
 
 UNATTENDED. The delivery driver commissioned this session; follow the
 unattended branches of the gate above. Requirements still unplanned: $REQS.
