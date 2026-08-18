@@ -85,13 +85,24 @@ jobs:
     # last attempt, and a timeout that kills the job mid-ladder turns "waited
     # out a rate limit" back into "failed the check".
     timeout-minutes: 10
+    # The App id is hoisted into the job environment for ONE reason: the
+    # `secrets` context is not available in an `if:` at all — not job-level, and
+    # not step-level either, which the previous comment here got wrong. A run
+    # whose workflow references it there fails VALIDATION: no job is created, no
+    # step is skipped, and the whole file is dead. Observed as `arm-auto-merge`
+    # silently vanishing from every pull request the moment this step landed,
+    # while GitHub reported only "a workflow file issue".
+    #
+    # `env` at job level may read secrets, and `env` IS available in a step
+    # `if:` — so the presence test moves there and the semantics are unchanged.
+    env:
+      APP_ID: ${{ secrets.APP_ID }}
     steps:
       - name: Mint the App token
         # Skipped in repositories where the App is not configured; the arming
-        # step's token fallback chain handles both outcomes. Step-level `if` is
-        # used because the secrets context is not available in job-level `if`.
+        # step's token fallback chain handles both outcomes.
         id: app-token
-        if: ${{ secrets.APP_ID != '' }}
+        if: env.APP_ID != ''
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.APP_ID }}
