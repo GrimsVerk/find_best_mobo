@@ -21,9 +21,9 @@
   },
   {
     "id": "o1dRange003",
-    "title": "B550 board rant from before the cutoff",
+    "title": "B550 board rant from well before the cutoff",
     "duration": 2400,
-    "upload_date": "20221115",
+    "upload_date": "20220615",
     "was_live": false,
     "live_status": "not_live",
     "uploader": "Actually Hardcore Overclocking",
@@ -68,5 +68,46 @@
     "live_status": "not_live",
     "uploader": "Actually Hardcore Overclocking",
     "url": "https://www.youtube.com/watch?v=recentVid07"
+  },
+  {
+    "id": "tsInRange08",
+    "title": "ASUS Crosshair X870E Hero and Strix X870 ITX Vcore regulation",
+    "duration": 5100,
+    "timestamp": 1764720000,
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=tsInRange08"
+  },
+  {
+    "id": "tsDecSlop09",
+    "title": "B650 Aorus Elite AX teardown from December 2022",
+    "duration": 2700,
+    "timestamp": 1671148800,
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=tsDecSlop09"
+  },
+  {
+    "id": "tsTooOld010",
+    "title": "Z690 VRM tier list from mid 2022",
+    "duration": 1800,
+    "timestamp": 1655337600,
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=tsTooOld010"
+  },
+  {
+    "id": "tsShortV011",
+    "title": "This heatsink screw is fake",
+    "duration": 50,
+    "timestamp": 1723766400,
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=tsShortV011"
+  },
+  {
+    "id": "nullDate012",
+    "title": "X870E chipset uplink deep dive",
+    "duration": 2100,
+    "upload_date": null,
+    "timestamp": 1710547200,
+    "uploader": "Actually Hardcore Overclocking",
+    "url": "https://www.youtube.com/watch?v=nullDate012"
   }
 ]
