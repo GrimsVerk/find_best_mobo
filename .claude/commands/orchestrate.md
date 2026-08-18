@@ -51,8 +51,13 @@ other plan. The steward's branch is `worker/steward-<od>`, which neither the
 
 ```sh
 git push origin worker/steward-<od>:docs/oracle-plan-<slug>
-gh pr create --head docs/oracle-plan-<slug> --fill
+gh pr create --head docs/oracle-plan-<slug> --fill   # attended only — see below
 ```
+
+**Unattended, the push is all you do.** The `gh pr create` line above is for a
+human running this command; under `UNATTENDED RUN` you have no grant for it and
+the driver opens the pull request as the App. The driver also dispatches
+stewards itself, so unattended you will rarely reach this at all.
 
 A diff confined to planning documents is exempt from the plan gate's size cap at
 any size, which these pull requests satisfy by construction. Only then does a feature branch off to build one. If the handoff
@@ -307,7 +312,21 @@ line you cannot write honestly — fix it rather than arguing with the gate
 later. This pre-check is never authorization to merge; it exists to make the
 gate's red runs rare, not to replace them.
 
-Push `feat/<slug>` and open **one** pull request for it. **Do not merge it.**
+**Who opens the pull request depends on who commissioned you, and this is not a
+style choice.**
+
+- **Your prompt says `UNATTENDED RUN`** — the delivery driver commissioned you.
+  **Push `feat/<slug>` and stop there.** Do not open the pull request; you have
+  no `gh pr create` grant, and the driver opens it as the GitHub App so it is
+  not authored by the owner. That is what makes
+  `.github/scripts/owner-authored.sh` a real boundary rather than a formality:
+  a pull request opened under the owner's own credentials is one GitHub reports
+  as theirs, whatever wrote it.
+- **Otherwise** — a human is running you. Push `feat/<slug>` and open **one**
+  pull request for it yourself. A human running a command and a pull request
+  appearing under their name is an accurate record.
+
+Either way: **do not merge it.**
 The merge is the pipeline's, triggered by the required checks going green — CI,
 `plan`, `test-the-tests`, and the review soft gate (and, where enabled, GitHub
 auto-merge completes it mechanically). A passing local pre-check is never your

@@ -195,6 +195,17 @@ Also confirm `docs/architecture.md` describes the system as it now stands — it
 is what the owner reads instead of the code, and it is the first thing to go
 stale across many merged features.
 
+**Who opens this pull request matters more here than anywhere else.**
+
+- **Your prompt says `UNATTENDED RUN`** — commit on the branch the driver named
+  and **push it, then stop**. Do not open the pull request. `docs/acceptance.md`
+  is `CODEOWNERS`-owned and **GitHub does not let an author approve their own
+  pull request**, so one opened under the owner's identity is one they cannot
+  approve — and this is the single artifact of the whole run whose review is the
+  point. The driver opens it as the GitHub App, which the owner can then approve.
+- **Otherwise** — you are attended. Land it on a `docs/` branch and open the
+  pull request yourself.
+
 ## 7. Report
 
 - Requirements: covered / total, and any still open.

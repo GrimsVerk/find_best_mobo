@@ -171,12 +171,30 @@ DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null 
 #      pull requests as the GitHub App rather than as the owner, that check
 #      finally binds. It is the layer that actually stops the merge; the two
 #      above just make the wrong thing hard to do by accident.
+#
+# AND `gh pr create` IS ABSENT, WHICH IS THE POINT OF THIS LIST'S NEWEST EDIT.
+# ESC-26 gave the driver an App identity so no unattended pull request is
+# authored by the owner, and fixed the two places the DRIVER opens one. This
+# grant was the two places a SESSION opened one: run_session() passes no
+# credential, so an orchestrate or acceptance session inherited the owner's
+# local `gh` auth and every feature and acceptance pull request in an unattended
+# run was authored by them.
+#
+# That is worse than a provenance problem. docs/acceptance.md is
+# CODEOWNERS-owned and GitHub does not let an author approve their own pull
+# request — so the one artifact whose review is the entire point of the run
+# could not be approved by the only person entitled to approve it.
+#
+# The button moved rather than the token: an installation token lasts an hour
+# and SESSION_TIMEOUT is an hour, so handing one to a session would fail late,
+# rarely, and looking like a GitHub outage. The driver opens both pull requests
+# after the session returns, exactly as it already does for every worker.
 ORCH_TOOLS="${DELIVER_ORCH_TOOLS:-Read,Grep,Glob,Write,Edit,\
 Bash(.claude/scripts/spawn-worker.sh:*),\
 Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),\
 Bash(git log:*),Bash(git show:*),Bash(git switch:*),Bash(git checkout:*),\
 Bash(git branch:*),Bash(git merge:*),Bash(git push:*),Bash(git worktree:*),\
-Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr checks:*),Bash(gh pr view:*)}"
+Bash(gh pr list:*),Bash(gh pr checks:*),Bash(gh pr view:*)}"
 
 # ------------------------------------------------------- command assembly
 # One place builds every session command, so --print-command and the real
@@ -457,11 +475,28 @@ Give at least one — at the prompt, or as --max-prs / --max-hours /
 fi
 
 # ------------------------------------------------------------- dispatchers
-mechanical_pr() { # mechanical_pr <worker-branch> <docs-ref> <title>
+mechanical_pr() { # mechanical_pr <source-branch> <head-ref> <title>
   # The commissioner's half of C5: a worker/<id> branch is neither docs/-
   # exempt nor slug-resolvable, so its head is pushed under a docs/-prefixed
   # name and the pull request opened from that. Mechanical — no judgment.
+  #
+  # The two refs may also be the SAME, which is how the feature and acceptance
+  # pull requests use it: a feature branch must keep its `feat/<slug>` name or
+  # plan-resolve.sh cannot match the slug against a plan.
+  #
+  # IDEMPOTENT. If a pull request already exists for the head ref, say so and
+  # succeed. An attended session that opened its own, or an iteration retried
+  # after a timeout, is a harmless race — and a driver that hard-failed on it
+  # would turn that race into a stopped run. What covers the case where a
+  # session opens one it should not is the tool grant above, which no longer
+  # contains `gh pr create`, and the fixture that asserts so.
   git push -q origin "$1:$2" || { log "push $2 failed"; return 1; }
+  if [[ -n "$("$GH" pr list --head "$2" --state open --limit 1 \
+                --json number --jq '.[].number' 2>/dev/null)" ]]; then
+    log "a pull request is already open for $2 — not opening a second one"
+    PR_COUNT=$((PR_COUNT + 1))
+    return 0
+  fi
   # Opened as the App, never as the owner. This is the line that makes
   # owner-authored.sh a real boundary instead of a formality: `app[bot]` is not
   # the CODEOWNERS owner, so a driver-opened pull request touching
@@ -684,8 +719,23 @@ uncertainties that block it)." \
         "docs/plan-$(date -u +%Y%m%d%H%M%S)" \
         "Plan: next milestone ($REQS)" || true ;;
     ORCHESTRATE)
-      run_session "orchestrate" "/orchestrate $SLUG" || true
-      PR_COUNT=$((PR_COUNT + 1)) ;;
+      # UNATTENDED RUN is the marker the worker prompts have always carried and
+      # this dispatch did not — which is exactly how it kept opening its own
+      # pull request as the owner through the whole of ESC-26's remediation. A
+      # command file that cannot tell which mode it is in has to write prose
+      # that is right for both, and "open the pull request" was right for one.
+      if run_session "orchestrate" "/orchestrate $SLUG
+
+UNATTENDED RUN. The delivery driver commissioned this session. Build the
+feature, commit it, and PUSH feat/$SLUG — then stop. Do NOT open the pull
+request: you have no grant to, and the driver opens it as the GitHub App so it
+is not authored by the owner."; then
+        if git rev-parse -q --verify "refs/heads/feat/$SLUG" >/dev/null 2>&1; then
+          mechanical_pr "feat/$SLUG" "feat/$SLUG" "Build: $SLUG" || true
+        else
+          log "orchestrate session finished but feat/$SLUG does not exist — nothing to open"
+        fi
+      fi ;;
     ACCEPTANCE)
       # The marker used to be written BEFORE the session ran, and the dispatch
       # is `|| true`, and run start never cleared it. So an acceptance session
@@ -710,9 +760,15 @@ uncertainties that block it)." \
         exit 0
       fi
       ACC_BEFORE="$(git rev-parse -q --verify "HEAD:docs/acceptance.md" 2>/dev/null || echo none)"
-      if run_session "acceptance" "/deliver — run ONLY step 6, the acceptance pass: check the built system against docs/DESIGN.md §13, record evidence per criterion in docs/acceptance.md, mark owner-only criteria pending with exactly what the owner should run. Every criterion §13 does NOT mark (owner) is a script at acceptance/S<n>.sh — write it, run it, and cite its real output; the required check .github/scripts/acceptance-criteria.sh runs them on every pull request from then on.${CRITERIA:+ Scripts failing right now: $CRITERIA.} A failing criterion is recorded as fail AND filed as a BL-<n> under 'Uncertainties awaiting oracle ruling' in docs/BACKLOG.md, so the oracle can rule on it — never reclassified as (owner) and never quietly passed. Land it on a docs/ branch and open the pull request."; then
+      ACC_REF="docs/acceptance-$RUN_ID"
+      if run_session "acceptance" "UNATTENDED RUN. The delivery driver commissioned this session. /deliver — run ONLY step 6, the acceptance pass: check the built system against docs/DESIGN.md §13, record evidence per criterion in docs/acceptance.md, mark owner-only criteria pending with exactly what the owner should run. Every criterion §13 does NOT mark (owner) is a script at acceptance/S<n>.sh — write it, run it, and cite its real output; the required check .github/scripts/acceptance-criteria.sh runs them on every pull request from then on.${CRITERIA:+ Scripts failing right now: $CRITERIA.} A failing criterion is recorded as fail AND filed as a BL-<n> under 'Uncertainties awaiting oracle ruling' in docs/BACKLOG.md, so the oracle can rule on it — never reclassified as (owner) and never quietly passed. Commit it on the branch $ACC_REF and PUSH it — then stop. Do NOT open the pull request: you have no grant to, and the driver opens it as the GitHub App. That is not bookkeeping — docs/acceptance.md is CODEOWNERS-owned, and GitHub does not let an author approve their own pull request, so a pull request opened under the owner's identity is one THEY cannot approve. It is the single artifact of this run whose review is the point."; then
         ACC_AFTER="$(git rev-parse -q --verify "HEAD:docs/acceptance.md" 2>/dev/null || echo none)"
         if [[ "$ACC_AFTER" != "$ACC_BEFORE" ]] || [[ -n "$(git status --porcelain -- docs/acceptance.md)" ]]; then
+          if git rev-parse -q --verify "refs/heads/$ACC_REF" >/dev/null 2>&1; then
+            mechanical_pr "$ACC_REF" "$ACC_REF" "Acceptance: the built system against docs/DESIGN.md §13" || true
+          else
+            log "acceptance session changed docs/acceptance.md but left no $ACC_REF branch to open"
+          fi
           touch "$STATE_DIR/acceptance-dispatched"
         else
           # Exit 0 having written nothing is the exact failure spawn-worker.sh's
