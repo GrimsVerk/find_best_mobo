@@ -347,3 +347,52 @@ wall-clock limit. A loop that quietly gets worse when it runs low is harder to
 diagnose than one that stops and says why.
 
 <!-- Append project decisions below, newest at the bottom. -->
+
+## 2026-08-16 — The agent can read subscription usage after all
+
+The owner asked whether a shell command could reach `/usage`. It can, by two
+routes: `claude -p "/usage"` returns the readings headlessly, and on Omarchy
+`omarchy-agent-usage-claude --limits-only --force` returns the same limits as
+JSON without starting a session at all — so the reading itself costs nothing.
+
+This supersedes the claim made twice in this file and once in the design on the
+same day: that no tool exposed the subscription limits. It was an assumption
+stated as a fact, and it survived because nobody spent thirty seconds testing
+it. The error mattered in a specific direction — it turned an enforceable
+ceiling into an estimate to be checked by hand afterwards. The cap of the
+earlier entry can now be enforced from inside a run, and `docs/DESIGN.md` §13
+therefore treats that criterion as checkable by running a command rather than
+owner-only.
+
+Two limits, from the commands' own output: the figure is approximate, and it
+counts local sessions on this machine only — not other devices, not claude.ai.
+The owner's own figure stays the tiebreaker where the two disagree.
+
+## 2026-08-18 — The first unattended run may spend 35 percentage points
+
+The 10% ceiling of the earlier entry is the **standing** cap. For the first
+truly unattended run it is raised, once, to **35 percentage points of the weekly
+limit**. The owner's reason: the weekly window resets in a day or two, so
+unspent allowance is lost rather than saved.
+
+**It is a delta, not a level.** The measurement is the difference between a
+reading taken before the run starts and one taken after it stops — not the
+absolute figure the gauge shows, which already includes everything else spent
+this week. The driver takes it as `--budget-points 35`.
+
+**Two readers exist and both were tested on 2026-08-18.** They agree.
+
+- `omarchy-agent-usage-claude --limits-only --force` — JSON, ~0.3s, starts no
+  session and therefore costs nothing. **Prefer it**: point `BUDGET_PROBE_CMD`
+  at it and `.claude/scripts/budget-probe.sh` uses it instead of the paid path.
+- `claude -p "/usage"` — the fallback, and correct, but it starts a small
+  session per call, so every probe spends a little of the thing it measures.
+
+**One trap, recorded because it already misled a reader.** The omarchy JSON
+reports `percent` as a **fraction of one** — `0.35` means 35%, not 0.35%.
+`claude -p "/usage"` prints whole percents. `budget-probe.sh` normalises both
+(`v <= 1 ? v * 100 : v`) and emits whole points, which is the form to trust:
+
+    session=10 week=36 week_model=25 reset=Aug 20, 10:59am (Europe/Amsterdam)
+
+Both readings remain approximate and count local sessions on this machine only.

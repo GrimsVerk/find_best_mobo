@@ -21,8 +21,10 @@ from find_best_mobo.cli import main
 from find_best_mobo.commands.index import run
 from find_best_mobo.config import Config
 from find_best_mobo.index import (
+    DATE_SLOP_DAYS,
     Video,
     classify,
+    effective_start_date,
     enumerate_channel,
     read_index,
     write_index,
@@ -31,15 +33,24 @@ from find_best_mobo.index import (
 FIXTURE = Path(__file__).parent / "fixtures" / "channel_entries.json"
 
 # Counts baked into the fixture, all distinct so the summary numbers cannot be
-# mistaken for one another: 7 found = 4 kept + 2 Shorts + 1 out-of-range.
+# mistaken for one another: 12 found = 7 kept + 3 Shorts + 2 out-of-range.
 # (The null-duration entry counts as a Short: a missing duration is 0, and 0 is
-# at-or-under the Shorts ceiling.)
-FIXTURE_TOTAL = 7
-FIXTURE_KEPT = 4
-FIXTURE_SHORTS = 2
-FIXTURE_OUT_OF_RANGE = 1
+# at-or-under the Shorts ceiling.) The fixture carries both real entry shapes:
+# the full per-video extraction shape (upload_date as YYYYMMDD) and the flat
+# channel listing shape (no upload_date, epoch seconds in timestamp) — the
+# listing shape is the one the first real run received and the original
+# fixture lacked, which is how 1215 videos came out excluded while every test
+# passed.
+FIXTURE_TOTAL = 12
+FIXTURE_KEPT = 7
+FIXTURE_SHORTS = 3
+FIXTURE_OUT_OF_RANGE = 2
 
 START_DATE = date(2023, 1, 1)
+# START_DATE minus DATE_SLOP_DAYS (62): the comparison boundary under the
+# default config, pinned here as a literal so the tests cannot inherit an
+# implementation mistake in the subtraction.
+EFFECTIVE_START = date(2022, 10, 31)
 
 
 def make_config(
@@ -68,7 +79,12 @@ def make_config(
 
 
 def make_entry(**overrides: object) -> dict[str, object]:
-    """A raw entry in the shape yt-dlp yields from a flat channel listing."""
+    """A raw entry in the shape yt-dlp yields from a full per-video extraction.
+
+    This shape carries ``upload_date`` as a ``YYYYMMDD`` string. It is real,
+    but it is NOT what a flat channel listing sends — see
+    ``make_listing_entry`` for that shape.
+    """
     entry: dict[str, object] = {
         "id": "b0ardLong01",
         "title": "X670E Taichi VRM breakdown",
@@ -76,6 +92,25 @@ def make_entry(**overrides: object) -> dict[str, object]:
         "upload_date": "20230615",
         "was_live": False,
         "live_status": "not_live",
+    }
+    entry.update(overrides)
+    return entry
+
+
+def make_listing_entry(**overrides: object) -> dict[str, object]:
+    """A raw entry in the shape a flat channel listing actually yields.
+
+    No ``upload_date`` and no live markers: the date arrives only as
+    ``timestamp``, epoch seconds interpreted as UTC. This is the shape the
+    first real run received for all 1215 videos, and the shape the original
+    fixture never exercised.
+    """
+    entry: dict[str, object] = {
+        "id": "tsInRange08",
+        "title": "ASUS Crosshair X870E Hero and Strix X870 ITX Vcore regulation",
+        "duration": 5100,
+        "timestamp": 1764720000,  # 2025-12-03 00:00:00 UTC
+        "url": "https://www.youtube.com/watch?v=tsInRange08",
     }
     entry.update(overrides)
     return entry
@@ -116,8 +151,11 @@ class TestClassify:
 
         assert video.inclusion == "excluded_short"
 
-    def test_upload_before_start_date_is_out_of_range(self, tmp_path: Path) -> None:
-        video = classify(make_entry(upload_date="20221231"), make_config(tmp_path))
+    def test_upload_well_before_start_date_is_out_of_range(self, tmp_path: Path) -> None:
+        # Well before the slop window, not merely before start_date: the
+        # comparison boundary is start_date minus DATE_SLOP_DAYS (see
+        # TestSlopBoundary), so a late-2022 date would be kept.
+        video = classify(make_entry(upload_date="20220615"), make_config(tmp_path))
 
         assert video.classification == "regular"
         assert video.inclusion == "excluded_out_of_range"
@@ -183,14 +221,192 @@ class TestClassify:
         assert video.inclusion == "excluded_short"
 
     @pytest.mark.parametrize("null_style", ["absent", "null"])
-    def test_missing_upload_date_is_out_of_range(self, tmp_path: Path, null_style: str) -> None:
+    def test_missing_upload_date_without_timestamp_is_out_of_range(
+        self, tmp_path: Path, null_style: str
+    ) -> None:
+        # make_entry carries no timestamp, so this is the neither-field case:
+        # the sentinel date and the out-of-range exclusion, unchanged.
         entry = make_entry(upload_date=None)
         if null_style == "absent":
             del entry["upload_date"]
 
         video = classify(entry, make_config(tmp_path))
 
+        assert video.upload_date == date.min
         assert video.classification == "regular"
+        assert video.inclusion == "excluded_out_of_range"
+
+
+class TestDateFromTimestamp:
+    """The date source contract: prefer upload_date, fall back to timestamp.
+
+    The first real run enumerated 1215 videos and kept none, because classify
+    read only upload_date and the flat channel listing sends the date as
+    timestamp (epoch seconds, UTC). Video Q6fJWPZMC5M, uploaded 2025-12-03,
+    was excluded as out of range. The first test here is the one that would
+    have caught that on day one.
+    """
+
+    def test_timestamp_only_video_in_range_is_kept(self, tmp_path: Path) -> None:
+        # 1764720000 is 2025-12-03 00:00:00 UTC — the spot-check video's date,
+        # arriving the only way the listing delivers it.
+        video = classify(make_listing_entry(timestamp=1764720000), make_config(tmp_path))
+
+        assert video.inclusion == "pending"
+        assert video.classification == "regular"
+        assert video.upload_date == date(2025, 12, 3)
+        # The listing shape carries no live markers; that must read as not-live.
+        assert video.was_live is False
+
+    @pytest.mark.parametrize(
+        ("timestamp", "expected"),
+        [
+            # Just after and just before UTC midnight: a local-time reading in
+            # any non-UTC zone lands one of these on the wrong day.
+            (1672533000, date(2023, 1, 1)),  # 2023-01-01 00:30:00 UTC
+            (1686871800, date(2023, 6, 15)),  # 2023-06-15 23:30:00 UTC
+        ],
+    )
+    def test_timestamp_is_epoch_seconds_read_as_utc(
+        self, tmp_path: Path, timestamp: int, expected: date
+    ) -> None:
+        video = classify(make_listing_entry(timestamp=timestamp), make_config(tmp_path))
+
+        assert video.upload_date == expected
+
+    def test_upload_date_wins_when_both_fields_are_present(self, tmp_path: Path) -> None:
+        # A timestamp from 2020 would be excluded; the upload_date must win on
+        # both the recorded date and the inclusion decision.
+        entry = make_listing_entry(upload_date="20230615", timestamp=1589587200)
+
+        video = classify(entry, make_config(tmp_path))
+
+        assert video.upload_date == date(2023, 6, 15)
+        assert video.inclusion == "pending"
+
+    def test_upload_date_wins_even_when_it_excludes(self, tmp_path: Path) -> None:
+        # The preference is not "whichever keeps the video": an in-range
+        # timestamp does not rescue an out-of-range upload_date.
+        entry = make_listing_entry(upload_date="20220615", timestamp=1710547200)
+
+        video = classify(entry, make_config(tmp_path))
+
+        assert video.upload_date == date(2022, 6, 15)
+        assert video.inclusion == "excluded_out_of_range"
+
+    @pytest.mark.parametrize("bad_date", ["", "unknown"])
+    def test_unparseable_upload_date_falls_back_to_timestamp(
+        self, tmp_path: Path, bad_date: str
+    ) -> None:
+        entry = make_listing_entry(upload_date=bad_date, timestamp=1764720000)
+
+        video = classify(entry, make_config(tmp_path))
+
+        assert video.upload_date == date(2025, 12, 3)
+        assert video.inclusion == "pending"
+
+    def test_timestamp_zero_is_the_epoch_not_a_missing_value(self, tmp_path: Path) -> None:
+        # 0 is a real instant, 1970-01-01 UTC — falsy, but not absent. It must
+        # produce the real epoch date and an ordinary out-of-range exclusion,
+        # never the missing-date sentinel.
+        video = classify(make_listing_entry(timestamp=0), make_config(tmp_path))
+
+        assert video.upload_date == date(1970, 1, 1)
+        assert video.upload_date != date.min
+        assert video.inclusion == "excluded_out_of_range"
+
+    @pytest.mark.parametrize("null_style", ["absent", "null"])
+    def test_neither_field_present_yields_the_sentinel(
+        self, tmp_path: Path, null_style: str
+    ) -> None:
+        entry = make_listing_entry(timestamp=None)
+        entry["upload_date"] = None
+        if null_style == "absent":
+            del entry["timestamp"]
+            del entry["upload_date"]
+
+        video = classify(entry, make_config(tmp_path))
+
+        assert video.upload_date == date.min
+        assert video.classification == "regular"
+        assert video.inclusion == "excluded_out_of_range"
+
+    def test_short_wins_over_date_on_the_listing_path_too(self, tmp_path: Path) -> None:
+        # Duration is still checked before date: an in-range timestamp does not
+        # save a Short, on this path any more than on the upload_date path.
+        video = classify(make_listing_entry(duration=45), make_config(tmp_path))
+
+        assert video.classification == "short"
+        assert video.inclusion == "excluded_short"
+
+
+class TestSlopBoundary:
+    """The comparison moves back by a fixed slop; the recorded date does not.
+
+    Owner's ruling: the listing's timestamps are bucketed to roughly mid-month,
+    so the boundary is start_date minus a fixed DATE_SLOP_DAYS = 62 —
+    deliberately a constant, not configuration — guaranteeing nothing uploaded
+    on or after start_date can be excluded. The price, accepted explicitly, is
+    that late-2022 videos ride along as pending.
+    """
+
+    def test_date_slop_is_the_owner_fixed_constant(self) -> None:
+        assert DATE_SLOP_DAYS == 62
+
+    def test_effective_start_date_moves_back_by_the_slop(self, tmp_path: Path) -> None:
+        assert effective_start_date(make_config(tmp_path)) == EFFECTIVE_START
+
+    def test_effective_start_date_follows_the_configured_start(self, tmp_path: Path) -> None:
+        config = make_config(tmp_path, start_date=date(2024, 1, 1))
+
+        assert effective_start_date(config) == date(2023, 10, 31)
+
+    def test_december_2022_video_is_kept_under_the_default_config(self, tmp_path: Path) -> None:
+        # The owner's accepted trade, not a bug: December 2022 sits inside the
+        # slop window, so it is pending — and the recorded date is the real
+        # one, not shifted by the slop.
+        video = classify(make_entry(upload_date="20221216"), make_config(tmp_path))
+
+        assert video.inclusion == "pending"
+        assert video.upload_date == date(2022, 12, 16)
+
+    def test_upload_on_the_effective_start_date_is_kept(self, tmp_path: Path) -> None:
+        # Out of range means strictly before the effective start, so the
+        # boundary day itself is kept.
+        video = classify(make_entry(upload_date="20221031"), make_config(tmp_path))
+
+        assert video.inclusion == "pending"
+        assert video.upload_date == EFFECTIVE_START
+
+    def test_upload_just_before_the_effective_start_date_is_excluded(self, tmp_path: Path) -> None:
+        video = classify(make_entry(upload_date="20221030"), make_config(tmp_path))
+
+        assert video.inclusion == "excluded_out_of_range"
+        assert video.upload_date == date(2022, 10, 30)
+
+    @pytest.mark.parametrize(
+        ("timestamp", "expected_inclusion"),
+        [
+            # 2022-10-31 00:00:00 UTC — first second of the boundary day, kept.
+            (1667174400, "pending"),
+            # 2022-10-30 23:59:59 UTC — last second before it, excluded.
+            (1667174399, "excluded_out_of_range"),
+        ],
+    )
+    def test_boundary_applies_to_the_timestamp_path_too(
+        self, tmp_path: Path, timestamp: int, expected_inclusion: str
+    ) -> None:
+        video = classify(make_listing_entry(timestamp=timestamp), make_config(tmp_path))
+
+        assert video.inclusion == expected_inclusion
+
+    def test_slop_shifts_with_the_configured_start_date(self, tmp_path: Path) -> None:
+        # With start_date 2024-01-01 the effective start is 2023-10-31, so a
+        # mid-2023 video is out of range even though the default config keeps it.
+        config = make_config(tmp_path, start_date=date(2024, 1, 1))
+
+        video = classify(make_entry(upload_date="20230615"), config)
+
         assert video.inclusion == "excluded_out_of_range"
 
 
@@ -346,6 +562,17 @@ class TestEnumerateChannel:
         assert by_id["sh0rtVid002"].inclusion == "excluded_short"
         assert by_id["o1dRange003"].inclusion == "excluded_out_of_range"
         assert by_id["startDate06"].inclusion == "pending"
+
+        # The listing-shape entries: dates arriving only as timestamp survive
+        # the whole enumerate path, with the real UTC date recorded.
+        spot_check = by_id["tsInRange08"]
+        assert spot_check.inclusion == "pending"
+        assert spot_check.upload_date == date(2025, 12, 3)
+        assert by_id["tsDecSlop09"].inclusion == "pending"
+        assert by_id["tsTooOld010"].inclusion == "excluded_out_of_range"
+        assert by_id["tsShortV011"].inclusion == "excluded_short"
+        assert by_id["nullDate012"].inclusion == "pending"
+
         kept = [video for video in videos if video.inclusion == "pending"]
         assert len(kept) == FIXTURE_KEPT
 
