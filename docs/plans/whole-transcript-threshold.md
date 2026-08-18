@@ -3,7 +3,7 @@ slug: whole-transcript-threshold
 status: draft
 created: 2026-08-16
 design: MVP — Corpus and the cost checkpoint (no inference)
-covers: [R5, R17]
+covers: [R5, R17, R28]
 ---
 
 # Whole transcript when the excerpts nearly are one — Plan
@@ -20,6 +20,37 @@ The reasoning is that past roughly that ratio you are paying excerpt overhead
 plus duplication to deliver nearly the whole text anyway, and a model reading
 one continuous transcript does better than one reading overlapping fragments of
 it.
+
+## Summary
+
+Stop excerpting a video once the excerpts have grown to cover it. Windows cut
+around every keyword mention overlap heavily on board-heavy videos, and the
+merged result was found to cost roughly five times what excerpting was meant to
+save while delivering nearly the whole transcript anyway.
+
+Owner's ruling of 2026-08-15, and what this plan does with it:
+
+- **At 80% or more, send the whole transcript** with a full-review instruction.
+  Measured per video, as the summed characters of that video's excerpts against
+  the characters of its full transcript.
+- **Below that, excerpts as today.** The feature earns its keep on videos that
+  mention a board once in passing; only the saturated case changes.
+- **Characters, not tokens**, because that is what the pipeline counts exactly.
+- **The ratio is measured after merging and capping**, on the excerpts that
+  would actually be sent — measuring before merge counts the overlap twice and
+  would push nearly everything over the line.
+
+One slice, ~260 lines, across the excerpt, bundle and estimate modules. The
+projection reports how many videos took each path, so the saving is visible
+rather than asserted, and bundles record which form a video took so the
+extraction stage can instruct the model accordingly.
+
+**This slice is blocked on one open decision.** Livestreams are in the corpus by
+owner ruling and several run past three hours — roughly 30–50k tokens in a
+single request. Without an upper bound, the 80% rule can create exactly the
+lumpy cost it exists to avoid. The plan proposes a ceiling above which a video
+falls back to excerpts regardless of ratio; until the owner rules, the slice
+must not be built.
 
 ## Uncertainties
 
