@@ -72,11 +72,15 @@ excerpting and no model involvement — those are the last slice of the
    upload, lazily, without downloading anything.
 4. Each entry is classified. Duration at or below the Shorts threshold means
    excluded as a Short — checked before anything else, so a pre-2023 Short is
-   excluded as a Short, not as out-of-range. Otherwise an upload date before
-   the start date (or missing entirely) means excluded as out-of-range.
-   Everything else — livestreams explicitly included — is kept as pending, for
-   the selection stage to judge later. Only Shorts are ever excluded on
-   duration; there is no ceiling.
+   excluded as a Short, not as out-of-range. Otherwise the video's date is
+   taken from its exact upload date when the entry carries one, and from the
+   listing's timestamp (epoch seconds, read as UTC) when it doesn't — the flat
+   channel listing only sends the timestamp, which is why the index must read
+   it. A video whose date falls before the start date, moved back by a fixed
+   two-month slop, is excluded as out-of-range; a video with neither field is
+   too. Everything else — livestreams explicitly included — is kept as
+   pending, for the selection stage to judge later. Only Shorts are ever
+   excluded on duration; there is no ceiling.
 5. Every video, excluded or not, becomes one line of `data/index.jsonl`
    carrying its classification and inclusion reason — exclusions are recorded,
    never implied.
@@ -210,12 +214,16 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
 
 ## Known rough edges
 
-- **Upload dates from flat listing are approximate.** Flat extraction only
-  carries a date at all because the `youtubetab:approximate_date` extractor
-  argument is set (without it, every video would silently classify as
-  out-of-range and the corpus would be empty). The dates it produces are
-  approximations, so a video near the 2023-01-01 boundary may fall on either
-  side of it.
+- **Upload dates from flat listing are approximate, and the boundary leans
+  into it.** Flat extraction only carries a date at all because the
+  `youtubetab:approximate_date` extractor argument is set, and what it fills is
+  the timestamp, not an exact upload date. The timestamps are bucketed —
+  observed values land mid-month, and two videos can share one — so instead of
+  trusting them at the boundary, the range comparison moves the start date back
+  by a fixed two-month slop. Nothing uploaded from 2023-01-01 onward can fall
+  out; the price, accepted by owner ruling, is that some late-2022 videos enter
+  the index as pending. The date recorded on each video is always the real
+  (approximate) one, never the shifted one.
 - **A missing duration classifies as a Short.** Missing or null duration is
   treated as 0, which is at or below the Shorts threshold. Deliberate — it
   never crashes — but it means a listing that omitted durations would
@@ -224,8 +232,10 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
   into a visible one. The count deliberately overlaps the Shorts count rather
   than being subtracted from it: a zero-duration video really was excluded as a
   Short, and the second line says why that may be wrong.
-- **A missing upload date is recorded as `0001-01-01`.** The record keeps its
-  out-of-range exclusion visible rather than inventing a plausible date.
+- **A video with no date at all is recorded as `0001-01-01`.** When an entry
+  carries neither an exact upload date nor a listing timestamp, the record
+  keeps its out-of-range exclusion visible rather than inventing a plausible
+  date. A timestamp of zero is not this case — it is a real date, 1970-01-01.
 - **A corrupt cache entry reads as absent.** A damaged transcript file is
   refetched rather than crashing the run, which is right for a cache but means
   silent corruption costs a refetch instead of announcing itself.

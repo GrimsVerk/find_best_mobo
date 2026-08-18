@@ -187,9 +187,12 @@ specific fact I would need to confirm myself before buying.
   rather than the projection: `claude -p "/usage"` returns them headlessly, so a
   reading is taken before a batch, after it, and part-way through a long one,
   and a run stops before crossing the line instead of discovering the overrun
-  afterwards. The Python pipeline itself still cannot read them, and the reading
-  is approximate — it counts only local sessions on the owner's machine — so the
-  owner's own figure remains authoritative for §13.
+  afterwards. On Omarchy the reader is
+  `omarchy-agent-usage-claude --limits-only --force`, which returns the limits as
+  JSON without starting a session. The Python pipeline itself still cannot read
+  them, and the reading is approximate — it counts only local sessions on the
+  owner's machine — so the owner's own figure remains the tiebreaker where the
+  two disagree.
 - **R27** — No completed work is lost to an overrun. Every model output is
   written to disk as it is produced rather than at the end of a batch, and full
   transcripts are retained after excerpting rather than discarded. Exceeding the
@@ -549,9 +552,10 @@ flags the staleness; a cutoff throws both away.
   inference; continuing requires a separate explicit command. *(Mechanically
   checkable.)*
 - **S3** — After the calibration batch, projected and actual usage are recorded
-  together with the corrected factor. *(Owner verifies — only the owner can read
-  actual subscription usage.)*
-- **S4** — Every claim in the report carries its video title, a working
+  together with the corrected factor. *(Mechanically checkable —
+  `omarchy-agent-usage-claude --limits-only --force` reads the real subscription
+  limits on this machine as JSON, so actual usage is not owner-only.)*
+- **S4** — **(owner)** Every claim in the report carries its video title, a working
   timestamped link, and a short verbatim snippet. The owner picks any five
   claims at random and all five are locatable within a minute at their stated
   timestamps. *(Owner verifies.)*
@@ -565,7 +569,7 @@ flags the staleness; a cutoff throws both away.
 - **S7** — A report generated at any completed batch boundary is valid and
   correctly stamped with the date range and corpus share it covers. *(Mechanically
   checkable.)*
-- **S8** — The owner can name a board to buy, and state which tier it came from
+- **S8** — **(owner)** The owner can name a board to buy, and state which tier it came from
   and which video and timestamp backs it. This is the criterion the project
   exists for. *(Owner verifies — a judgement call.)*
 - **S9** — The suite passes offline and deterministically, with `yt-dlp` and
