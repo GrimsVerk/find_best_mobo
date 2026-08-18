@@ -347,3 +347,23 @@ wall-clock limit. A loop that quietly gets worse when it runs low is harder to
 diagnose than one that stops and says why.
 
 <!-- Append project decisions below, newest at the bottom. -->
+
+## 2026-08-16 — The agent can read subscription usage after all
+
+The owner asked whether a shell command could reach `/usage`. It can, by two
+routes: `claude -p "/usage"` returns the readings headlessly, and on Omarchy
+`omarchy-agent-usage-claude --limits-only --force` returns the same limits as
+JSON without starting a session at all — so the reading itself costs nothing.
+
+This supersedes the claim made twice in this file and once in the design on the
+same day: that no tool exposed the subscription limits. It was an assumption
+stated as a fact, and it survived because nobody spent thirty seconds testing
+it. The error mattered in a specific direction — it turned an enforceable
+ceiling into an estimate to be checked by hand afterwards. The cap of the
+earlier entry can now be enforced from inside a run, and `docs/DESIGN.md` §13
+therefore treats that criterion as checkable by running a command rather than
+owner-only.
+
+Two limits, from the commands' own output: the figure is approximate, and it
+counts local sessions on this machine only — not other devices, not claude.ai.
+The owner's own figure stays the tiebreaker where the two disagree.
