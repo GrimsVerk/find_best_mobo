@@ -20,9 +20,10 @@ Implements **OD-5** (`docs/DESIGN.oracle.md`), which added **R1001**:
 R1001 is a bound on R28's path, and R28's path does not exist in the tree yet:
 `docs/plans/whole-transcript-threshold.md` planned it and then forbade building
 it ("do not build this slice until it is answered"), waiting on exactly the
-ruling OD-5 has now made. OD-5 asks for that plan to be revised; a steward may
-not write outside `docs/plans/oracle/`, so this plan carries the whole
-behaviour instead — the routing and its cap together, as one thing.
+ruling OD-5 has now made. OD-5 asks for that plan to be revised; `CODEOWNERS`
+holds `docs/plans/` and a steward writes only under `docs/plans/oracle/`, so
+that revision is the owner's own pull request — and this plan carries the whole
+behaviour instead, the routing and its cap together, as one thing.
 
 ## Summary
 
@@ -31,22 +32,19 @@ stage. A video whose excerpts have grown to cover it is sent as one whole
 transcript — unless that transcript would not fit inside a single bundle, in
 which case it stays on the excerpt path however saturated it is.
 
-- **This plan builds the routing, not just the cap.** The slice in
+- **This plan specifies the routing, not just the cap.** The unbuilt slice 1 of
   `docs/plans/whole-transcript-threshold.md` is superseded and must not also be
-  built — building both would deliver the same behaviour twice, differently.
-  That plan's own text still says the slice is blocked, which is now false; only
+  built; that plan's text still says it is blocked, which is now false, and only
   the owner can correct it.
 - **The cap is the existing `bundle_token_cap`.** No new configuration lever.
   "Fits" means projected tokens at the configured chars-per-token factor — the
   same estimator the packer uses — not characters.
 - **The 80% threshold stays a module constant**, per the owner's 2026-08-15
-  ruling, measured on the merged *and capped* excerpts (what would actually be
-  sent) against the whole transcript, characters on both sides, joined the same
-  way so the two are comparable.
+  ruling, measured on the merged *and capped* excerpts against the whole
+  transcript, characters on both sides, joined the same way.
 - **Three outcomes are reported, not two:** whole, excerpts, and
-  excerpts-because-over-cap. The third is the only thing that makes OD-5's cap
-  observable at all — without it a capped-back video is indistinguishable from
-  an ordinary sparse one, and nothing measures the decision.
+  excerpts-because-over-cap. Without the third a capped-back video is
+  indistinguishable from an ordinary sparse one and nothing measures the cap.
 - **Routing lives in a new `submission.py`.** `Excerpt` gains one field, `form`,
   defaulted so nothing existing changes shape; the bundle XML gains a `form`
   attribute so the extraction agent can tell a transcript from a window.
@@ -55,75 +53,78 @@ which case it stays on the excerpt path however saturated it is.
 
 Costs to the owner: the bundle XML gains an attribute (an output-format change
 to the file M2's agent will read); the projection prints three more lines; and
-R28 is now named by two plans, this one and the superseded one. Nothing
-deliberately left out is silent — see "Out of scope".
+R28 is named by two plans until the revision below lands. Not done here: the
+merge double-count (R1000/OD-4's plan, which this one is built after — see
+"Sequencing"), window sizes, the per-video cap, selection, and the extraction
+prompt's wording.
 
-Not done here: the merge double-count (that is R1000/OD-4's plan, and this plan
-should be built after it — see "Sequencing"), window sizes, the per-video cap,
-selection, and the extraction prompt's wording.
-
-Open questions, for the oracle next cycle: whether building the routing here
-rather than waiting on a revision of `whole-transcript-threshold.md` is the
-intended reading of OD-5; whether this plan should name R28 in `covers:` when
-another plan already does; and whether the over-cap fallback count belongs in
-the projection. All three are recorded below and proceeded on.
+No uncertainties: every decision derived from the design, with the four that
+came closest to the line worked through below. **What I need you to rule on:**
+OD-5 asks for `docs/plans/whole-transcript-threshold.md` to be revised, and
+`CODEOWNERS` holds `docs/plans/` — that revision is yours. Mark its slice 1
+superseded by this plan and drop R28 from its `covers:`, or the same routing is
+specified twice, once with a cap and once without. OD-4's merged plan asked you
+for that revision to carry R1001; it is carried here instead, for the reason
+below.
 
 ## Uncertainties
 
-Unattended, and a steward cannot stop for a ruling or file a `BL-<n>` — the one
-path it may write is this file. So every guess is recorded here and in the run
-report, and the plan continues on the best reading of OD-5. **None of these has
-been ruled on.**
+**No uncertainties — every decision derived from the design.** Nothing here was
+guessed, so nothing is filed as a `BL-<n>` and nothing waits on an oracle
+ruling. Four questions came close enough to the line that the derivation is
+worth showing rather than asserting; an empty section would hide exactly the
+reasoning the gate exists to check.
 
-- **Q:** Does this plan build R28's routing itself, or only the cap on top of
-  `docs/plans/whole-transcript-threshold.md`'s unbuilt slice 1? — **risk:** HIGH
-  (it decides what the slices are)
-  — **proposed:** build it here, self-contained, superseding that slice.
-  OD-5 asks for that plan to be revised to carry R1000 and R1001; a steward
-  cannot edit it, and a cap-only plan would depend on a slice whose own document
-  still says "do not build this slice", which nothing will lift while nobody is
-  awake.
-  **Ruling:** none — proceeded on the default (steward, unattended). For the
-  oracle next cycle.
-- **Q:** Should `covers:` name R28 when `whole-transcript-threshold.md` already
-  covers it? — **risk:** HIGH (it changes what `coverage.sh` reads)
-  — **proposed:** yes. This plan genuinely delivers R28's behaviour, and
-  `AGENTS.md` says to list what the plan delivers; two plans naming one
-  requirement is visible and harmless, a plan delivering an unnamed requirement
-  is not.
-  **Ruling:** none — proceeded on the default.
-- **Q:** Does the projection report the cap-forced fallback as its own count?
-  — **risk:** HIGH (it changes the `Projection` dataclass, a Signatures block)
-  — **proposed:** yes. R1001 says "how many videos took each path"; the capped
-  population is a third path, and `AGENTS.md`'s measurement rule says a decision
-  nothing can observe is a decision nobody can evaluate.
-  **Ruling:** none — proceeded on the default.
-- **Q:** Where does the routing live? — **risk:** LOW (module placement, cheap
-  to move) — **proposed:** a new `src/find_best_mobo/submission.py`, not
-  `excerpt.py` as the superseded plan proposed. Excerpting is three separate
-  judgements already (`excerpt.py`'s own docstring); routing is a fourth and a
-  different one, and keeping it out of `excerpt.py` also keeps this plan clear
-  of the module R1000's plan rewrites. Per OD-12 every shared type's module is
-  named in the Signatures blocks below.
-  **Ruling:** none — proceeded on the default.
-- **Q:** What exactly is "the characters in its full transcript"? — **risk:**
-  LOW (a measurement basis, one line to change) — **proposed:** the cue texts
-  joined with single spaces, which is precisely how `_text_between` builds
-  excerpt text, so numerator and denominator are the same kind of string.
-  Summing bare cue lengths on one side and joined lengths on the other would
-  bias the ratio by one space per cue.
-  **Ruling:** none — proceeded on the default.
-- **Q:** Does the 80% threshold become a config lever? — **risk:** LOW
-  — **proposed:** no. R17 enumerates the levers and this is not among them; the
-  superseded plan made it a module constant and the owner's ruling fixed the
-  number. It moves to config the day R17 says so.
-  **Ruling:** none — proceeded on the default.
-- **Q:** Build order against R1000 (OD-4)? — **risk:** LOW (sequencing, not
-  design) — **proposed:** after it. Correctness here does not depend on it, but
-  the ratio does: while merged excerpts still double-count their overlaps the
-  ratio is inflated, so more videos route whole than should. The cap bounds what
-  that can cost, which is why this is not a blocker.
-  **Ruling:** none — proceeded on the default.
+- **Whether this plan specifies R28's routing, or only the cap on top of
+  `whole-transcript-threshold.md`'s unbuilt slice 1.** Forced, in four steps.
+  `.github/scripts/oracle-decisions.sh` requires a plan under
+  `docs/plans/oracle/` to cite its decision and carry that decision's
+  requirement ids, so R1001 is this plan's to deliver. R1001 is a *bound*, and
+  the path it bounds is not in the tree. The unbounded path cannot land first as
+  an intermediate state either: OD-5's own "Alternatives considered" rejects
+  "unbounded whole-transcript path" by name, and the other plan's slice 1 has no
+  cap, so building it would put a rejected alternative in the tree. And
+  `plan-resolve.sh` fails a branch whose name matches more than one plan slug,
+  so one implementation branch is specified by exactly one plan — routing in one
+  document and cap in another cannot be built at all. One plan carries both, and
+  R1001 fixes which one. Revising the other plan instead is available only to
+  the owner, `CODEOWNERS` holding `docs/plans/`, and is asked for in the Summary.
+- **Which plan's `covers:` names R28.** This one, because slice 1 delivers R28's
+  behaviour and a plan names what it delivers. By `AGENTS.md`'s own contract
+  test this is not even a HIGH question: a front-matter list entry is not a
+  slice boundary, not a Signatures block, not an external format, and is one
+  line to reverse — and the candidate answers build identical code. `coverage.sh`
+  reports claims and tolerates two plans naming one id; what it cannot tolerate
+  is the owner's revision dropping R28 from the other plan and finding it named
+  nowhere.
+- **Whether the projection reports the cap-forced fallback as its own count.**
+  Read off R1001 directly — "The projection reports how many videos took each
+  path and what each path costs, so the routing is observable at the checkpoint"
+  — together with `AGENTS.md`'s rule that a change nothing can observe is a
+  decision nobody can evaluate. The cap *is* OD-5's decision, and a video capped
+  back to excerpts is indistinguishable from an ordinary sparse one in the
+  bundles, in the character totals and in the token totals. Folded into
+  `videos_excerpted`, the one thing this plan adds is the one thing nothing
+  measures.
+- **What "the characters in its full transcript" counts.** Already settled by a
+  merged plan rather than by this one: R1000's
+  `docs/plans/oracle/recut-merged-excerpts.md` defines
+  `transcript_characters(transcript)` as the single-space join of every cue's
+  text — the joining rule `_text_between` already uses — and hands it over as
+  the denominator of R28's ratio. Measuring the two sides differently would bias
+  the ratio by one space per cue.
+
+Three further choices are the plan's own to make rather than the design's, and
+are recorded here so the owner sees them without reading the slices. Routing
+lives in a new `src/find_best_mobo/submission.py` rather than `excerpt.py`:
+excerpting is three separate judgements already (`excerpt.py`'s own docstring),
+routing is a fourth, and keeping it separate also keeps this plan clear of the
+module R1000's plan rewrites — per OD-12 every shared type's module is named in
+the Signatures blocks below. The 80% threshold stays a module constant, because
+R17 enumerates the configuration levers and it is not among them; it moves to
+config the day R17 says so. And this plan is built after R1000's, because
+`AGENTS.md` holds one pipeline pull request in flight at a time and the ratio is
+only honest once each transcript character is counted once.
 
 ## What this makes partly wrong
 
@@ -400,6 +401,7 @@ is new machinery:
   improvement is M2's, not a change smuggled in here.
 - **Making the threshold or the cap configurable beyond `bundle_token_cap`.**
   No new lever; R17 enumerates the levers and neither is on that list.
-- **Revising `docs/plans/whole-transcript-threshold.md`.** A steward may not
-  write outside `docs/plans/oracle/`. Its slice must not be built; marking it
-  superseded is the owner's edit to make.
+- **Revising `docs/plans/whole-transcript-threshold.md`.** `CODEOWNERS` holds
+  `docs/plans/`, and a steward writes only under `docs/plans/oracle/`. Its slice
+  must not be built; marking it superseded is the owner's edit to make, and the
+  Summary asks for it.
