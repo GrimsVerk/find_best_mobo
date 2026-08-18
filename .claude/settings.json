@@ -1,14 +1,16 @@
 {
   "_comment": "Optional Claude Code convenience layer — deleting the whole .claude/ directory leaves a fully functional project. Enforcement lives in pre-commit and CI; this hook only surfaces failures earlier, in-session, and the deny rules mirror the AGENTS.md branch discipline (no pushes to main, no force pushes, no history rewrites, no --no-verify gate-skipping) for Claude Code sessions. CI is the authoritative gate regardless; these denies just stop a session skipping it. The allow list is a scoped allowlist for /orchestrate (headless workers + git worktree management); it does NOT switch the project into a full bypass mode.",
   "_comment_hook": "The PostToolUse hook is FORMAT ONLY, in both languages. It used to run the full pytest suite after every single edit, which is wrong twice over: on any real suite it is far too slow for a per-edit hook, and it fires mid-refactor when tests are legitimately red — so its exit 2 blocks the session precisely while you are in the middle of the multi-step change that would make it pass again. Tests belong at the commit boundary, where pre-commit runs them, and in CI, which is authoritative. Formatting is the only thing cheap enough and safe enough to do on every write.",
+  "_comment_spawning": "`Bash(claude -p:*)` and `Bash(codex exec:*)` used to sit in the allow list and were removed: nothing needs them. spawn-worker.sh is allowed on its own line, and the engine it launches is a subprocess of that script rather than a tool call, so the role system works without them. What they DID allow was any session spawning a headless agent directly, with whatever tool grants it chose — which bypasses every property spawn-worker.sh exists to impose: the per-role model and effort, the path-scoped write grants, the authentication preflight, and the empty-branch check. A door around the role system is not worth having for a convenience nobody uses.",
+  "_comment_intent": "Edit(path) and NOT Write(path), and that is the whole point of this note. Claude Code matches file-permission rules on Edit(...) ONLY — an Edit rule covers every file-editing tool including Write, and a Write(...) rule matches nothing at all. This file shipped with both spellings; the Write ones never bound, and the CLI said so on startup in a warning nobody was reading because the deny list looked complete. The two intent documents are denied to every Claude Code session in this project, orchestrator included. They are the owner's, and the only agent that may write them is the architect, which runs in the owner's own interactive session during /design (see .claude/commands/design.md). Deny beats allow in Claude Code's permission model, so this holds regardless of what a command line grants — and it closes the route where a session spawns another session to do the writing for it. This is defence in depth, not the binding fence: .github/scripts/owner-authored.sh is what actually stops these documents landing, and since the driver opens pull requests as the GitHub App it now really does.",
   "permissions": {
     "allow": [
       "Bash(.claude/scripts/spawn-worker.sh:*)",
-      "Bash(codex exec:*)",
-      "Bash(claude -p:*)",
       "Bash(git worktree:*)"
     ],
     "deny": [
+      "Edit(docs/DESIGN.md)", "Edit(./docs/DESIGN.md)",
+      "Edit(docs/VISION.md)", "Edit(./docs/VISION.md)",
       "Bash(git push origin main*)", "Bash(git push * main*)",
       "Bash(git push origin HEAD:main*)",
       "Bash(git push --force*)", "Bash(git push -f*)",

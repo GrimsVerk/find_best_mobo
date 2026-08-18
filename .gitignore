@@ -1,6 +1,22 @@
 .DS_Store
 # Claude Code orchestration (transient; produced by .claude/scripts/spawn-worker.sh)
 .claude/orchestration-logs/
+# Delivery-driver working state (transient; .claude/scripts/deliver-loop.sh):
+# failure signatures, dismissed evidence ids, and the run report AS IT IS BEING
+# WRITTEN. The finished report is NOT transient — at every stop the driver
+# copies it to docs/runs/<timestamp>/run.md and opens a pull request carrying
+# it. docs/runs/ is deliberately NOT ignored: a gitignored run log, in a web
+# container that gets reclaimed, is exactly the defect that arrangement repairs.
+.claude/deliver-loop/
+# The review gate's evidence, as the runner leaves it. The workflow uploads this
+# as an artifact and collect-evidence.sh lands it under docs/runs/; the local
+# copy is scratch.
+.claude/review-out/
+# GitHub App credentials for the unattended driver's identity: the App ID and
+# the PATH to its private key (.claude/scripts/app-token.sh reads it). Local to
+# one machine and never committed — the .pem it points at must not be either.
+.claude/app-identity
+*.pem
 # Worker worktrees live OUTSIDE .claude/, which Claude Code protects — a worker
 # sandboxed under it is refused every write, silently. See spawn-worker.sh.
 .worktrees/

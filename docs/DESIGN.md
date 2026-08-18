@@ -174,6 +174,33 @@ specific fact I would need to confirm myself before buying.
   ledger is reprinted in the final report regardless of whether a trigger fired,
   so missing coverage is visible at the point of use.
 
+- **R25** — The date boundary uses a fixed slop constant, not a configuration
+  lever. The channel listing's dates are approximate — bucketed to roughly
+  mid-month — so the comparison date is the start date minus a fixed two months,
+  guaranteeing that every video uploaded from 2023-01-01 onward is included and
+  accepting that some 2022 videos are included with them. Per-video exact dates
+  are explicitly rejected: they would cost one network call per video instead of
+  one for the channel, to sharpen a boundary that is a preference rather than a
+  rule.
+- **R26** — Total model spend for the extraction effort is capped at 10% of the
+  owner's weekly subscription limits. The cap is enforced against real readings
+  rather than the projection: `claude -p "/usage"` returns them headlessly, so a
+  reading is taken before a batch, after it, and part-way through a long one,
+  and a run stops before crossing the line instead of discovering the overrun
+  afterwards. The Python pipeline itself still cannot read them, and the reading
+  is approximate — it counts only local sessions on the owner's machine — so the
+  owner's own figure remains authoritative for §13.
+- **R27** — No completed work is lost to an overrun. Every model output is
+  written to disk as it is produced rather than at the end of a batch, and full
+  transcripts are retained after excerpting rather than discarded. Exceeding the
+  estimate must cost the overrun and never the work already paid for.
+- **R28** — Excerpting is skipped for a video whose excerpts have grown to cover
+  it. Where the summed characters of a video's excerpts reach 80% or more of the
+  characters in its full transcript, the whole transcript is sent with a
+  full-review instruction instead; below that ratio, the excerpts are sent.
+  Overlapping windows on a board-heavy video otherwise cost several times what
+  excerpting was meant to save, while delivering nearly the whole text anyway.
+
 **Non-functional**
 
 - **R18** — Platform / targets: Linux CLI, Python 3.12, `uv`-managed, plus

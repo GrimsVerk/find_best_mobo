@@ -67,6 +67,28 @@ rubber-stamp, and no agent merges on its own judgment:
   wired to nothing: tests asserting on mocks, on fixtures, or on the absence of
   an exception. The assertion quality question is the reviewer's, informed by
   the blind-authorship facts.
+- **Hard gate — acceptance-criteria** (the `acceptance-criteria` job): runs
+  every success criterion `docs/DESIGN.md` §13 does **not** mark **(owner)**,
+  as a script at `acceptance/S<n>.sh`. Exit 0 is pass, standard output is the
+  evidence, and `acceptance/README.md` says how to write one.
+
+  On **every** pull request, not once at the acceptance pass. That is the point:
+  a criterion verified once and trusted thereafter is exactly the "verified
+  once, trusted forever" shape this template distrusts everywhere else, and one
+  that passed at acceptance and regressed three merges later would be caught by
+  nothing until the next acceptance pass — which may be the last one.
+
+  It exists because `docs/acceptance.md` is the one artifact in an unattended
+  run whose PR requires your review, and its evidence used to be an agent's
+  narration: *"I ran X and it printed Y."* A pass an agent claims is now a pass
+  you can re-run, or the check refuses the row.
+
+  A criterion nobody has scripted yet is **reported, not failed** — one for work
+  that is not built is failing correctly, and failing the pipeline for it would
+  stop the build that would make it pass. A criterion that fails routes to the
+  oracle, which may rule it met in a way the script cannot see and record a
+  waiver; the row then stays `pending / owner`, because the oracle may not mark
+  a criterion passed.
 - **Soft gate — review** (`.github/workflows/review.yml`): an independent,
   read-only LLM reviews the PR diff against `AGENTS.md` and `docs/DESIGN.md`
   (design conformance, scope creep, soundness, security smells) and blocks on
@@ -78,6 +100,63 @@ rubber-stamp, and no agent merges on its own judgment:
 When both gates are green, the PR merges automatically via GitHub native
 auto-merge (armed by `.github/workflows/auto-merge.yml`, completed by GitHub
 when checks pass — as a merge commit, preserving history).
+
+## Unattended delivery
+
+Once `docs/DESIGN.md` and `docs/VISION.md` have landed, the whole loop — plan,
+build, merge, next — can run with nobody watching. Two frontends, one phase
+detector (`.claude/scripts/deliver-phase.sh`), chosen by which you start:
+
+```sh
+.claude/scripts/deliver-loop.sh          # local: waits on `gh pr checks --watch`
+```
+
+or `/deliver-loop` in a Claude Code web session, which waits on PR events and
+scheduled check-ins instead of holding a turn open. Before dispatching
+anything, the driver runs `.github/scripts/unattended-ready.sh`, which reads
+the *repository's* configuration back and **refuses** a run that cannot
+succeed, naming each missing setting.
+
+Your three jobs, and the loop never adds a fourth: land the design and vision;
+optionally steer mid-run by editing those two documents (they are the steering
+lever — every oracle ruling quotes `docs/VISION.md`, so editing a sentence
+moves everything downstream); review at the end. Mid-run questions go to the
+oracle, not to you: HIGH-risk uncertainties block planning until a ruling
+lands, LOW-risk ones proceed on a recorded default (`docs/DECISIONS.md` ships
+the rulings behind this). Every stop states its reason — the same failure
+three times, the allowance spent, or a green pull request only you can merge —
+and the morning read is `.claude/deliver-loop/run.md` plus
+`docs/acceptance.md`'s pending-on-owner list.
+
+**The run asks you for its ceiling before it starts, every time, and refuses to
+start without one.** No number is defaulted, because a limit you did not choose
+is one you will not recognise when it fires while you are asleep. Which question
+you get is decided by probing the usage gauge rather than by guessing where you
+are running:
+
+- **In a terminal, with a usage reader** — *how many percentage points of your
+  **weekly** limit may this run spend?* That percentage is the only stop that
+  applies by default. Both weekly limits are watched: the all-models one and
+  the per-model one, which has its own smaller cap and can bind first.
+- **In a web session, or with no reader** — the subscription percentage cannot
+  be read at all, so you are asked for at least one limit that *can* be counted
+  here: pull requests, wall-clock hours, or iterations.
+
+`--budget-points`, `--max-prs`, `--max-hours` and `--max-iterations` answer the
+question up front, which is what you want for a deliberately short run ("give it
+twenty minutes; if it needs longer, something is wrong").
+
+On a machine with a free usage reader, point `BUDGET_PROBE_CMD` at it — the
+built-in fallback is `claude -p "/usage"`, which works but starts a small
+session every time it is asked, and the driver asks once per iteration. On
+Omarchy:
+
+```sh
+export BUDGET_PROBE_CMD='omarchy-agent-usage-claude --limits-only --force'
+```
+
+`--force` matters: the reading is cached for 15 seconds, so without it two
+probes in a row return the same number and a short iteration reads as zero spend.
 
 ## Repository setup (manual, once)
 
@@ -91,6 +170,7 @@ them on the default branch (`main`):
    - `plan` (mechanical: the PR resolves to exactly one plan, already at base)
    - `template-sync` (mechanical: a `template/` PR is pure `copier update` output)
    - `test-the-tests` (mechanical: the new tests fail without the new code)
+   - `acceptance-criteria` (mechanical: every scripted success criterion still holds)
    - `review` (LLM soft gate)
 2. **Require review from Code Owners** (branch protection), so changes to the
    gate paths in `CODEOWNERS` need @GrimsVerk's approval even under

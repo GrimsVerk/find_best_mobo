@@ -192,3 +192,9 @@ Worth weighing before adopting:
 
 This touches `docs/DESIGN.md` R5, R6 and R17, so it is recorded here as a
 proposal and neither the design nor any plan has been edited.
+
+## Uncertainties awaiting oracle ruling
+
+_(nothing yet — filed by `/plan` when a design leaves a question open; format:_
+_`BL-<n>` — the question, the proposed default, HIGH or LOW risk, one line on_
+_why that class, and `— filed by: plan`.)_

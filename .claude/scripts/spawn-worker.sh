@@ -210,6 +210,11 @@ ORACLE_TOOLS=(
 STEWARD_TOOLS=(
   "Read" "Grep" "Glob"
   "Write(docs/plans/oracle/**)" "Edit(docs/plans/oracle/**)"
+  # The backlog is in the steward's reach for two documented duties: an
+  # objection to a decision goes to docs/BACKLOG.md (steward.md), and the
+  # unattended planner — which runs under this role — files uncertainties
+  # there as BL-<n> items for the oracle to rule on (plan.md, the gate).
+  "Write(docs/BACKLOG.md)" "Edit(docs/BACKLOG.md)"
   "${GIT_TOOLS[@]}"
 )
 READ_ONLY_TOOLS=("Read" "Grep" "Glob")
@@ -239,9 +244,39 @@ if [[ -n "$ROLE" ]]; then
     explore)
       ROLE_MODEL="claude-opus-5"; ROLE_EFFORT="low"
       ALLOWED_TOOLS=("${READ_ONLY_TOOLS[@]}"); PERM_MODE="default" ;;
+    architect)
+      # The architect is the only role that may write docs/DESIGN.md and
+      # docs/VISION.md, and it is deliberately NOT spawnable. It exists in the
+      # owner's own interactive session, during /design, and nowhere else.
+      #
+      # This refusal is the point of naming it. Spawning is how an agent starts
+      # another agent, so a spawnable architect would be a door any role could
+      # walk through to reach the two documents it is otherwise denied —
+      # including the orchestrator, mid-run, unattended. Closing the door here
+      # means the architect's authority cannot be delegated, borrowed, or
+      # reached by accident: it is available exactly when a human is typing.
+      #
+      # The rule this enforces has been wrong twice in this template's history.
+      # ESC-24: "no agent may edit it" made docs/VISION.md impossible to fill
+      # in, because /design is an agent writing down what the owner said.
+      # ESC-25: the correction went too far and let any agent LAND the design,
+      # which dissolves the asymmetry docs/DESIGN.oracle.md exists for. The
+      # boundary neither wording found is this one — an agent may transcribe,
+      # in a session the owner is driving, and the owner opens the pull request.
+      die "the 'architect' role is not spawnable, and that is deliberate.
+
+It is the only role that may write docs/DESIGN.md and docs/VISION.md, so it
+runs only where a human is present: the owner's own session, via /design. An
+agent that wants those documents changed does not spawn one — it files evidence
+(docs/BACKLOG.md or docs/escapes.md) and the oracle rules on it, or it says so
+in its report and the owner decides.
+
+If you are the owner and you want the design or the vision written, run
+/design in an interactive session." ;;
     *)
       die "unknown --role '$ROLE'.
 Known roles: coder, test-writer, oracle, steward, reviewer, explore.
+The 'architect' role exists but is not spawnable — see /design.
 A typo would otherwise land silently on the engine's own defaults — a wide tool
 grant and whatever model happened to be configured — which is the opposite of
 what naming a role was for." ;;

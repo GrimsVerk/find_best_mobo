@@ -75,6 +75,36 @@ jobs:
         run: |
           BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
             .github/scripts/escape-refs.sh
+      - name: The escape ledgers are append-only
+        # docs/escapes.md has said "never rewrite an entry" since it existed,
+        # and the oracle ledger gets that promise ENFORCED — the asymmetry was
+        # ESC-15. The escape ledger is the oracle's other evidence source, and
+        # an agent editing an inconvenient row would change what a landed
+        # decision's citation means. Corrections still pass: a correction is an
+        # APPENDED row repeating the id, which is the file's own documented
+        # lifecycle.
+        #
+        # It covers docs/escapes.done.md too, which records which escapes are
+        # FINISHED. An append-only ledger cannot be edited to mark something
+        # done, so that fact needed its own file — the same reason the backlog
+        # has a done-log. A row there makes the delivery driver stop handing the
+        # escape to the oracle, so the check additionally requires every closure
+        # to name a path that exists: "closed, it is fine now" is refused.
+        run: |
+          BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
+            .github/scripts/escapes-append-only.sh
+      - name: The backlog and its done-log are append-only
+        # The backlog is the OTHER evidence source oracle-decisions.sh resolves
+        # citations against, and it had no such protection — so an item could be
+        # reworded after a decision cited it, by the same pipeline that wrote
+        # both. Deliberately immutability rather than ownership: an unattended
+        # planner files uncertainties here mid-run, and requiring the owner's
+        # review on this path would stop work overnight, which is the failure
+        # the whole arrangement exists to prevent. Filing stays free; rewriting
+        # does not.
+        run: |
+          BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
+            .github/scripts/backlog-append-only.sh
       - name: Oracle decisions are append-only and evidence-backed
         # docs/DESIGN.oracle.md is the one design document an agent may write
         # unattended, so it is deliberately NOT behind CODEOWNERS — ownership
@@ -118,6 +148,62 @@ jobs:
           BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
           HEAD_SHA="$(git rev-parse HEAD)" \
             .github/scripts/vision-complete.sh
+      - name: Unattended readiness (advisory)
+        # ADVISORY, never red: `|| true` is the whole policy. The binding run
+        # of this script is the delivery driver's preflight, where it REFUSES;
+        # here it only surfaces repository-settings drift in the log, because
+        # settings live outside every file a pull request can diff. Some lines
+        # will read "cannot list" — the CI token cannot see secrets, and that
+        # is expected here, not a finding.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/unattended-ready.sh || true
+      - name: CODEOWNERS actually binds
+        # NOT advisory, and the one part of the readiness check that belongs on
+        # every pull request rather than only at dispatch.
+        #
+        # GitHub SILENTLY IGNORES a CODEOWNERS entry that does not resolve —
+        # copier.yml warns about this in its own words: the rule "simply never
+        # binds, and the gate paths quietly become writable by anything that
+        # passes CI". Every deterministic protection in this repository rests on
+        # that file resolving: the design and vision documents, the workflows,
+        # the review prompt, the delivery machinery under .claude/. If the
+        # handle goes stale — renamed account, removed collaborator — nothing
+        # turns red and nothing says so. The last line of defence becomes the
+        # LLM reviewer, which is a judgement gate, and auto-merge does the rest.
+        #
+        # This checks the PLATFORM's own validation rather than re-implementing
+        # the path list, which would be a second copy of the carve-out logic in
+        # plan-resolve.sh and would drift from it. One source of truth, one
+        # extra API call.
+        #
+        # It fails only on a definite answer. An unreadable API is a note, not a
+        # block: a check that goes red when GitHub is having a bad morning is a
+        # check people learn to re-run without reading.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          errs="$(gh api "repos/${GITHUB_REPOSITORY}/codeowners/errors" \
+                    --jq '.errors | length' 2>/dev/null || true)"
+          if [ -z "$errs" ]; then
+            echo "codeowners: cannot read the validation API here — not treating that as a failure."
+          elif [ "$errs" = "0" ]; then
+            echo "codeowners: resolves cleanly, so the ownership rules actually bind."
+          else
+            echo "codeowners: $errs unresolvable line(s) in .github/CODEOWNERS." >&2
+            gh api "repos/${GITHUB_REPOSITORY}/codeowners/errors" \
+              --jq '.errors[] | "  line \(.line): \(.message)"' >&2 || true
+            {
+              echo ""
+              echo "GitHub ignores a CODEOWNERS line it cannot resolve. It does not warn,"
+              echo "and the paths that line was protecting become writable by anything that"
+              echo "passes CI — including docs/DESIGN.md, the workflows, the review prompt,"
+              echo "and the delivery machinery under .claude/. Nothing else here turns red."
+              echo ""
+              echo "Fix the handle, or remove the line deliberately if the person is gone."
+            } >&2
+            exit 1
+          fi
 
   # The other half of the planning story. A `template/` branch is exempt from
   # the `plan` check above, because a template update is specified in the
@@ -183,6 +269,55 @@ jobs:
           HEAD_SHA="$(git rev-parse HEAD)" \
           HEAD_REF="$GITHUB_HEAD_REF" \
           .github/scripts/template-sync.sh
+
+  # The success criteria, as scripts that run.
+  #
+  # docs/acceptance.md is the ONE artifact in an unattended run whose pull
+  # request requires the owner's review, and until this job existed its evidence
+  # was an agent's narration — "I ran X and it printed Y." Everywhere else this
+  # template separates computed facts from judged verdicts; that table was the
+  # one place narration was admitted as evidence, and it is the last thing the
+  # owner reads. Every criterion docs/DESIGN.md §13 does not mark (owner) is
+  # acceptance/S<n>.sh, and this runs them.
+  #
+  # ON EVERY PULL REQUEST rather than once at the acceptance pass, which is the
+  # point: a criterion verified once and trusted thereafter is the "verified
+  # once, trusted forever" shape this template distrusts everywhere else, and
+  # one that regressed three merges later would be caught by nothing until the
+  # next acceptance pass — which may be the last one.
+  #
+  # A SEPARATE JOB rather than a step in `plan`, for two reasons. These scripts
+  # exercise the BUILT SYSTEM, so they need the project's toolchain installed,
+  # which the text-matching `plan` job deliberately does not have. And a red
+  # `acceptance-criteria` should read as "a success criterion is not met", never
+  # as "the plan wiring is broken" — the same reason `plan` and `review` are
+  # kept apart.
+  #
+  # The scripts are deliberately NOT CODEOWNERS-owned, on the owner's ruling: a
+  # feature that depends on another would block waiting for a review, and a
+  # failing criterion is diagnostic information the loop should act on rather
+  # than a door it waits at. §13 IS owned, so the SET of criteria stays the
+  # owner's even though the scripts are not.
+  acceptance-criteria:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: §13, the acceptance table and the landed waivers are
+          # all read at the merge base, never from this pull request's own copy.
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - name: Every scripted success criterion still holds
+        # Exits 0 with nothing to say on a project whose design has no criteria
+        # yet, rather than being skipped with an `if:` — a skipped job counts as
+        # PASSING for a required check, which is the failure mode ci.yml already
+        # takes care to avoid twice above.
+        run: |
+          BASE_SHA="$(git merge-base "origin/$GITHUB_BASE_REF" HEAD)" \
+            .github/scripts/acceptance-criteria.sh
 
   # Secret scanning belongs in CI, not only in a local hook. gitleaks runs in
   # pre-commit too, but pre-commit requires `pre-commit install` on every clone

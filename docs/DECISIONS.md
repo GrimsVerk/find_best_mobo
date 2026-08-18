@@ -293,3 +293,57 @@ batch, produce a cost estimate from what it actually consumed, then 3–4 furthe
 batches, then reassess. Unchanged from the design's intent; recorded because it
 was re-affirmed after the corpus turned out to be 1215 videos rather than the
 500–1000 assumed while drafting.
+
+The entries below shipped with the template — rulings the template's owner made
+once so every generated project does not re-ask them. They bind here like any
+other entry: to change one for this project, supersede it.
+
+## 2026-08-16 — Waiting is mechanical, and belongs to the driver
+
+Resolves the open question `/deliver` step 4 used to carry (idle vs poll vs
+scheduled wake-up). The wait is not agentic: a **driver** — deterministic
+tooling, not a model — invokes one headless session per phase and waits between
+phases on `gh pr checks --watch`-style polling, so no model budget is spent
+watching CI. Run it locally (`.claude/scripts/deliver-loop.sh`) or from a
+Claude Code web session (`/deliver-loop`); the mode is chosen explicitly by
+which entry point you start. The exit condition stands as previously decided:
+wait until **no check is still pending**, never until the pull request is no
+longer open — a failing pull request never leaves the open state, so the second
+condition makes red indistinguishable from still-running.
+
+## 2026-08-16 — Mid-run authority: the design layer rules, the oracle rules it
+
+Plans derive only from the design layer. When new work surfaces mid-run, it
+enters through the chain — the oracle amends `docs/DESIGN.oracle.md` on its own
+pull request, a plan follows on its own pull request, then code — never
+directly. Uncertainties a plan raises are handled by risk class, judged by a
+contract test: **HIGH** if the candidate answers change slice boundaries,
+Signatures blocks, external formats or schemas, or anything expensive to
+reverse — and when unsure, that doubt itself makes it HIGH. High-risk: the
+planner files the question in `docs/BACKLOG.md` and waits for the oracle's
+ruling. Low-risk: the planner proceeds on a recorded default and the oracle
+reviews it next cycle. Attended runs keep the original behaviour: the owner
+rules. The owner steers unattended runs by editing `docs/VISION.md` and
+`docs/DESIGN.md`, and reviews at the end.
+
+## 2026-08-16 — Unattended runs act as a GitHub App, not as the owner
+
+A user PAT shares the owner's per-hour API budget with every tool acting as
+that user, and the built-in Actions token cannot trigger workflows from its own
+events — both were hit in practice. A GitHub App has its own rate-limit budget,
+its events fire workflows (so merged branches actually get deleted), and pull
+requests it opens are authored as the app, which makes "opened by the owner"
+(`.github/scripts/owner-authored.sh`) mean exactly that. Fallback when no App
+is configured: `AUTO_MERGE_TOKEN`, then the Actions token plus the nightly
+branch sweep.
+
+## 2026-08-16 — The budget ceiling is subscription percentage points, and it halts
+
+An unattended run stops — it does not degrade to a cheaper model or a smaller
+scope — when it has consumed its allowance, measured in percentage points of
+the owner's subscription rate limit from the run's start. Because that probe is
+best-effort, two hard backstops always also apply: a pull-request count and a
+wall-clock limit. A loop that quietly gets worse when it runs low is harder to
+diagnose than one that stops and says why.
+
+<!-- Append project decisions below, newest at the bottom. -->

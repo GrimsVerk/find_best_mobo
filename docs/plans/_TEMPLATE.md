@@ -1,6 +1,6 @@
 ---
 slug: <kebab-case-id>      # MUST appear in every branch name working this plan
-status: draft              # draft | in-flight | merged
+status: draft              # draft | in-flight | merged  (see below)
 created: <YYYY-MM-DD>
 design: <the docs/DESIGN.md milestone this implements>
 covers: [R1, R2]           # the DESIGN.md §5 requirement ids this plan delivers
@@ -20,24 +20,43 @@ planned?" — a requirement no plan covers is work nobody has scheduled, and
 without this field that gap is invisible until the end. List only what this plan
 genuinely delivers; padding it hides the same gap more convincingly. -->
 
+<!-- `status: merged` means THE WORK LANDED, not that this document merged. The
+delivery driver reads it: `.claude/scripts/deliver-phase.sh` otherwise calls a
+plan built only when a branch named `feat/<slug>` has merged, so a plan whose
+work shipped some other way — a retrospective record, or work that landed on a
+differently-named branch — would be asked for forever. Set it when the work is
+done, not when the plan is approved. -->
+
 ## Uncertainties
 
-<!-- Filled in BEFORE the slices, and left here afterwards as the record.
+<!-- Filled in BEFORE the slices, and left here afterwards as the record of
+every decision taken without a design basis — who ruled, or what default was
+proceeded on. This is the only gate that catches a correct implementation of
+the wrong thing: no downstream review can recover from a misunderstood goal,
+and a wrong guess is cheap to fix here and expensive to fix once code exists.
 
-List the decisions you are least confident about — the ones you had to guess at
-rather than derive from the design doc — and STOP. Do not write slices until the
-owner has ruled. This is the only gate that catches a correct implementation of
-the wrong thing: no downstream review can recover from a misunderstood goal, and
-a wrong guess is cheap to fix here and expensive to fix once code exists.
+Classify each question first — HIGH if the candidate answers change slice
+boundaries, a Signatures block, an external format or schema, or anything
+expensive to reverse (unsure means HIGH); LOW otherwise. Who rules depends on
+who is awake:
+
+  - attended: the owner rules on everything before slices are written;
+  - unattended: HIGH stops for an oracle ruling (filed as a BL-<n> in
+    docs/BACKLOG.md, ruled as an OD-<n> in docs/DESIGN.oracle.md — record
+    both ids here); LOW proceeds on the recorded default, reviewed by the
+    oracle next cycle.
 
 If there is genuinely nothing to ask — every decision followed from
 docs/DESIGN.md — write "None: every decision derived from the design" and carry
 straight on. A stop with nothing behind it teaches everyone to skip the stop.
 
-One line per question, with your proposed default, then the ruling once given. -->
+One line per question, with the risk class, your proposed default, then the
+ruling once given (or the default proceeded on, marked as such). -->
 
-- **Q:** <the decision you're unsure about> — **proposed:** <your default>
-  **Ruling:** <what the owner decided>
+- **Q:** <the decision you're unsure about> — **risk:** <HIGH or LOW, and why>
+  — **proposed:** <your default>
+  **Ruling:** <what the owner or oracle decided, with the OD-<n> id if the
+  oracle ruled — or "proceeded on the default (LOW)," left for review>
 
 ## The slices
 

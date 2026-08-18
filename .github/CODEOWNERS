@@ -49,6 +49,14 @@
 # it. A pattern with NO owner clears ownership for the paths it matches, and
 # later rules win — so this line, and only this line, releases the oracle's
 # planning directory. Everything else under /docs/plans/ stays owned.
+#
+# This un-owned path carries TWO kinds of plan: the steward's (citing an
+# OD-<n>) and the milestone plans the unattended delivery driver lands (citing
+# none, but covering only requirement ids that already exist in a design
+# document). oracle-decisions.sh enforces both shapes, which is what replaces
+# the owner's review here: a plan on this path can implement landed work and
+# can never propose any. Attended plans stay under /docs/plans/ proper, where
+# merging past this file IS the owner's ruling.
 /docs/plans/oracle/
 
 # The append-only ledgers. Their value is that entries are never quietly
@@ -59,6 +67,34 @@
 # The Claude permission deny list. Vendor-specific and deletable, but while it
 # exists an agent must not be able to widen its own permissions.
 /.claude/settings.json       @GrimsVerk
+
+# The rest of the delivery machinery, added after a review found that this file
+# and the review prompt both enumerated gate paths, both stopped at .github/,
+# and both had been written before the driver existed. What lives here is not
+# convenience: deliver-loop.sh holds ORCH_TOOLS — the tool grant every
+# unattended orchestrate session runs under — spawn-worker.sh holds the
+# per-role grants, and the command files are read at dispatch time and BECOME
+# the prompts of unattended agents. A three-line `chore/` branch editing any of
+# them is under the planning exemption's size cap and matched no rule here, so
+# it merged green with nobody asked to look. That is the same shape as ESC-22:
+# a path added after the list that names paths.
+/.claude/scripts/            @GrimsVerk
+/.claude/commands/           @GrimsVerk
+/.claude/agents/             @GrimsVerk
+/.claude/orchestration.md    @GrimsVerk
+
+# docs/BACKLOG.md is deliberately NOT listed, and the reason is worth writing
+# down because it looks like an omission. It is the left-hand side of the
+# authority chain's first arrow — oracle-decisions.sh resolves a decision's
+# evidence against BL-<n> ids found here, so a token in this file authorises an
+# amendment to the design layer. Owning it would be the obvious fix and it is
+# the wrong one: the unattended planner files uncertainties here mid-run, so an
+# owner review on this path stops work at 3am, which is the single thing this
+# whole arrangement exists to prevent. The honest countermeasure is not approval
+# but PROVENANCE and IMMUTABILITY — .github/scripts/backlog-append-only.sh keeps
+# landed items from being quietly revised, and every item records the pull
+# request that filed it, so the owner reading a decision can see whether its
+# evidence came from reality or from the pipeline that wanted it.
 
 # The template-owned glossary. Replaced wholesale by `copier update`, so an edit
 # here is not just unreviewed, it is about to be silently lost — words belong in
