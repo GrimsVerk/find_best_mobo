@@ -75,7 +75,7 @@ def entry(
 # are unambiguous: 1 kept, 1 out of range, 1 genuine Short.
 BACKDROP: list[dict[str, object]] = [
     entry("keptVideo01", "20240310", 3600),
-    entry("oldVideo002", "20221115", 2400),
+    entry("oldVideo002", "20220601", 2400),
     entry("shortVid003", "20240501", 45),
 ]
 
