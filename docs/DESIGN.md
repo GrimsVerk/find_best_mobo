@@ -548,10 +548,10 @@ flags the staleness; a cutoff throws both away.
 - **S2** — The cost projection is printed and the pipeline stops before any
   inference; continuing requires a separate explicit command. *(Mechanically
   checkable.)*
-- **S3** — After the calibration batch, projected and actual usage are recorded
+- **S3** — **(owner)** After the calibration batch, projected and actual usage are recorded
   together with the corrected factor. *(Owner verifies — only the owner can read
   actual subscription usage.)*
-- **S4** — Every claim in the report carries its video title, a working
+- **S4** — **(owner)** Every claim in the report carries its video title, a working
   timestamped link, and a short verbatim snippet. The owner picks any five
   claims at random and all five are locatable within a minute at their stated
   timestamps. *(Owner verifies.)*
@@ -565,7 +565,7 @@ flags the staleness; a cutoff throws both away.
 - **S7** — A report generated at any completed batch boundary is valid and
   correctly stamped with the date range and corpus share it covers. *(Mechanically
   checkable.)*
-- **S8** — The owner can name a board to buy, and state which tier it came from
+- **S8** — **(owner)** The owner can name a board to buy, and state which tier it came from
   and which video and timestamp backs it. This is the criterion the project
   exists for. *(Owner verifies — a judgement call.)*
 - **S9** — The suite passes offline and deterministically, with `yt-dlp` and

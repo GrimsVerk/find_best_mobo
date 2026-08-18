@@ -72,30 +72,30 @@ document, I mean old *within* that window, not old in general.
 
 ## Priorities, in order
 
-1. **Real, sourced information about which boards Buildzoid considers safe** for
+1. **V1** — **Real, sourced information about which boards Buildzoid considers safe** for
    a 7950X3D or 9950X3D — and which he does not. This is the whole product.
-2. **Surfacing videos that are dense in information about *this* problem** —
+2. **V2** — **Surfacing videos that are dense in information about *this* problem** —
    packed with useful knowledge about board safety and the boards I would
    actually buy. Not "technically dense", though technical is completely fine.
    Dense in what is relevant to the decision I am making. If a video is about a
    board I would genuinely consider, I will watch all of it. What I refuse to do
    is sit through multiple hour-long videos about boards that are irrelevant to
    me, even if they technically work with AM5.
-3. **Not wasting tokens.** Cost matters, but far less than the two above. Worst
+3. **V3** — **Not wasting tokens.** Cost matters, but far less than the two above. Worst
    case I blow my 5-hour limit and wait; worst worst case I blow the weekly
    limit and wait a few days. Cost is about not being *stupid* — not spending
    budget I could have used on other projects — rather than a hard constraint.
 
 ## What I would trade away
 
-- **Cost, for information quality.** Given a choice between a cheaper run and a
+- **V4** — **Cost, for information quality.** Given a choice between a cheaper run and a
   better-sourced answer, take the better answer.
-- **Completeness on Intel-focused videos.** A lot of his catalogue is Intel
+- **V5** — **Completeness on Intel-focused videos.** A lot of his catalogue is Intel
   board testing. If a video is strictly about Intel, discard it completely —
   especially an older one.
-- **Breadth, for relevance.** I do not want every AM5-compatible board. I want
+- **V6** — **Breadth, for relevance.** I do not want every AM5-compatible board. I want
   the ones worth considering.
-- **My own reading time over my own watching time.** I would rather the system
+- **V7** — **My own reading time over my own watching time.** I would rather the system
   filter hard and hand me three videos than be safe and hand me thirty.
 
 **The one trade that is graded rather than flat:** I assume more recent videos
@@ -114,19 +114,19 @@ the agent choosing the other design, and it only halts to ask me if there is no
 design that satisfies it at all — which for these four should approximately
 never happen. None of them is a reason to stop working and wait for me.
 
-1. **Never assert a safety verdict for a board he never assessed.** No inferring
+1. **V8** — **Never assert a safety verdict for a board he never assessed.** No inferring
    "probably fine" from a similar VRM, the same brand, or an adjacent model
    number. Transferring his result across CPUs on the *same* board is reasoning
    about his evidence and is wanted; inventing a result for a board he never
    touched is not, and no design decision may make that possible.
-2. **Never present transferred evidence as direct.** A verdict carried over from
+2. **V9** — **Never present transferred evidence as direct.** A verdict carried over from
    a different AM5 CPU is labelled as such, with the CPU named, so I can weigh
    it myself.
-3. **Never spend budget on material with no chance of relevance.** Where some
+3. **V10** — **Never spend budget on material with no chance of relevance.** Where some
    other goal can only be met by processing content with no AMD or AM5 signal,
    that goal loses and a cheaper design is chosen. This is a rule for picking
    between designs, not a reason to stop and ask.
-4. **Every claim carries a video and a timestamp.** Provenance is not optional
+4. **V11** — **Every claim carries a video and a timestamp.** Provenance is not optional
    in any design: a claim I cannot go and watch is not usable, and the pointer
    to the moment he said it *is* the recommendation of what to watch.
 
@@ -176,11 +176,11 @@ runs, keep every verdict — and never a return to discarding them.
 
 ## What makes an answer unacceptable
 
-- **A safety verdict on a board he never actually gave one for.** If he did not
+- **V12** — **A safety verdict on a board he never actually gave one for.** If he did not
   say it, the answer must say he did not say it. Silence has to read as silence.
-- **Burning the weekly limit sifting through completely irrelevant transcripts.**
+- **V13** — **Burning the weekly limit sifting through completely irrelevant transcripts.**
   That would genuinely annoy me, and it is the one failure I can name outright.
-- **A recommendation I cannot go and check.** If I cannot get to the video and
+- **V14** — **A recommendation I cannot go and check.** If I cannot get to the video and
   the moment he said it, I cannot act on it — the point is that I watch him and
   decide, not that I trust a summary.
 
