@@ -19,83 +19,80 @@ checkpoint exists to produce, was wrong by that factor.
 ## Summary
 
 Give `merge_overlapping` the transcript and let it re-cut the merged span from
-the cues, instead of gluing two window texts together. That is the whole change;
-everything else follows from it, because the projection already sums the
-characters of the excerpts it is handed.
+the cues instead of gluing two window texts together. Everything else follows,
+because the projection already sums the characters of the excerpts it is handed.
 
 - **The merge takes one video's transcript** —
   `merge_overlapping(excerpts, transcript)`, `ValueError` on an excerpt from
-  another video. Today it accepts a mixed-video sequence and keeps videos apart
-  itself; the only caller passes one video's windows and R22 forbids holding a
-  channel of transcripts at once, so "never merge across videos" becomes
+  another video. The only caller already passes one video's windows and R22
+  forbids holding a channel at once, so "never merge across videos" becomes
   unaskable rather than enforced. This retires the cross-video merge tests.
-- **The bound is a property, not an estimate.** Merged spans are disjoint, cue
-  membership is decided on the cue's start alone, so each cue's text lands in at
-  most one excerpt: a video's summed excerpt characters can never exceed its
-  transcript's characters. Stated in the plan because the blind test author must
-  assert it, and it is the assertion R1000 asks for.
+- **The bound is a property, not an estimate.** Merged spans are disjoint and
+  cue membership is decided on the cue's start alone, so each cue's text lands
+  in at most one excerpt, and a video's summed excerpt characters can never
+  exceed its transcript's. The blind test author asserts it; R1000 asks for it.
 - **"The transcript's characters" is defined here**, as the single-space join of
   every cue's text — the same joining rule `_text_between` uses, exposed as
   `transcript_characters(transcript)`. It is also the denominator the R28
   saturation ratio needs, so the two documents cannot drift into two definitions.
 - **The regression is a synthetic transcript of the measured shape**, not the
-  real captions: R21 holds the corpus local-only and never redistributed. The
-  test reproduces BL-10's geometry (~33 minutes, ~28.4k characters, a mention
-  roughly every minute) and asserts the bound, 4.8x violated before the fix.
+  real captions: R21 holds the corpus local-only and never redistributed. It
+  reproduces BL-10's geometry (~33 minutes, ~28.4k characters, a mention roughly
+  every minute) and asserts the bound, 4.8x violated before the fix.
 - **Not done here: the R28 whole-transcript path.** R1000 also says the R28
-  ratio is computed from the re-cut text. That path does not exist yet — it is
-  OD-5/R1001's, in `docs/plans/whole-transcript-threshold.md` — and building it
-  here would be a second decision. This plan makes the ratio correct by
-  construction and hands that plan `transcript_characters`.
-- **What it costs the owner:** one plan needs revising before it is built.
-  OD-5 says `whole-transcript-threshold` "should be revised to carry R1000 and
-  R1001"; R1000 is delivered here, so that revision should carry **R1001 only**
-  and cite this plan for the merge, or two plans claim one requirement.
+  ratio is computed from the re-cut text. That path is OD-5/R1001's, in
+  `docs/plans/whole-transcript-threshold.md`; building it here would be a second
+  decision. This plan makes the ratio correct by construction and hands it
+  `transcript_characters`.
 
 Two slices, ~330 lines, sequential — the second is the regression against the
-first. **Open questions:** all four uncertainties below were resolved on a
-default, this being an unattended run; the last one — which plan carries R1000 —
-is the one worth the owner's look.
+first. No uncertainties: every decision derived from the design, with the four
+that came closest to the line worked through below.
+
+**What I need you to rule on:** OD-5 says `whole-transcript-threshold` "should
+be revised to carry R1000 and R1001". R1000 is delivered here, so that revision
+should carry **R1001 only** and cite this plan — otherwise two plans claim one
+requirement. It is its own pull request and this plan does not touch it.
 
 ## Uncertainties
 
-Four, none of which had an answer in either design document. This ran
-unattended and a steward cannot stop for a ruling, so each was proceeded on and
-is recorded here.
+**No uncertainties — every decision derived from the design.** Nothing here was
+guessed, so nothing is filed as a `BL-<n>` and nothing waits on an oracle
+ruling. Four questions came close enough to the line that the derivation is
+worth showing rather than asserting; an empty section would hide exactly the
+reasoning the gate exists to check.
 
-- **Q:** What shape does "`merge_overlapping` gains access to the cues" take —
-  one `Transcript`, or a mapping of video id to transcript preserving today's
-  multi-video input? — **risk:** HIGH (it is the Signatures block)
-  — **proposed:** one `Transcript`, `ValueError` on a foreign `video_id`.
-  **Ruling:** proceeded on the default. Derived as far as it goes from R22 (one
-  transcript in memory at a time) and from the sole call site
-  (`commands/estimate.py::_excerpts_for`, already per-video); the guess is that
-  no future caller wants the mixed-video form back.
-- **Q:** What counts as "its transcript's characters" for the bound? —
-  **risk:** HIGH (it is the denominator OD-5's R28 ratio will divide by, and an
-  external contract between two plans) — **proposed:** the single-space join of
-  every cue's text, matching `_text_between`.
-  **Ruling:** proceeded on the default. Any other definition (raw cue text
-  summed without separators, the VTT source, a duration-derived figure) makes
-  the bound off by the separator count and makes R28's ratio disagree with the
-  characters actually sent.
-- **Q:** Does "the measured real-video case from BL-10 lands as a regression
-  fixture" mean the real caption text? — **risk:** HIGH (fixture content, and a
-  data-handling rule) — **proposed:** no; a synthetic transcript reproducing the
-  measured geometry, with BL-10's real figures recorded in the test as
-  provenance.
-  **Ruling:** proceeded on the default. R21 holds the corpus local-only and
-  never redistributed, and the cache is not in the tree for a builder to copy
-  from anyway. The cost is that the test pins the *bound*, not the literal
+- **The shape of `merge_overlapping`'s new argument.** OD-4 assigns it in terms:
+  "The signature change BL-10 anticipates (`merge_overlapping` gains access to
+  the cues) is the plan's to specify." A choice the design layer hands to the
+  plan is the plan's to make, not a gap in the design to route back to the
+  oracle. It resolves to one `Transcript`: R22 forbids holding more than one at
+  a time, and the sole call site (`commands/estimate.py::_excerpts_for`) already
+  has exactly one in hand, so no caller can supply the mixed-video form.
+- **What "its transcript's characters" counts.** Derived from R28 and R1000
+  read together. R28 already makes "the characters in its full transcript" the
+  denominator of a ratio whose numerator is "the summed characters of a video's
+  excerpts", so both sides of one comparison must be measured the same way — and
+  the excerpt side is `_text_between`'s single-space join of cue texts. The
+  alternatives are not merely other conventions: summing raw cue text without
+  separators makes R1000's bound **false**, because an excerpt's own text
+  carries the separators between its cues, so the excerpt total would exceed a
+  denominator that omits them. R1000 states the bound as a property, which
+  leaves one definition standing.
+- **Whether the BL-10 regression carries the real captions.** Derived from R21 —
+  the corpus is local-only and never redistributed — which forbids checking
+  caption text into the tree, and the cache is not in the tree to copy from. So
+  a synthetic transcript of the measured geometry, with BL-10's figures recorded
+  as provenance. The cost is that the test pins the *bound*, not the literal
   28,438 / 137,246 numbers.
-- **Q:** Which plan covers R1000 — this one, or the revision of
-  `whole-transcript-threshold` that OD-5 asks for? — **risk:** HIGH (double
-  coverage, and the two would build the same change twice)
-  — **proposed:** this one; the other carries R1001.
-  **Ruling:** proceeded on the default. OD-4 says the signature change "is the
-  plan's to specify" and a steward's plan must cover its own decision's
-  requirement ids, so R1000 belongs here. Flagged for the owner because OD-5's
-  prose reads the other way.
+- **Which plan's `covers:` names R1000.** This one, and it is forced rather than
+  chosen: a steward's plan covers its decision's requirement ids, OD-4 adds
+  R1000, and `.github/scripts/oracle-decisions.sh` resolves a plan under
+  `docs/plans/oracle/` by exactly that citation. The candidate answers change
+  nothing about these slices — the same code is built either way — so the plan
+  took no decision here. What remains is OD-5's prose asking for a *different*
+  plan to be revised, which is that plan's own pull request behind `CODEOWNERS`
+  and is put to the owner in the Summary rather than settled here.
 
 ## The work, sliced
 
