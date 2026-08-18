@@ -396,3 +396,41 @@ reports `percent` as a **fraction of one** — `0.35` means 35%, not 0.35%.
     session=10 week=36 week_model=25 reset=Aug 20, 10:59am (Europe/Amsterdam)
 
 Both readings remain approximate and count local sessions on this machine only.
+
+## 2026-08-18 — A merge updates every other open pull request, mechanically
+
+**The trap, written down because it caught the owner and two agents in one
+evening.** This repository's ruleset sets
+`strict_required_status_checks_policy: true` — GitHub's *"require branches to be
+up to date before merging"*. So the moment ANY pull request merges, every other
+open one is out of date, and out of date means **unmergeable no matter how green
+its checks are**. GitHub reports this as `mergeStateStatus: BEHIND`, which does
+not appear in the checks list at all: `gh pr checks` shows seven green ticks on a
+pull request that cannot merge.
+
+That is ESC-17 and ESC-20, twice. The recorded candidate was to forbid the queue.
+That is right for unattended work and already holds — `deliver-phase.sh` returns
+`WAIT` on any open pull request, so the driver cannot build a queue. It is wrong
+for attended work, where a queue is legitimate and the cost lands on a human.
+
+**The ruling: automate the update, do not forbid the queue.** The
+`update-open-prs` job in `.github/workflows/auto-merge.yml` runs on every merged
+pull request and calls `gh pr update-branch` on each remaining open one. Two
+properties are deliberate:
+
+- **It never fails.** A branch it cannot update — a genuine conflict — is exactly
+  as stuck as it was before the job existed, and reddening a pull request that
+  has nothing wrong with it would teach people to ignore the job. The conflict is
+  reported and the run stays green.
+- **It uses the App token, not `GITHUB_TOKEN`.** A branch updated by
+  `GITHUB_TOKEN` pushes without creating workflow runs, so it would come up to
+  date and never re-run its checks — the same unmergeable state by a longer road.
+
+**Do not "fix" this by turning `strict` off.** It is what guarantees the checks
+that passed were run against the tree that will actually land.
+
+**For whoever reads this next:** if several pull requests are open and one
+merges, the others need updating before they can merge. That is now automatic —
+but if the workflow is ever broken again (see ESC-23, when it was), the manual
+form is `gh pr update-branch <number>` on each, and green checks are not evidence
+that it is unnecessary.

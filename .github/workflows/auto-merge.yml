@@ -280,3 +280,65 @@ jobs:
           done < /tmp/merged.txt
 
           echo "sweep: deleted $deleted, kept $skipped in use." >> "$GITHUB_STEP_SUMMARY"
+
+  update-open-prs:
+    # ESC-17 and ESC-20 are the same wound twice: several pull requests open at
+    # once, one merges, and every other branch is instantly out of date. This
+    # repository's ruleset sets `strict_required_status_checks_policy: true` —
+    # "require branches to be up to date before merging" — so out of date means
+    # UNMERGEABLE, however green the checks are. Nothing updated them, so the
+    # owner did it by hand, once per merge, for every branch still in flight.
+    #
+    # ESC-17's recorded candidate was to forbid the queue instead. That is right
+    # for unattended work and already holds there — deliver-phase.sh returns
+    # WAIT on any open pull request, so the driver cannot build one. It is wrong
+    # for attended work, where a queue is legitimate and the cost lands on a
+    # human. This job pays that cost instead.
+    #
+    # THE TOKEN CHAIN IS NOT COSMETIC HERE EITHER. A branch updated with
+    # GITHUB_TOKEN pushes without creating workflow runs, so the branch would
+    # come up to date and its checks would never re-run — arriving at the same
+    # unmergeable state by a longer road. The App token is what makes the update
+    # actually re-trigger CI.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_ID: ${{ secrets.APP_ID }}
+    steps:
+      - name: Mint the App token
+        id: app-token
+        if: env.APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - name: Bring every other open pull request up to date
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -uo pipefail
+          # A CONFLICT IS THE ONE CASE THIS MUST NOT PAPER OVER: it needs a human
+          # to choose a side. Report it and carry on, so one tangled branch does
+          # not stop every other branch being updated. The job never fails: a
+          # branch that could not be updated is exactly as stuck as it was
+          # before this job existed, and failing here would redden a pull
+          # request that has nothing wrong with it.
+          updated=0; stuck=0
+          gh pr list --repo "$REPO" --base "$BASE" --state open \
+            --json number,headRefName,isDraft \
+            --jq '.[] | select(.isDraft | not) | "\(.number) \(.headRefName)"' > /tmp/open.txt
+          while read -r num ref; do
+            [ -z "${num:-}" ] && continue
+            if out="$(gh pr update-branch "$num" --repo "$REPO" 2>&1)"; then
+              echo "updated #$num ($ref)"; updated=$((updated + 1))
+            else
+              echo "#$num ($ref) NOT updated: $out"; stuck=$((stuck + 1))
+            fi
+          done < /tmp/open.txt
+          echo "update-open-prs: $updated updated, $stuck left for a human." >> "$GITHUB_STEP_SUMMARY"
