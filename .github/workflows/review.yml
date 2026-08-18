@@ -10,6 +10,11 @@ on:
 
 permissions:
   contents: read
+  # The gate posts its verdict and findings as a pull request comment, against
+  # the diff it judged. Before this, the reply existed only in a job log nobody
+  # opens and was then discarded with the runner — so the one judged gate in the
+  # pipeline was also the only one that left no reviewable trace.
+  pull-requests: write
 
 # One review per pull request head at a time. Without this, every push to a PR
 # branch starts another review while the previous one is still running: the
@@ -73,4 +78,80 @@ jobs:
           # Which plan this PR is judged against is resolved from the branch
           # name (see .github/scripts/plan-resolve.sh).
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          # Three facts the review PROMPT keys criteria on and the payload never
+          # carried, so three criteria asked questions the reviewer had no way
+          # to answer:
+          #   1 — "is this exempt branch really carrying small work?" needs the
+          #       branch prefix, and review.sh collapses "exempt" and "the plan
+          #       check failed" into the same empty plan path, so the reviewer
+          #       was offered a reading under which declining to judge was the
+          #       reasonable move;
+          #   2 — "were the tests written blind?" needs to know the change was
+          #       orchestrated;
+          #   5 — "block an AGENT-opened diff touching DESIGN/VISION" needs the
+          #       author login, which is not a file and cannot be read out of
+          #       the repository at any commit.
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          # Where the gate leaves its evidence: the payload it was shown, the
+          # reply it produced, the verdict, and the metadata tying them to a
+          # commit. Collected at run end into docs/runs/ by
+          # .claude/scripts/collect-evidence.sh.
+          REVIEW_OUT_DIR: ${{ github.workspace }}/.review-out
+          # The queue fact (.github/scripts/pr-queue.sh, ESC-17): what else this
+          # author has open, and how much of it is red. Needs a token to list
+          # pull requests and this pull request's own number so it can leave
+          # itself out. Absent, the fact says it was not computed rather than
+          # reporting an empty queue.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: .github/scripts/review.sh
+
+      # `always()`: the evidence is most valuable when the gate BLOCKED or died,
+      # which are exactly the runs a success-conditional step would skip.
+      - name: Keep what the gate was shown and what it said
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ github.workspace }}/.review-out
+          if-no-files-found: warn
+          # Ninety days is the platform default and it is not the retention
+          # policy: collect-evidence.sh copies these into docs/runs/ at run end,
+          # committed, on the owner's ruling — "i would rather risk gathering too
+          # much data and deal with space issues, than getting stuck without the
+          # info to get out of it." This artifact is the transport, not the
+          # archive.
+          retention-days: 90
+
+      - name: Post the verdict against the diff it judged
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          OUT: ${{ github.workspace }}/.review-out
+        run: |
+          [ -f "$OUT/reply.txt" ] || { echo "no reply to post"; exit 0; }
+          verdict="$(cat "$OUT/verdict.txt" 2>/dev/null || echo UNKNOWN)"
+          {
+            echo "## Review gate — \`$verdict\`"
+            echo
+            echo "Judged \`${HEAD_SHA}\` against the base-commit rules, design and plan."
+            echo "The full payload the reviewer was shown is in this run's"
+            echo "\`review-${PR}-${HEAD_SHA}\` artifact."
+            echo
+            echo '<details><summary>Findings</summary>'
+            echo
+            echo '```'
+            # Capped so a long reply cannot exceed GitHub's comment limit and
+            # lose the whole comment. The artifact holds the untruncated text.
+            head -c 55000 "$OUT/reply.txt"
+            echo
+            echo '```'
+            echo
+            echo '</details>'
+          } > "$OUT/comment.md"
+          gh pr comment "$PR" --body-file "$OUT/comment.md" \
+            || echo "could not post the comment — the artifact still has it"
+

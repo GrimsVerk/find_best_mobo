@@ -19,6 +19,15 @@
 #
 # Required env:
 #   BASE_SHA, HEAD_SHA   commits bounding the PR diff (base...head)
+# Optional env:
+#   TEST_THE_TESTS_IMPL_DIR / TEST_THE_TESTS_TEST_DIR
+#                        name the two directories explicitly, for a repository
+#                        whose implementation is neither src/ nor Sources/.
+#                        See the block below for why this exists.
+#   TEST_THE_TESTS_SUITE the shell command that runs the suite, required
+#                        whenever the two above are set — the built-in runners
+#                        are pytest and xcodebuild, and neither fits a tree
+#                        that is neither language.
 
 set -euo pipefail
 
@@ -40,12 +49,43 @@ fi
 
 # Language is detected from the files present, so this script stays the same for
 # every variant; only the runner in ci.yml differs.
-if [[ -f pyproject.toml ]]; then
+#
+# THE OVERRIDE IS NOT A CONVENIENCE. Detection covers the two languages this
+# template renders, and a repository that is neither — the template repository
+# itself, which builds `template/` and checks it from `tests/` — hits the `else`
+# branch and SKIPS. A skip here exits 0, and GitHub reports a required check
+# that exited 0 as PASSING. So the one check that makes a coder's tests worth
+# anything would report green on every pull request while never running, which
+# is the failure this script exists to catch, committed by the script itself.
+#
+# Both variables must be set together: naming one and detecting the other would
+# pair a deliberate directory with a guessed one, and the guess is the half that
+# is wrong. A run where only one is set is a misconfiguration, so it refuses
+# rather than half-applying.
+if [[ -n "${TEST_THE_TESTS_IMPL_DIR:-}" || -n "${TEST_THE_TESTS_TEST_DIR:-}" ]]; then
+  if [[ -z "${TEST_THE_TESTS_IMPL_DIR:-}" || -z "${TEST_THE_TESTS_TEST_DIR:-}" \
+     || -z "${TEST_THE_TESTS_SUITE:-}" ]]; then
+    cat >&2 <<'EOF'
+test-the-tests: the override is all three variables or none of them.
+
+  TEST_THE_TESTS_IMPL_DIR   the directory this repository BUILDS
+  TEST_THE_TESTS_TEST_DIR   the directory that CHECKS it
+  TEST_THE_TESTS_SUITE      the shell command that runs the suite
+
+Exit 2, not a skip: a skip exits 0, and GitHub reports a required check that
+exited 0 as passing — so a half-configured override would report green while
+checking nothing, which is the exact failure this script exists to catch.
+EOF
+    exit 2
+  fi
+  IMPL_DIR="$TEST_THE_TESTS_IMPL_DIR"; TEST_DIR="$TEST_THE_TESTS_TEST_DIR"
+  echo "test-the-tests: directories named explicitly — implementation '$IMPL_DIR', tests '$TEST_DIR'"
+elif [[ -f pyproject.toml ]]; then
   IMPL_DIR="src"; TEST_DIR="tests"
 elif [[ -f project.yml ]]; then
   IMPL_DIR="Sources"; TEST_DIR="Tests"
 else
-  skip "no pyproject.toml or project.yml — cannot tell implementation from tests"
+  skip "no pyproject.toml or project.yml, and no TEST_THE_TESTS_IMPL_DIR/TEST_THE_TESTS_TEST_DIR — cannot tell implementation from tests"
 fi
 
 changed() { git diff --name-only "${BASE_SHA}...${HEAD_SHA}" -- "$1"; }
@@ -53,7 +93,14 @@ changed() { git diff --name-only "${BASE_SHA}...${HEAD_SHA}" -- "$1"; }
 [[ -n "$(changed "$TEST_DIR")" ]] || skip "this PR changes no files under $TEST_DIR/"
 
 run_suite() {
-  if [[ "$IMPL_DIR" == "src" ]]; then
+  # A repository that had to name its own directories has to name its own
+  # runner too — the branch below picks pytest or xcodebuild from the directory
+  # name, and neither is right for a tree that is neither language. Naming the
+  # directories without naming the runner would revert the implementation, run
+  # the wrong command, and report whatever that command happened to say.
+  if [[ -n "${TEST_THE_TESTS_SUITE:-}" ]]; then
+    bash -c "$TEST_THE_TESTS_SUITE"
+  elif [[ "$IMPL_DIR" == "src" ]]; then
     if command -v uv >/dev/null 2>&1; then uv run pytest -q; else pytest -q; fi
   else
     # The .xcodeproj is generated from project.yml and is not committed, so it

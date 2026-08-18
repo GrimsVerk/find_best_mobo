@@ -16,16 +16,61 @@ For each criterion, record what was actually observed, not what should follow
 from the code. `AGENTS.md` applies in full here: never claim something is
 verified in an environment where it could not be observed.
 
+**An `agent` row is a script, not a sentence.** Every criterion §13 does not
+mark `(owner)` has one at `acceptance/S<n>.sh` — exit 0 is pass, standard output
+is the evidence — and `.github/scripts/acceptance-criteria.sh` runs them as a
+required check on **every** pull request, not once here.
+
+That is the whole reason this file changed shape. Its evidence used to be
+narration: *"I ran X and it printed Y."* Everywhere else this template separates
+computed facts from judged verdicts; this was the one place narration was
+admitted as evidence, and it is the last thing the owner reads. The check now
+refuses a row marked `pass / agent` with no script behind it — a pass an agent
+claims is a pass somebody else can re-run, or it is narration.
+
+Running them per pull request rather than only here is deliberate: a criterion
+verified once and trusted thereafter is exactly the "verified once, trusted
+forever" shape this template distrusts everywhere else.
+
+**A failing criterion is not a stop.** File it as a `BL-<n>` in
+`docs/BACKLOG.md`, record the row as `fail` with the script's real output, and
+let the oracle rule — the test may be wrong, the implementation may be wrong, or
+the criterion may be met in a way the script does not recognise. In that last
+case the oracle records a waiver in `docs/DESIGN.oracle.md` and **the row here
+stays `pending / owner`**. The oracle may not mark a criterion passed; that is
+the owner's.
+
 The **Verified by** column is the one that matters. Split it honestly:
 
-- `agent` — checked by running something and reading real output. Cite the
-  command and what it printed.
+- `agent` — checked by running `acceptance/S<n>.sh` and reading its real output.
+  Cite the script and what it printed.
 - `owner` — needs real hardware, real users, real data, or a judgement call. An
   agent **must not** fill these in. Write exactly what the owner should run or
   look at, then leave the status `pending` until they report back.
 
 A criterion nobody can check as written is not a criterion. If you hit one, say
 so and fix the wording in `DESIGN.md` §13 rather than quietly marking it passed.
+
+**The `owner` rows were decided in `docs/DESIGN.md` §13, not here.** A criterion
+§13 did not mark `(owner)` is verified with real output or recorded as `fail` —
+it is not reclassified at acceptance time. If you believe §13 got one wrong, say
+so in Outstanding, name the criterion, and leave the row as the design assigned
+it.
+
+The reason is an incentive, not a suspicion. Moving a row to `owner` is the
+cheapest thing an agent can do at the end of a run — one sentence, and the
+driver's stop for it (exit 4, "blocked on the owner") is a documented
+*successful* ending. Verifying it means running something that can fail. In the
+finished table those two look identical, and the owner reading five `pending /
+owner` rows out of eight cannot tell which were always theirs. The templates
+warn at length about the opposite abuse — claiming `agent` on thin evidence —
+and this is the cheap one.
+
+**Every §13 criterion gets a row here, and every §5 requirement is named by at
+least one criterion.** If a requirement reaches this table with no criterion
+that would notice its absence, that is the gap worth reporting in Outstanding:
+`coverage.sh` will have called it "covered" on the strength of a plan listing
+its id, and this table is the only place that claim meets the built system.
 
 | Criterion | Status | Verified by | Evidence |
 | --- | --- | --- | --- |

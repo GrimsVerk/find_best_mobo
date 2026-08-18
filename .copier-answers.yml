@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-_commit: v0.4.19
+_commit: v0.4.21
 _src_path: git+https://github.com/GrimsVerk/grimsverk-template.git
 auto_merge: true
 code_owner: '@GrimsVerk'

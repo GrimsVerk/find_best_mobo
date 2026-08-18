@@ -107,6 +107,61 @@ else
   echo "Plan: none (branch exempt from planning) — no slice estimates to check."
 fi
 
+# ------------------------------------------------------- plan adequacy (NOTE)
+# The other half of the plan-conformance question, and the half nothing asked.
+# The slice deltas above answer "does this diff match the plan". They cannot
+# answer "is this plan enough for what it claims" — and `covers:` is a CLAIM
+# that nothing compares to what the slices build, so a plan naming twelve
+# requirements and building three passes every gate green.
+#
+# A NOTE, NEVER A FAILURE, on the owner's ruling: "yes, note, not red." A
+# platform or offline requirement is legitimately owned by no slice, so a strict
+# check would fire on honest plans and teach authors to pad slice text with ids.
+# An id the design marks `*(non-functional)*` is reported as an expected absence
+# instead. This script always exits 0 regardless.
+if [[ -n "$PLAN" ]] && git -C "$ROOT" cat-file -e "${BASE_SHA}:${PLAN}" 2>/dev/null; then
+  PLAN_TEXT="$(git -C "$ROOT" show "${BASE_SHA}:${PLAN}")"
+  COVERS="$(printf '%s\n' "$PLAN_TEXT" \
+    | awk 'NR==1 && $0=="---" { infm=1; next }
+           infm && $0=="---"  { exit }
+           infm && /^covers:/ { sub(/^covers:[[:space:]]*/, ""); gsub(/[][,]/, " "); print; exit }' \
+    | grep -oE '\bR[0-9]+\b' | sort -u || true)"
+  SLICED="$(printf '%s\n' "$PLAN_TEXT" \
+    | awk '/^#+[[:space:]]*Slice[[:space:]]/ { inslices = 1 }
+           inslices {
+             n = split($0, parts, /[^A-Za-z0-9]+/)
+             for (i = 1; i <= n; i++) if (parts[i] ~ /^R[0-9]+$/) print parts[i]
+           }' | sort -u || true)"
+  # The `*(non-functional)*` mark, read from the design at the BASE commit like
+  # every other standard here.
+  NONFUNC="$(git -C "$ROOT" show "${BASE_SHA}:docs/DESIGN.md" 2>/dev/null \
+    | awk '/^## 5\./ { in5 = 1; next }
+           /^## /    { in5 = 0 }
+           in5 && /\*\(non-functional\)\*/ {
+             line = $0
+             while (match(line, /\*\*R[0-9]+\*\*/)) {
+               print substr(line, RSTART + 2, RLENGTH - 4)
+               line = substr(line, RSTART + RLENGTH)
+             }
+           }' | sort -u || true)"
+  unsliced=""; expected=""
+  for id in $COVERS; do
+    grep -qxF "$id" <<<"$SLICED" && continue
+    if grep -qxF "$id" <<<"$NONFUNC"; then expected="$expected $id"; else unsliced="$unsliced $id"; fi
+  done
+  echo
+  if [[ -n "${unsliced# }" ]]; then
+    echo "PLAN ADEQUACY (a note, not a failure): this plan claims${unsliced}, and no"
+    echo "slice of it mentions them. 'Covered' means the plan NAMED the id; nothing"
+    echo "else compares that claim to what the slices build. Ask whether the work is"
+    echo "really in here, or whether the covers: list is over-claimed."
+  else
+    echo "Plan adequacy: every requirement this plan claims is mentioned by a slice."
+  fi
+  [[ -n "${expected# }" ]] && \
+    echo "Expected absences (marked *(non-functional)* in the design):${expected}"
+fi
+
 echo
 echo "Total added lines: $(added_lines)"
 
