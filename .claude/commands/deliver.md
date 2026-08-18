@@ -38,6 +38,12 @@ Batch requires no different gates: the plans still exist before the code that
 implements them, `CODEOWNERS` still reviewed them, and each feature branch still
 resolves to its plan. What changes is only how many times the owner is asked.
 
+**The fully unattended shape of this loop is the delivery driver** — the owner
+starts `.claude/scripts/deliver-loop.sh` in a terminal or `/deliver-loop` in a
+web session, and the driver runs these same steps with the oracle ruling where
+this document says the owner does (see `AGENTS.md`, "Mid-run authority"). This
+command stays the attended shape: you, the owner, and the milestones.
+
 **Say the cost out loud when proposing batch.** Planning everything before
 building anything means milestone 4's plan was written by someone who had not
 built milestones 1–3 — that is *waterfall*, and vertical slices exist precisely
@@ -101,32 +107,18 @@ two means two sessions, which is the owner's call to make, not yours.
 
 ## 4. Wait for the pipeline
 
-> **⚠ OPEN QUESTION — RAISE THIS WITH THE OWNER BEFORE A LONG UNATTENDED RUN.**
->
-> This step says "wait" without saying *how*, and nobody has decided yet. Each
-> feature costs minutes of CI plus an LLM review, and in batch mode that repeats
-> per plan, so an unattended run is mostly waiting. The options have real
-> tradeoffs and the owner wants to pick:
->
-> - **idle** — end the turn and let the owner resume. Costs nothing, but the run
->   is not actually unattended.
-> - **poll** — re-check every N seconds. Unattended, but spends budget on
->   information that usually has not changed, and that budget is shared with the
->   review gate you are waiting for.
-> - **something else** — a scheduled wake-up, a webhook, or a stop-and-report at
->   each PR boundary.
->
-> Until this is decided: **stop at the pull request and report**, rather than
-> guessing. Say plainly that you are stopping because the waiting strategy is
-> undecided, and offer the options above. Delete this block once the owner rules,
-> and record the ruling in `docs/DECISIONS.md`.
->
-> **Whichever strategy is chosen, the exit condition is not in question: wait
-> until no check is still pending, never until the pull request is no longer
-> open.** A failing pull request never leaves the open state, so that second
-> condition makes red indistinguishable from still-running — and, where nothing
-> is watching, from success. This is the one part of the step that is already
-> decided; it constrains the options above rather than being one of them.
+**The waiting strategy is ruled** (`docs/DECISIONS.md`, "Waiting is mechanical,
+and belongs to the driver"): waiting is not agentic work. In an unattended run
+the **delivery driver** does it — `.claude/scripts/deliver-loop.sh` locally, or
+`/deliver-loop` in a web session — watching `gh pr checks` mechanically so no
+model budget is spent on information that has not changed. If you are running
+attended, *without* a driver, do what this step always said: **stop at the pull
+request and report**; the owner resumes you when it lands.
+
+**The exit condition: wait until no check is still pending, never until the
+pull request is no longer open.** A failing pull request never leaves the open
+state, so that second condition makes red indistinguishable from still-running
+— and, where nothing is watching, from success.
 
 PRs merge when their required checks go green — CI, `plan`, `test-the-tests`,
 and the review gate. That is mechanical and none of it is yours to drive. Do not
@@ -165,17 +157,39 @@ Full coverage means every requirement was *planned and merged*. It does not mean
 the project works. Now check the built system against `docs/DESIGN.md` §13, and
 record it in `docs/acceptance.md` — one row per `S` id.
 
+**Each criterion §13 does not mark `(owner)` is a SCRIPT**, at
+`acceptance/S<n>.sh` — exit 0 is pass, standard output is the evidence.
+`acceptance/README.md` says how to write one, and
+`.github/scripts/acceptance-criteria.sh` runs them as a required check on every
+pull request from then on. Writing the script *is* the acceptance work; the row
+in the table cites it and its output.
+
+That is deliberate and it is the whole change to this step. The evidence column
+used to be narration — "I ran X and it printed Y" — and this table is the one
+artifact in an unattended run whose pull request requires the owner's review. A
+pass an agent claims is a pass somebody else can re-run, or it is narration; the
+check refuses a `pass / agent` row with no script behind it.
+
 For each criterion:
 
-- If you can check it by running something, **run it** and record the command
-  and its real output as evidence. Mark **Verified by: agent**.
-- If it needs real hardware, real users, real data, or a judgement call, mark it
-  **Verified by: owner**, status `pending`, and write exactly what the owner
-  should run or look at. **Do not fill these in yourself and do not infer them
-  from the code.** `AGENTS.md` is explicit: never claim something is verified in
-  an environment where you could not observe it.
+- **Not marked `(owner)`:** write `acceptance/S<n>.sh`, run it, and record the
+  script and its real output as evidence. Mark **Verified by: agent**.
+- **Marked `(owner)`** — real hardware, real users, real data, a judgement
+  call: no script. Mark **Verified by: owner**, status `pending`, and write
+  exactly what the owner should run or look at. **Do not fill these in yourself
+  and do not infer them from the code.** `AGENTS.md` is explicit: never claim
+  something is verified in an environment where you could not observe it.
+- **A failing script is not a stop.** Record the row as `fail` with the real
+  output, and **file it as a `BL-<n>`** under "Uncertainties awaiting oracle
+  ruling" in `docs/BACKLOG.md`, naming the criterion and what the script
+  measured. The oracle rules on it next cycle: the test may be wrong, the
+  implementation may be wrong, or the criterion may be met in a way the script
+  cannot see — and only in that last case does it record a waiver, while the
+  row stays `pending / owner`. Filing the evidence is what makes the ruling
+  possible; a failing criterion nobody filed is a red check with no route out.
 - If a criterion can't be checked as written, say so and propose a wording for
-  §13 that can be. Don't quietly mark it passed.
+  §13 that can be. Don't quietly mark it passed, and don't reclassify it as
+  `(owner)` — that split was decided in the design.
 
 Also confirm `docs/architecture.md` describes the system as it now stands — it
 is what the owner reads instead of the code, and it is the first thing to go

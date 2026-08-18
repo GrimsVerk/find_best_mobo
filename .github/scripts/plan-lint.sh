@@ -31,7 +31,13 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 PLANS_DIR="${PLANS_DIR:-docs/plans}"
 DIR="$ROOT/$PLANS_DIR"
-PARSE="$ROOT/.github/scripts/plan-parse.sh"
+# Beside this script, not at a fixed path under the repository root. In a
+# generated project the two are the same place; in the TEMPLATE repository,
+# which invokes the shipped scripts directly out of template/ rather than
+# keeping a copy, a root-anchored path names a file that is not there. Every
+# other script here already resolves its neighbours this way.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+PARSE="$HERE/plan-parse.sh"
 
 # No plans directory is not a failure here. Whether this branch NEEDED a plan is
 # plan-resolve.sh's question, and answering it twice, differently, is how a gate

@@ -16,6 +16,23 @@
 # requirements are the normal state. It exits non-zero when gaps exist so the
 # project loop can branch on it, not so a pull request can fail on it.
 #
+# IT ALSO REPORTS PLAN ADEQUACY, AND ONLY REPORTS IT.
+#
+# "Covered" means some plan's `covers:` names the id. That is a CLAIM, and
+# nothing downstream compares the claim to what the plan's slices actually
+# build: a plan naming twelve requirements and building three passes every gate
+# green, and the run then walks to acceptance reporting "every requirement is
+# covered by a plan". So this additionally reports which covered ids no slice in
+# the claiming plan ever mentions.
+#
+# A NOTE, NEVER A FAILURE — the owner's ruling, in one word: "yes, note, not
+# red." And it is the right call. A platform requirement, an offline
+# requirement, a privacy constraint: these are legitimately owned by no single
+# slice, so a strict check would fire on honest plans and teach authors to route
+# around it by padding slice text with ids. A requirement marked
+# `*(non-functional)*` in the design's section 5 is reported as an EXPECTED
+# absence rather than a gap, which is what keeps the signal readable.
+#
 # Usage:  coverage.sh
 #
 # Exit codes are distinct because /deliver branches on them, and "there is work
@@ -113,6 +130,29 @@ mapfile -t REQS < <(
   for doc in "${PRESENT[@]}"; do ids_from "$doc"; done | awk '!seen[$0]++'
 )
 
+# Requirements the design marks `*(non-functional)*`. A platform, offline,
+# privacy or cost requirement is legitimately owned by no single slice, so the
+# adequacy report below calls its absence expected rather than a gap. The mark
+# is the design's, and the design is CODEOWNERS-owned, so what counts as
+# "expected" stays the owner's rather than the planner's.
+declare -A NONFUNCTIONAL=()
+while IFS= read -r id; do
+  [[ -n "$id" ]] && NONFUNCTIONAL["$id"]=1
+done < <(
+  for doc in "${PRESENT[@]}"; do
+    awk '
+      /^## 5\./ { in5 = 1; next }
+      /^## /    { in5 = 0 }
+      in5 && /\*\(non-functional\)\*/ {
+        line = $0
+        while (match(line, /\*\*R[0-9]+\*\*/)) {
+          print substr(line, RSTART + 2, RLENGTH - 4)
+          line = substr(line, RSTART + RLENGTH)
+        }
+      }' "$doc"
+  done | sort -u
+)
+
 # Malformed ids anywhere in a design document — not just section 5. An id-shaped
 # token in section 12's milestones or section 13's criteria is read as an id by
 # every human who passes it, so it has to be one.
@@ -158,6 +198,8 @@ fi
 declare -A CLAIMED=()
 declare -a UNKNOWN=()
 declare -a MALFORMED=()
+declare -a UNSLICED=()
+declare -a EXPECTED_ABSENCES=()
 if [[ -d "$PLANS_DIR" ]]; then
   while IFS= read -r file; do
     [[ "$(basename "$file")" == _* ]] && continue
@@ -167,6 +209,18 @@ if [[ -d "$PLANS_DIR" ]]; then
       infm && $0=="---"  { exit }
       infm && /^covers:/ { sub(/^covers:[[:space:]]*/, ""); gsub(/[][,]/, " "); print; exit }
     ' "$file")"
+    # Which of the ids this plan CLAIMS does its own slice text ever mention?
+    # From the first slice heading onward, so the summary's prose — which
+    # legitimately restates the covers list — cannot satisfy the check on the
+    # body's behalf. An id a plan claims and never speaks of again is the
+    # over-claim this reports.
+    sliced="$(awk '
+      /^#+[[:space:]]*Slice[[:space:]]/ { inslices = 1 }
+      inslices {
+        line = $0
+        n = split(line, parts, /[^A-Za-z0-9]+/)
+        for (i = 1; i <= n; i++) if (parts[i] ~ /^R[0-9]+$/) print parts[i]
+      }' "$file" | sort -u)"
     for id in $covers; do
       # Same rule as the design side, and for the same reason: an id this cannot
       # parse must not be quietly dropped. It was, and a plan covering `R2a`
@@ -177,6 +231,13 @@ if [[ -d "$PLANS_DIR" ]]; then
       fi
       if printf '%s\n' "${REQS[@]}" | grep -qx "$id"; then
         CLAIMED["$id"]="${CLAIMED[$id]:-}${CLAIMED[$id]:+ }$plan"
+        if ! grep -qxF "$id" <<<"$sliced"; then
+          if [[ -n "${NONFUNCTIONAL[$id]:-}" ]]; then
+            EXPECTED_ABSENCES+=("$id (in $plan) — marked non-functional")
+          else
+            UNSLICED+=("$id (in $plan)")
+          fi
+        fi
       else
         UNKNOWN+=("$id (in $plan)")
       fi
@@ -218,6 +279,34 @@ if [[ ${#UNKNOWN[@]} -gt 0 ]]; then
   echo "Plans covering ids the design doesn't define:"
   printf '  %s\n' "${UNKNOWN[@]}"
   echo "  (a renumbered requirement or a typo — one of the two is wrong)"
+fi
+
+# ------------------------------------------------------- plan adequacy (NOTE)
+# Reported, never failed, on the owner's ruling — "yes, note, not red." A
+# requirement legitimately owned by no single slice is common enough that a
+# strict check would fire on honest plans and teach authors to pad slice text
+# with ids, which would make the report worthless in exactly the way that keeps
+# a green pipeline meaningless.
+echo
+echo "----- plan adequacy (a NOTE, never a failure) -----"
+if [[ ${#UNSLICED[@]} -gt 0 ]]; then
+  echo
+  echo "Claimed by a plan, mentioned by none of its slices:"
+  printf '  %s\n' "${UNSLICED[@]}"
+  echo
+  echo "  'Covered' means a plan NAMED the id. Nothing else compares that claim"
+  echo "  to what the plan's slices build, so a plan naming twelve requirements"
+  echo "  and building three passes every gate green. Either a slice delivers"
+  echo "  each id above and should say so, or the covers: list is over-claimed."
+else
+  echo "  Every claimed requirement is mentioned by a slice of the plan claiming it."
+fi
+if [[ ${#EXPECTED_ABSENCES[@]} -gt 0 ]]; then
+  echo
+  echo "Expected absences (marked *(non-functional)* in the design):"
+  printf '  %s\n' "${EXPECTED_ABSENCES[@]}"
+  echo "  A platform, offline, privacy or cost requirement is owned by no single"
+  echo "  slice by nature. Listed so the absence reads as a decision."
 fi
 
 if [[ ${#GAPS[@]} -gt 0 ]]; then

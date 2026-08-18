@@ -98,6 +98,27 @@ ORACLE_DIR="${ORACLE_DIR:-docs/oracle}"
 # arrangement depends on was the one document that could not be written — the
 # branch writing it failed the plan check at 114 added lines.
 VISION_DOC="${VISION_DOC:-docs/VISION.md}"
+# docs/acceptance.md and docs/architecture.md are the fourth and fifth
+# instances of the same mistake, found by a review rather than by a bypass.
+# Both are REQUIRED by AGENTS.md — the acceptance pass must fill one, and a
+# slice is not finished until the other is accurate — and both are necessarily
+# long on any project big enough for them to matter. Neither could be written:
+# the acceptance branch is `docs/`-prefixed, so it met the 50-line cap meant
+# for typo fixes, failed, and failed identically on all three fix attempts,
+# stopping the run. The instruction the failure gives ("write a plan for it")
+# is impossible to follow, because acceptance is not plannable work and a plan
+# covering it would name no requirement ids.
+#
+# ESC-22 already recorded the general form: "a document this process REQUIRES
+# and that is necessarily long needs its carve-out in the same change that
+# introduces it, or it ships unwritable." These two shipped without one.
+#
+# Note what the carve-out does not weaken. docs/acceptance.md is
+# CODEOWNERS-owned, so the owner still reviews it — and it is the single
+# artifact in an unattended run whose pull request requires that review, which
+# is precisely why it must be able to land at all.
+ACCEPTANCE_DOC="${ACCEPTANCE_DOC:-docs/acceptance.md}"
+ARCHITECTURE_DOC="${ARCHITECTURE_DOC:-docs/architecture.md}"
 
 ROOT="$(git rev-parse --show-toplevel)"
 PLANS_DIR="${PLANS_DIR:-docs/plans}"
@@ -129,14 +150,15 @@ for prefix in "${EXEMPT_PREFIXES[@]}"; do
       [[ -z "$path" ]] && continue
       case "$path" in
         "$PLANS_DIR"/*|"$DESIGN_DOC"|"$ORACLE_DOC"|"$ORACLE_DIR"/*|"$VISION_DOC") ;;
+        "$ACCEPTANCE_DOC"|"$ARCHITECTURE_DOC") ;;
         *) planning_only=0; break ;;
       esac
     done < <(git -C "$ROOT" diff --name-only "${BASE_SHA}...${HEAD_SHA}")
 
     if [[ "$planning_only" -eq 1 && "$added" -gt "$EXEMPT_MAX_ADDED" ]]; then
       echo "plan-resolve: branch '$HEAD_REF' adds $added lines, all of them in \
-$PLANS_DIR/, $DESIGN_DOC, $VISION_DOC, $ORACLE_DOC or $ORACLE_DIR/ — the \
-planning documents \
+$PLANS_DIR/, $DESIGN_DOC, $VISION_DOC, $ORACLE_DOC, $ORACLE_DIR/, \
+$ACCEPTANCE_DOC or $ARCHITECTURE_DOC — the planning documents \
 themselves, which no plan can cover. Exempt from the size cap; the owner still \
 reviews $DESIGN_DOC and $PLANS_DIR/ via CODEOWNERS, and $ORACLE_DOC is \
 constrained by the oracle-decisions check instead." >&2
@@ -152,7 +174,8 @@ this size needs a plan: copy $PLANS_DIR/_TEMPLATE.md to $PLANS_DIR/<slug>.md,
 land it, then branch with the slug in the branch name.
 
 The cap does not apply to a branch whose additions are ENTIRELY within
-$PLANS_DIR/, $DESIGN_DOC, $VISION_DOC, $ORACLE_DOC or $ORACLE_DIR/ — writing a
+$PLANS_DIR/, $DESIGN_DOC, $VISION_DOC, $ORACLE_DOC, $ORACLE_DIR/,
+$ACCEPTANCE_DOC or $ARCHITECTURE_DOC — writing a
 plan is not skipping planning. This
 branch touches something else as well, so it is not that case. Split it: the
 planning documents on one branch, the rest on its own with a plan behind it.

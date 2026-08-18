@@ -1,0 +1,30 @@
+# GitHub App identity for the unattended driver — COPY THIS FILE to
+# `.claude/app-identity` (same directory, no `.example`) and fill in the two
+# values. That copy is gitignored; this example is not.
+#
+# `scripts/setup-github.sh --app` writes the real file for you, so this is the
+# manual path: use it if you set the App up outside the script, or on a second
+# machine where the secrets already exist but the local half does not.
+#
+# WHY THE DRIVER NEEDS THIS AT ALL. `.claude/scripts/deliver-loop.sh` opens
+# pull requests, and it must open them as someone who is NOT you — otherwise
+# `.github/scripts/owner-authored.sh` compares your login to your login, passes,
+# and `docs/DESIGN.md` has no protection during an unattended run. The App is
+# that someone. Repository secrets cover the half that runs inside Actions;
+# this file covers the half that runs on your machine, and neither can read the
+# other.
+#
+# Both values are required. Read as data, never sourced — a command written
+# here is a string, not something that runs.
+
+# The App's numeric ID, from its settings page. NOT the Client ID.
+APP_ID=<paste the App ID here>
+
+# An ABSOLUTE path to the .pem private key you downloaded. The key itself never
+# goes in this file, and never in an environment variable: a value in the
+# environment is readable from every child process's /proc entry.
+#
+# Keep the .pem somewhere durable OUTSIDE any repository — `~/.config/grimsverk/`
+# is a good home — and `chmod 600` it. It is a credential; treat it like an SSH
+# key. Do not delete it after setup: this path is read on every single run.
+APP_PRIVATE_KEY=<paste the absolute path to your .pem here>

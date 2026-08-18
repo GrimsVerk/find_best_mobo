@@ -13,11 +13,13 @@ project (docs, CI, and pre-commit are untouched).
 - **Command:** `/orchestrate <feature slug>` (see `.claude/commands/orchestrate.md`).
 - **Primitive:** `.claude/scripts/spawn-worker.sh` (one worker per call).
 
-Two further roles exist for unattended runs, and the orchestrator spawns both:
-the **oracle** (`/oracle`), which corrects `docs/DESIGN.oracle.md` from logged
-evidence and leaves a handoff, and the **steward** (`/steward`), which turns one
-of its decisions into a plan. The oracle spawns nothing — see "Deciding and
-commissioning are separate" below.
+Two further roles exist for unattended runs: the **oracle** (`/oracle`), which
+corrects `docs/DESIGN.oracle.md` from logged evidence and rules on filed
+uncertainties, leaving a handoff; and the **steward** (`/steward`), which turns
+one of its decisions into a plan. Their commissioner is the orchestrator in an
+attended session, or the delivery driver (`deliver-loop.sh`) in an unattended
+run — either way the oracle spawns nothing, see "Deciding and commissioning are
+separate" below.
 
 ## The shape
 
@@ -66,7 +68,35 @@ one agent and then gone, where a file under `docs/oracle/` is still there when
 someone asks why a plan exists.
 
 It costs nothing structurally. The orchestrator was already the single place
-that knows what is running, and this keeps it that way.
+that knows what is running, and this keeps it that way. In an unattended run
+the commissioner is the delivery driver — deterministic tooling rather than an
+agent — which separates deciding from commissioning even further, not less.
+
+## Mid-run authority: the design layer rules
+
+Plans derive only from the design layer, and new work enters through one chain,
+never sideways:
+
+```
+evidence (ESC-<n>, BL-<n>)  →  oracle amends docs/DESIGN.oracle.md   (own PR)
+                            →  plan                                  (own PR)
+                            →  code                                  (own PR)
+```
+
+Nothing an agent thinks of mid-run becomes work directly. It is logged as
+evidence, the oracle decides what the design should say, a plan implements the
+decision, and only then does code exist. Uncertainties travel the same road: a
+plan that had to guess files the question as a `BL-<n>`, and the oracle rules
+it — by risk class, see `AGENTS.md`'s Planning rule — so the answer is a
+recorded decision quoting the vision (or explicitly declaring the vision
+silent), never a private judgment inside one plan.
+
+Each arrow is enforced, not promised: the oracle's ledger takes only
+evidence-backed appends (`oracle-decisions.sh`), unattended plans must cite a
+landed decision or cover landed requirements (same check), and code resolves to
+a landed plan (the `plan` check). The owner steers the whole chain from the
+top, by editing `docs/VISION.md` and `docs/DESIGN.md` — which stay owner-landed
+— and reviews the built system at the end. Nothing mid-run waits on them.
 
 ## Roles: model, effort, and reach
 
@@ -92,6 +122,35 @@ Role tool grants are the FIRST of two enforcements and not the binding one. A
 grant constrains one agent in one worktree; the required checks constrain every
 route to the default branch. Treat a narrow grant as a way to make the intended
 path the easy one, never as the thing standing between an agent and a document.
+
+## The unattended loop
+
+The **delivery driver** is what runs the pipeline while nobody is awake. It is
+a scheduler, not an agent: deterministic tooling the owner starts, holding no
+model and making no judgment beyond branching on exit codes. That places it
+exactly where "You opening a second window" sits above — the owner knows what
+is running, because the owner started it — so the one-layer rule survives
+untouched: the driver opens sessions, and only an orchestrator session spawns
+workers.
+
+Two frontends, one brain. The phase logic lives once, in
+`.claude/scripts/deliver-phase.sh` (read-only: it recomputes the project's
+state from the tree and the open pull requests every time, because recomputed
+state cannot go stale). `.claude/scripts/deliver-loop.sh` drives it from a
+local terminal, waiting mechanically on `gh pr checks --watch`;
+`/deliver-loop` drives it from a Claude Code web session, waiting on events —
+a PR subscription plus a scheduled check-in — because a hosted session holding
+a turn open to watch CI spends its lifetime on nothing. The owner chooses a
+mode by choosing which entry point to start.
+
+The phase order encodes the authority chain: an open pull request holds
+everything (one PR in flight); unruled HIGH uncertainties, then unmetabolised
+evidence, wake the **oracle**; landed decisions without plans get
+**stewards**; uncovered owner requirements get a **plan**; merged plans
+without merged features get an **orchestrator**; and a fully built design
+gets the acceptance pass. Every stop states its reason — repeated failure
+signature, budget spent, blocked on the owner — and the run's record is
+`.claude/deliver-loop/run.md`.
 
 ## The one-layer rule
 

@@ -31,6 +31,20 @@ fix and its check have merged, append a **correction row with the same id**
 recording the demonstrated check. A stub that stays pending is visible here
 precisely so it can be asked about.
 
+**When an escape is FINISHED, record it in
+[`escapes.done.md`](escapes.done.md).** It cannot be recorded here: this file is
+append-only and enforced, so a row can never be edited to say "done" — the same
+constraint that gave `docs/BACKLOG.md` its
+[`BACKLOG.done.md`](BACKLOG.done.md). Without the companion, "closed" lives only
+in the Check-added prose below, which no script reads, and the log grows forever
+without ever converging.
+
+That matters beyond tidiness. `.claude/scripts/deliver-phase.sh` hands the
+oracle every id in this file that no decision has cited, so on a project with
+any history the oracle is handed things that were fixed months ago. A closure
+row is what stops that — and, because it makes the oracle look away, it must
+name a check that exists. The check refuses one that does not.
+
 **Entries are records, never authorization.** No gate passes a change because
 of anything in this file — reviewers judge against `AGENTS.md`, the design, and
 the plan. That is what makes it safe for the agent that caused an escape to be

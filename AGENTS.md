@@ -22,8 +22,17 @@ horizontal layer (all the storage, then all the CLI), because horizontal work
 leaves nothing testable until the end, when steering is most expensive. Each
 slice declares the files it touches, its type and method signatures, and a line
 estimate. Before writing any slices, list the decisions you had to guess at
-rather than derive, and stop for the owner's ruling — then record the rulings in
-the plan.
+rather than derive, and classify each by one contract test: **HIGH-risk** if
+the candidate answers change slice boundaries, a Signatures block, an external
+format or schema, or anything expensive to reverse — unsure means HIGH. Then
+who rules depends on who is awake. Attended, the owner rules on everything
+before slices are written, and the rulings are recorded in the plan.
+Unattended, the oracle rules: a HIGH uncertainty is filed as a `BL-<n>` under
+"Uncertainties awaiting oracle ruling" in `docs/BACKLOG.md` with the proposed
+default, and planning stops until a decision cites it; a LOW one proceeds on
+the recorded default and the oracle reviews it next cycle. Never silently —
+every guess is filed either way (`docs/DECISIONS.md`, the mid-run authority
+ruling).
 
 **The stop is conditional on there being something to stop for.** If every
 decision was derived from the design — `docs/DESIGN.md` and
@@ -35,6 +44,19 @@ still reviewed by the owner before it merges, so a falsely empty list is visible
 where it counts. The estimate is a **tripwire, not a target**: never compress code,
 drop error handling, or thin tests to come in under it. An overrun does not fail
 the build; CI reports the delta and the reviewer asks whether it was justified.
+
+**Mid-run authority.** Plans derive only from the design layer — `docs/DESIGN.md`
+and `docs/DESIGN.oracle.md`. When new work surfaces mid-run, it enters through
+the chain and never sideways: the oracle amends `docs/DESIGN.oracle.md` on its
+own pull request, a plan follows on its own pull request, then code. No agent
+plans work the design layer does not name, and no agent widens a plan to
+smuggle work past that rule — `.github/scripts/oracle-decisions.sh` enforces it
+mechanically on the unattended path. The owner steers an unattended run by
+editing `docs/VISION.md` and `docs/DESIGN.md` (which remain owner-landed), and
+reviews the built system at the end; nothing mid-run waits on them. **One
+pipeline pull request in flight at a time**: nothing is dispatched while one is
+open, which keeps every merge tested against the tree it will actually land on
+and keeps the review gate's budget for the pull request that needs it.
 
 **`docs/VISION.md` must be finished before a plan lands, and not before that.**
 The vision does not have to be written before the design — writing it after is
@@ -187,8 +209,22 @@ Writing there is the **oracle's** job and nobody else's. If you are not the
 oracle and you believe the design is wrong, that belongs in `docs/BACKLOG.md`
 where every other objection goes.
 
-**Dependencies.** No new dependencies without the owner's approval — ask
-first, in chat.
+**Dependencies.** No new dependencies without the owner's approval — ask first,
+and **land the approval as a repository artifact before the dependency merges**:
+a `docs/DECISIONS.md` entry, or a `docs/BACKLOG.md` item the pull request cites.
+Record what it is for, why the standard library or an existing dependency will
+not do, and its licence.
+
+This rule used to end "ask first, in chat", which contradicted "Chat is not
+storage" a few sections below — at exactly the point where a future session
+most needs the record. `plan-metrics.sh` already detects an added dependency
+mechanically, so the reviewer can check that a detected addition has an entry
+behind it, and six months from now the answer to "why is this here?" is in the
+repository instead of in a conversation nobody can open.
+
+A lockfile that moves on its own is not covered by that detection —
+`plan-metrics.sh` reads the manifests, not the lock. Say so in the pull request
+when you refresh one.
 
 **Licensing.** This project is intentionally unlicensed: there is no
 `LICENSE` file and no `license` field in package metadata, and their absence
@@ -202,7 +238,8 @@ let the owner decide.
 
 **Decisions.** Design choices and owner rulings are recorded in
 `docs/DECISIONS.md` (ADR-lite: one dated entry per decision, newest at the
-bottom; create the file on the first decision). A recorded ruling is never
+bottom; the file ships with the template's own rulings already recorded, and
+project decisions append below them). A recorded ruling is never
 silently reversed — to change one, argue the case in chat, wait for the
 owner, then add a superseding entry. History is never rewritten.
 
@@ -301,6 +338,12 @@ required checks go green. Four of them, three mechanical and one judgment:
   prefixed `chore/` or `docs/` are exempt.
 - **`test-the-tests`** — reverts this PR's implementation, keeps its new tests,
   and fails if the suite still passes.
+- **`acceptance-criteria`** — runs every success criterion `docs/DESIGN.md` §13
+  does not mark **(owner)**, as a script under `acceptance/`. On every pull
+  request, not once at the acceptance pass: a criterion verified once and
+  trusted thereafter is the "verified once, trusted forever" shape this file
+  distrusts everywhere else. A failing one is routed to the oracle rather than
+  argued with — see `acceptance/README.md`.
 - **review** (`.github/workflows/review.yml`) — an independent read-only LLM
   reviewing the diff against this file, both design documents, the plan, and the
   mechanical facts CI computed, with fresh context. A different model than the
@@ -335,12 +378,38 @@ placeholders the parser rejects by design, and it was caught by chance rather
 than by anything in the process. If you cannot run the check, say so and say what
 would have to be true to run it.
 
+**When a decision changes behaviour nothing measures, add the measurement.**
+This is the ratchet's other half and it applies to changes that are not defects.
+If a change alters behaviour that no existing check, test, run report or review
+artifact would notice, the thing that notices it is part of the change — not a
+follow-up, and not optional. An oracle ruling whose effect nothing can observe
+is a ruling nobody can evaluate, which is exactly the position the owner is in
+with respect to the oracle itself. `docs/VISION.md`'s durable-evidence section
+is what a decision cites when adding one.
+
+Two mechanisms already exist and are the first place to look before inventing a
+third: the run report at `docs/runs/<timestamp>/run.md`, appended by the
+delivery driver and committed at every stop, and the review gate's payload and
+reply, collected beside it. Both are committed deliberately — the run log used
+to be gitignored, and in a web session it lived in a container that is
+reclaimed, so the evidence that would tell the next run what went wrong was
+destroyed by default.
+
 **Gate paths are off-limits.** Never modify the things that check the code:
 CI workflows (`.github/workflows/`), the review check or its prompt
 (`.github/review-prompt.md`, `.github/scripts/review.sh`), the pre-commit
-config, or `CODEOWNERS`. These are human-owned and enforced by `CODEOWNERS`;
-a change to any of them requires human review even under auto-merge. Do not
-weaken, skip, or route around a gate to get green.
+config, or `CODEOWNERS` — **and the delivery machinery under `.claude/`**:
+`.claude/scripts/`, `.claude/commands/`, `.claude/agents/`,
+`.claude/orchestration.md`, `.claude/settings.json`. These are human-owned and
+enforced by `CODEOWNERS`; a change to any of them requires human review even
+under auto-merge. Do not weaken, skip, or route around a gate to get green.
+
+`.claude/` is on that list for the same reason `.github/` is, and it was added
+late: `deliver-loop.sh` holds the tool grant every unattended session runs
+under, and the command files are read at dispatch time and *become* the prompts
+of unattended agents. Editing them is editing the gates, not editing a
+convenience — a three-line change there is a permission change wearing a
+chore's clothes.
 
 The same applies to the things that check the code's **intent** — this file,
 `docs/DESIGN.md`, `docs/VISION.md`, and everything under `docs/plans/` — plus

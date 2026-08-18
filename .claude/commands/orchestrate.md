@@ -36,14 +36,26 @@ One steward per decision, in parallel, each given exactly one `OD-<n>`:
 
 ```sh
 .claude/scripts/spawn-worker.sh --id steward-<od> --role steward \
-  --engine claude --base docs/oracle-plans --prompt "<steward prompt>" &
+  --engine claude --base main --prompt "<steward prompt>" &
 ```
 
 The steward prompt is `.claude/commands/steward.md` plus the decision id. Read
 which decisions the handoff says NOT to act on yet, and do not act on them.
+Stewards branch off the **default branch** — their plans depend on the landed
+ledger, not on any feature's code.
 
 Their plans land on their own pull requests, before any code, exactly like every
-other plan. Only then does a feature branch off to build one. If the handoff
+other plan. The steward's branch is `worker/steward-<od>`, which neither the
+`docs/` carve-out nor slug resolution recognises — so push its head under a
+`docs/`-prefixed name and open the pull request from that:
+
+```sh
+git push origin worker/steward-<od>:docs/oracle-plan-<slug>
+gh pr create --head docs/oracle-plan-<slug> --fill
+```
+
+A diff confined to planning documents is exempt from the plan gate's size cap at
+any size, which these pull requests satisfy by construction. Only then does a feature branch off to build one. If the handoff
 names a decision that makes an *existing* plan partly wrong, say so in your
 report — reworking that plan is the owner's call, not yours.
 
@@ -282,6 +294,18 @@ After the workers finish, for each one:
   yourself if not; it is the file the owner reads.
 
 ## 5. Open the PR, then stop
+
+**Before opening it, review your own diff the way the gate will** (ESC-16:
+three of four recent escapes were found by use, after merge, because nothing
+looked before the pull request existed). If a review credential is reachable —
+`CLAUDE_CODE_OAUTH_TOKEN` in the environment, or you can run the gate's script
+locally — run `.github/scripts/review.sh` against your assembled diff and act
+on blocking findings now, before a CI run is spent on them. If no credential
+is reachable, do the written pre-flight instead: name each rule in `AGENTS.md`
+the diff touches, state in one line how the diff complies, and stop on any
+line you cannot write honestly — fix it rather than arguing with the gate
+later. This pre-check is never authorization to merge; it exists to make the
+gate's red runs rare, not to replace them.
 
 Push `feat/<slug>` and open **one** pull request for it. **Do not merge it.**
 The merge is the pipeline's, triggered by the required checks going green — CI,
