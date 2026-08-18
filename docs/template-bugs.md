@@ -47,3 +47,40 @@ tested. A test that builds a prompt from a real `commands/*.md` file would have
 caught it on day one.
 
 **Fixed here on:** `chore/worker-prompt-frontmatter` (PR #78).
+
+## TB-2 — the driver's own run evidence cannot merge
+
+**Found:** 2026-08-19, clearing the queue before the first real run.
+**Template version:** v0.4.23.
+**Files:** `template/.github/scripts/plan-resolve.sh`,
+`template/.claude/scripts/deliver-loop.sh`.
+
+`deliver-loop.sh` lands its run report at `docs/runs/<timestamp>/run.md` on a
+`docs/`-prefixed branch, at every stop. `plan-resolve.sh` caps an exempt-prefix
+branch at 50 added lines, and exempts only `docs/plans/`, `docs/DESIGN.md`,
+`docs/VISION.md`, `docs/DESIGN.oracle.md`, `docs/oracle/`, `docs/acceptance.md`
+and `docs/architecture.md`. `docs/runs/` is not among them.
+
+So any run report longer than 50 added lines fails `plan` and cannot merge — and
+a real run's report is always longer than that. The evidence the design calls
+"committed, on its own pull request, at every stop" is the one thing that cannot
+land.
+
+Observed on the aborted first run: the report was 8 failed iterations and
+already over the cap.
+
+**Not a stall, and that matters.** The report lands from an `EXIT` trap, so it
+only appears when the run stops. A run is not blocked by its own evidence
+mid-flight; it finishes, and then leaves an unmergeable pull request behind.
+
+**Fix upstream:** add `docs/runs/` to the exempt path list in
+`plan-resolve.sh`, beside the other documents no plan can cover. A run report is
+by construction not plannable work — it is a record of what happened.
+
+**Why nothing caught it:** the gate is exercised against hand-written branches in
+`tests/`, never against a branch the driver itself produced. No test lands a run
+report and asks whether it could merge.
+
+**Not fixed here.** `plan-resolve.sh` is a gate path: the review gate blocks any
+change to `.github/` from a generated project, correctly. This one has to come
+from the template.
