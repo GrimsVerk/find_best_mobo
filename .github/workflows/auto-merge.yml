@@ -85,13 +85,26 @@ jobs:
     # last attempt, and a timeout that kills the job mid-ladder turns "waited
     # out a rate limit" back into "failed the check".
     timeout-minutes: 10
+    # The secrets context is NOT available in ANY `if:` — not job level, not step
+    # level. A workflow that references it there does not skip a step: the FILE
+    # FAILS VALIDATION, the run is created with zero jobs, and every job in the
+    # file dies with it, including the two below that have nothing to do with the
+    # App. That is ESC-36, and the reason it survived review is that the comment
+    # which used to sit here stated a wrong rule confidently: it claimed a step
+    # `if:` was being used precisely BECAUSE a job one cannot read secrets. So
+    # the line read as a deliberate workaround rather than as a mistake.
+    #
+    # Secrets ARE allowed in `env:`, and the `env` context IS available in a step
+    # `if:`. So the value is hoisted here and the step tests the hoisted copy.
+    # Same behaviour, valid file.
+    env:
+      APP_ID: ${{ secrets.APP_ID }}
     steps:
       - name: Mint the App token
         # Skipped in repositories where the App is not configured; the arming
-        # step's token fallback chain handles both outcomes. Step-level `if` is
-        # used because the secrets context is not available in job-level `if`.
+        # step's token fallback chain handles both outcomes.
         id: app-token
-        if: ${{ secrets.APP_ID != '' }}
+        if: env.APP_ID != ''
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -206,6 +219,106 @@ jobs:
           else
             echo "Could not delete $HEAD_REF — it may already be gone." >&2
           fi
+
+  # Bring every OTHER open pull request up to date with the branch that just
+  # merged.
+  #
+  # WHY THIS IS NOT HOUSEKEEPING. `setup-github.sh` sets
+  # `strict_required_status_checks_policy: true` ("require branches to be up to
+  # date"). Under that rule the moment ANY pull request merges, every other open
+  # one becomes unmergeable however green it is. GitHub reports that as
+  # `mergeStateStatus: BEHIND`, which NEVER APPEARS IN THE CHECKS LIST — so the
+  # pull request shows a column of green ticks and simply does not merge, and
+  # arming auto-merge does not help: observed directly, one merge flipped every
+  # other open pull request to BEHIND while armed, and GitHub brought none of
+  # them up to date on its own.
+  #
+  # This revisits ESC-17, whose recorded answer was to forbid queues. That is
+  # right for an UNATTENDED run — deliver-phase.sh returns WAIT on any open pull
+  # request, so the driver holds exactly one — and wrong for attended work,
+  # where the cost lands on a human by hand, once per merge, per branch.
+  #
+  # IT NEVER FAILS. A genuine conflict is reported and left for a human rather
+  # than turned into a red check on an innocent pull request that did nothing
+  # wrong. The job exits 0 whatever it finds; what it found is in the summary.
+  #
+  # IT NEEDS A NON-DEFAULT TOKEN, and refuses rather than degrading. GitHub does
+  # not create workflow runs from pushes made with GITHUB_TOKEN, so an update
+  # pushed with it produces a new head commit that NO workflow ever runs against
+  # — the branch comes up to date and its required checks are then permanently
+  # missing, which is strictly worse than being BEHIND. With no App and no PAT
+  # this says so and does nothing.
+  update-open-prs:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    # Hoisted for the same reason as the job above: the secrets context is not
+    # available in any `if:`, and referencing it there fails the whole FILE.
+    env:
+      APP_ID: ${{ secrets.APP_ID }}
+    steps:
+      - name: Mint the App token
+        id: app-token
+        if: env.APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - name: Update every other open pull request
+        env:
+          # No GITHUB_TOKEN fallback, deliberately — see the header above.
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.AUTO_MERGE_TOKEN }}
+          REPO: ${{ github.repository }}
+          MERGED: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            {
+              echo "update-open-prs: no App and no AUTO_MERGE_TOKEN, so nothing was updated."
+              echo ""
+              echo "An update pushed with GITHUB_TOKEN creates no workflow runs, so the"
+              echo "branch would come up to date with its required checks permanently"
+              echo "missing — worse than BEHIND. Run \`gh pr update-branch <n>\` by hand,"
+              echo "or configure the App with \`scripts/setup-github.sh --app\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          OWNER="${REPO%%/*}"
+
+          # This repository's branches only: a fork's branch is not ours to push.
+          gh pr list --repo "$REPO" --state open --limit 200 \
+            --json number,headRefName,headRepositoryOwner \
+            --jq ".[] | select(.headRepositoryOwner.login == \"$OWNER\") | \"\(.number)\t\(.headRefName)\"" \
+            > /tmp/open-prs.txt || : > /tmp/open-prs.txt
+
+          updated=0; conflicted=0; other=0
+          while IFS="$(printf '\t')" read -r number ref; do
+            [ -n "$number" ] || continue
+            [ "$number" = "$MERGED" ] && continue
+            if out="$(gh pr update-branch "$number" --repo "$REPO" 2>&1)"; then
+              echo "update #$number ($ref)"
+              updated=$((updated + 1))
+            elif printf '%s' "$out" | grep -qi conflict; then
+              echo "CONFLICT #$number ($ref) — left for a human, deliberately" >&2
+              conflicted=$((conflicted + 1))
+            else
+              # "already up to date" lands here too, which is why this is not an
+              # error: the desired end state, reached by someone else.
+              echo "skip   #$number ($ref): $out"
+              other=$((other + 1))
+            fi
+          done < /tmp/open-prs.txt
+
+          echo "update-open-prs: updated $updated, $conflicted conflicted, $other skipped." \
+            >> "$GITHUB_STEP_SUMMARY"
+          exit 0
 
   # The backstop, and the only path that works with no token configured.
   #

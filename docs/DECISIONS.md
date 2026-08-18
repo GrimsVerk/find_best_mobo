@@ -346,6 +346,24 @@ best-effort, two hard backstops always also apply: a pull-request count and a
 wall-clock limit. A loop that quietly gets worse when it runs low is harder to
 diagnose than one that stops and says why.
 
+## 2026-08-18 — After a merge, the other open pull requests are updated for you
+
+Branch protection here requires branches to be up to date, so the moment one
+pull request merges every other open one becomes unmergeable however green it
+is. GitHub calls that `BEHIND`, and it is not a check — it never appears in the
+checks list, so the pull request shows a column of green ticks and simply does
+not merge. Auto-merge does not rescue it either.
+
+So `auto-merge.yml` updates them: on a merge, `gh pr update-branch` over every
+other open pull request in this repository. It **never fails** — a real conflict
+is reported and left for a human, not turned into a red check on a pull request
+that did nothing wrong — and it **will not run on the built-in Actions token**,
+because a push made with that token creates no workflow runs, so the branch
+would come up to date with its required checks permanently missing. That is
+worse than being behind. Configure the App (`scripts/setup-github.sh --app`) or
+`AUTO_MERGE_TOKEN`; with neither, the run summary says so and nothing is
+touched.
+
 <!-- Append project decisions below, newest at the bottom. -->
 
 ## 2026-08-16 — The agent can read subscription usage after all

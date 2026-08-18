@@ -67,10 +67,20 @@ sleep to wait for CI.
      mechanically (`git push origin worker/<id>:docs/<ref>` — the worker
      branch is neither docs-exempt nor slug-resolvable). Then you are in
      WAIT.
-   - **ORCHESTRATE** — run `/orchestrate <slug>` in this session. It opens
-     the feature's pull request and stops; then you are in WAIT.
-   - **ACCEPTANCE** — run `/deliver` step 6 only; land `docs/acceptance.md`
-     on a docs/ branch, open the pull request. When the detector says
+   - **ORCHESTRATE** — run `/orchestrate <slug>` in this session, telling it
+     `UNATTENDED RUN` so it pushes `feat/<slug>` and stops. **You** then open
+     the pull request, as the App, the same way you do for a worker branch —
+     never under the owner's own credentials, or
+     `.github/scripts/owner-authored.sh` compares the owner's login to the
+     owner's login and passes for every pull request this run ever opened. Then
+     you are in WAIT.
+   - **ACCEPTANCE** — run `/deliver` step 6 only, marked `UNATTENDED RUN`, so
+     it commits `docs/acceptance.md` on a `docs/` branch and pushes without
+     opening anything. **You** open that pull request as the App. This one is
+     not interchangeable with the others: `docs/acceptance.md` is
+     `CODEOWNERS`-owned and GitHub does not let an author approve their own
+     pull request, so opening it as the owner produces the one pull request in
+     the run that they cannot approve. When the detector says
      ACCEPTANCE again with nothing open, write the final report and end the
      run: requirements covered, criteria passed/failed/pending-on-owner with
      evidence, escapes logged, and the pending list as the honest bottom
