@@ -13,8 +13,11 @@ and never into a pull request body. **You spawn nothing.**
 
 ## What you may write
 
-One path: `docs/plans/oracle/<slug>.md`. Nothing else — not the ledger, not a
-handoff, not `docs/DESIGN.md`, not code, not the gates.
+Two paths, each for one purpose. The plan: `docs/plans/oracle/<slug>.md`.
+`docs/BACKLOG.md`: only to file a `BL-<n>` under "Uncertainties awaiting oracle
+ruling" when the uncertainty gate below stops you, or an objection under
+"Proposed". Nothing else — not the ledger, not a handoff, not `docs/DESIGN.md`,
+not code, not the gates.
 
 ## Steps
 
@@ -44,11 +47,37 @@ handoff, not `docs/DESIGN.md`, not code, not the gates.
    promotion rule holds: the body elaborates a summary decision, it never
    introduces one.
 
-4. **Run the uncertainty gate**, and here it works differently from `/plan`.
-   You are running while nobody is awake, so you cannot stop for a ruling.
-   Anything you had to guess at goes in the plan's uncertainties section AND in
-   your report, and you continue on your best reading of the decision. Do not
-   manufacture certainty by leaving the list empty.
+4. **Run the uncertainty gate**, and classify before you list. The rule you are
+   judged against is `AGENTS.md`'s Planning rule, unattended branch, exactly as
+   written — the review gate blocked three of three first-run plans for
+   departing from it, so the line below is not advice, it is the gate.
+
+   - **A choice the design layer explicitly hands to the plan is a
+     derivation, not an uncertainty.** If the decision or a requirement it
+     cites answers the question — even by delegating it ("the plan chooses the
+     window size") — make the choice, cite the `OD-<n>`/`R<n>` that delegates
+     it, and record it in the plan's reasoning as a derivation. Do not file it,
+     and do not label it a ruling: "risk: HIGH — proceeded on the default" is
+     the exact wording that gets a plan blocked.
+   - **A genuine gap that is LOW-risk** (the candidate answers change no slice
+     boundary, no Signatures block, no external format, nothing expensive to
+     reverse): proceed on your recorded default, and file it as the next
+     `BL-<n>` under "Uncertainties awaiting oracle ruling" in
+     `docs/BACKLOG.md` — in this same commit — so the oracle reviews it next
+     cycle. Guessing is allowed; guessing silently is not.
+   - **A genuine gap that is HIGH-risk** (or one you are unsure about, which
+     makes it HIGH): you may not rule on it — not in the plan, not in your
+     report, not by "proceeding on the default". File it as a `BL-<n>` with
+     your proposed default, commit that alone, and stop, reporting "plan
+     pending oracle ruling on BL-<n>". The driver runs the oracle on it and
+     re-dispatches you; then the plan records the ruling by its `OD-<n>` id.
+     This is "The stop" below, with its mechanism: an unattended stop is not
+     silence, it is a filed question.
+
+   Do not manufacture certainty by leaving the list empty, and do not
+   manufacture questions to have something to file — a delegated choice
+   reclassified as an uncertainty erodes the plan's authority, and a real
+   uncertainty reclassified as a derivation erodes the oracle's.
 
 5. **Commit on a branch and stop.** The plan lands on its own pull request,
    before any code, exactly like every other plan.
@@ -56,10 +85,11 @@ handoff, not `docs/DESIGN.md`, not code, not the gates.
 ## The stop
 
 A decision you cannot turn into a plan without inventing a second decision.
-Then stop and report, naming what the decision does not say. Building the
-missing half yourself is the failure this role's narrowness exists to prevent —
-it would put a design decision into a plan, where nothing checks it and the
-oracle's ledger does not record it.
+Then file the missing half as a `BL-<n>` (step 4's HIGH branch), commit that,
+and stop, naming what the decision does not say. Building the missing half
+yourself is the failure this role's narrowness exists to prevent — it would put
+a design decision into a plan, where nothing checks it and the oracle's ledger
+does not record it.
 
 ## Report
 

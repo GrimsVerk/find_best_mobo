@@ -475,6 +475,19 @@ Give at least one — at the prompt, or as --max-prs / --max-hours /
 fi
 
 # ------------------------------------------------------------- dispatchers
+command_prompt() { # command_prompt <path> — a command file's body, sans frontmatter
+  # The YAML frontmatter is loader metadata, not instructions. Sent verbatim it
+  # tells the model to read its own catalogue entry as a task — and it begins
+  # with `---`, which is what killed every dispatch of the first unattended run
+  # before spawn-worker.sh gained its `--` terminator (ESC-37). Both fixes
+  # stand: this one removes the noise, that one stops any future `---`-leading
+  # prompt dying as a flag.
+  awk 'NR==1 && $0=="---" { infm=1; next }
+       infm && $0=="---"  { infm=0; next }
+       infm               { next }
+       { print }' "$1"
+}
+
 mechanical_pr() { # mechanical_pr <source-branch> <head-ref> <title>
   # The commissioner's half of C5: a worker/<id> branch is neither docs/-
   # exempt nor slug-resolvable, so its head is pushed under a docs/-prefixed
@@ -555,7 +568,13 @@ record_dismissed_evidence() {
 wait_on_pr() { # wait_on_pr <number> <headref>
   local pr="$1" headref="$2" rc=0
   log "waiting on PR #$pr ($headref) — mechanical watch, no model budget"
-  timeout "$WAIT_TIMEOUT" "$GH" pr checks "$pr" --watch --interval 30 \
+  # --fail-fast: leave the watch the moment any check fails. Without it the
+  # watch holds until NO check is pending — and a required check that never
+  # reports at all (observed: `test-the-tests` stuck while `review` was already
+  # red) is indistinguishable from one still running, so the driver sat on a
+  # decided pull request for the full WAIT_TIMEOUT (ESC-39). A failed required
+  # check is terminal for the head; nothing a pending one reports changes it.
+  timeout "$WAIT_TIMEOUT" "$GH" pr checks "$pr" --watch --fail-fast --interval 30 \
     >/dev/null 2>&1 || rc=$?
   if [[ "$rc" -eq 124 ]]; then
     log "checks still pending after ${WAIT_TIMEOUT}s — re-detecting"
@@ -661,16 +680,7 @@ while :; do
     fi
   fi
 
-  # Frontmatter is metadata for the slash-command loader, not prompt text: passing
-# it on tells the model to read its own catalogue entry as an instruction, and
-# the leading `---` is what the CLI mistook for an option.
-role_prompt() { # role_prompt <path>
-  awk 'NR==1 && $0=="---" { fm=1; next }
-       fm && $0=="---"     { fm=0; body=1; next }
-       !fm                 { print }' "$1"
-}
-
-# What next? Recomputed from the world, never remembered.
+  # What next? Recomputed from the world, never remembered.
   PHASE=""; PR=""; HEADREF=""; UNRULED=""; UNCITED=""; ODS=""; REQS=""; SLUG=""; REASON=""
   CRITERIA=""
   while IFS='=' read -r k v; do
@@ -703,7 +713,7 @@ role_prompt() { # role_prompt <path>
     ORACLE)
       scope="Scope for this run: ${UNRULED:+rule on the filed uncertainties: $UNRULED.} ${UNCITED:+work the logged evidence: $UNCITED.}"
       run_worker "oracle-$(date -u +%Y%m%d%H%M%S)" oracle \
-        "$(role_prompt .claude/commands/oracle.md)
+        "$(command_prompt .claude/commands/oracle.md)
 
 UNATTENDED RUN. The delivery driver commissioned this session. $scope" \
         "docs/oracle-$(date -u +%Y%m%d%H%M%S)" \
@@ -712,14 +722,14 @@ UNATTENDED RUN. The delivery driver commissioned this session. $scope" \
     STEWARD)
       od="${ODS%% *}"
       run_worker "steward-${od,,}" steward \
-        "$(role_prompt .claude/commands/steward.md)
+        "$(command_prompt .claude/commands/steward.md)
 
 UNATTENDED RUN. The decision to plan: $od" \
         "docs/oracle-plan-${od,,}" \
         "Plan for $od" || true ;;
     PLAN)
       run_worker "plan-$(date -u +%Y%m%d%H%M%S)" steward \
-        "$(role_prompt .claude/commands/plan.md)
+        "$(command_prompt .claude/commands/plan.md)
 
 UNATTENDED. The delivery driver commissioned this session; follow the
 unattended branches of the gate above. Requirements still unplanned: $REQS.
