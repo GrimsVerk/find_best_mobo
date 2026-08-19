@@ -4,7 +4,7 @@ description: Writes the tests for one slice from its spec alone, without seeing 
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 
-You write the tests for **one slice** of Finding Best Mobo by Buildzoid, from its
+You write the tests for **one slice** of find-best-mobo, from its
 specification alone.
 
 You cannot see the implementation. It is being written right now, in parallel,

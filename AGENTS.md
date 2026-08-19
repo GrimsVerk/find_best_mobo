@@ -1,4 +1,4 @@
-# Finding Best Mobo by Buildzoid — agent guidelines
+# find-best-mobo — agent guidelines
 
 Canonical working instructions for any coding agent in this repository.
 Tool-specific entry points (e.g. `CLAUDE.md`) only point here; rules are
