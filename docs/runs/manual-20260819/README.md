@@ -86,6 +86,36 @@ Worth recording, because the failures are easier to notice than the saves:
 - The driver refuses a dirty tree, a non-default branch, and leftover worktrees.
   All three fired during this run and all three were right.
 
+## The structural tension worth deciding on
+
+Both blocking defects — TB-1 and TB-4 — live in `.claude/`. The review gate
+refuses **any** change to `.claude/` or `.github/` from a generated project, on
+the grounds that gate machinery must arrive as a verified template sync rather
+than a hand edit. That rule is right, and it fired correctly three times tonight.
+
+But it has a consequence nobody has ruled on: **a generated project that hits a
+driver bug cannot unblock itself.** The fix is refused by the gate, and the
+driver additionally refuses a dirty tree, a non-default branch, and leftover
+worktrees — so it cannot even be hot-patched for one run. Every route requires
+the owner, awake, at whatever hour the bug appears. An unattended run that is
+one `git switch` grant away from working stops until morning.
+
+Three ways out, and the choice is the owner's:
+
+1. **Accept it.** Driver bugs are rare once the template is exercised, and the
+   owner approving a `.claude/` fix is a reasonable price for gate integrity.
+   This becomes much more defensible once an end-to-end dispatch test exists.
+2. **Carve out a narrow exception** — a `driver-fix/` branch prefix the review
+   gate treats like a template sync, on the argument that the driver is not a
+   gate: it dispatches work, and every gate still runs on everything it produces.
+   The risk is obvious and the prefix makes it visible, which is the same
+   argument `chore/` already rests on.
+3. **Ship the driver as something the project cannot edit at all** and make
+   template updates the only route, accepting that a driver bug halts every
+   project until a release goes out.
+
+Tonight ran on (1) by default, and it cost the night twice.
+
 ## Next steps
 
 1. Take TB-1 … TB-7 upstream. TB-1 and TB-4 block every unattended run.
