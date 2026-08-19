@@ -145,6 +145,12 @@ fi
 GIT_TOOLS=(
   "Bash(git add:*)" "Bash(git commit:*)" "Bash(git status:*)"
   "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)"
+  # A worker already starts on its own branch in its own worktree, so it does
+  # not NEED these — but a denied `git switch` does not fail loudly, it makes
+  # the agent abandon the commit it was about to make. Observed downstream: a
+  # finished plan left uncommitted in the worktree because the branch step was
+  # refused (ESC-38).
+  "Bash(git switch:*)" "Bash(git branch:*)"
 )
 BUILD_TOOLS=(
   "Bash(uv run:*)" "Bash(uv sync:*)"
@@ -215,6 +221,13 @@ STEWARD_TOOLS=(
   # unattended planner — which runs under this role — files uncertainties
   # there as BL-<n> items for the oracle to rule on (plan.md, the gate).
   "Write(docs/BACKLOG.md)" "Edit(docs/BACKLOG.md)"
+  # The gate scripts this role's own prompts tell it to run. Without them the
+  # instruction is unfollowable: plan.md and steward.md point at
+  # oracle-decisions.sh, and a planner that cannot parse or lint its own plan
+  # finds out at CI instead (ESC-38).
+  "Bash(.github/scripts/oracle-decisions.sh:*)"
+  "Bash(.github/scripts/plan-parse.sh:*)"
+  "Bash(.github/scripts/plan-lint.sh:*)"
   "${GIT_TOOLS[@]}"
 )
 READ_ONLY_TOOLS=("Read" "Grep" "Glob")
@@ -319,7 +332,12 @@ if [[ "$ENGINE" == "codex" ]]; then
     CMD=(codex exec --approve-for-me --ephemeral)
   fi
   [[ -n "$MODEL" ]] && CMD+=(--model "$MODEL")
-  CMD+=("$PROMPT")
+  # `--` before the prompt, ALWAYS. Every command file opens with YAML
+  # frontmatter, so a prompt built from one begins with `---` — and without the
+  # terminator the CLI reads that as a flag and dies with "unknown option"
+  # before any model is reached. That is how the first unattended run failed at
+  # its first dispatch, eight times in thirty seconds (ESC-37).
+  CMD+=(-- "$PROMPT")
 else
   CMD=(claude -p)
   if [[ "$BYPASS" -eq 1 ]]; then
@@ -329,9 +347,8 @@ else
   fi
   [[ -n "$MODEL" ]] && CMD+=(--model "$MODEL")
   [[ -n "$EFFORT" ]] && CMD+=(--effort "$EFFORT")
-  # `--` terminates option parsing. Without it a prompt beginning `---` (every
-  # command file opens with YAML frontmatter) is read as an option and rejected
-  # — `error: unknown option '---` — and no role can ever start.
+  # Same terminator as the codex branch, same reason (ESC-37). Verified:
+  # `claude -p -- "…"` accepts a `---`-leading prompt.
   CMD+=(-- "$PROMPT")
 fi
 

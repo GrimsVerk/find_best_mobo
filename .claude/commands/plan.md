@@ -35,6 +35,14 @@ that are easy to skip and are the whole point:
      next cycle. Guessing is allowed; guessing silently is not
      (`docs/DECISIONS.md`, the mid-run authority ruling).
 
+   **Classify before you list: a choice the design layer explicitly hands to
+   the plan is a derivation, not an uncertainty.** If a requirement or decision
+   answers the question — even by delegating it to the plan — make the choice,
+   cite the id that delegates it, and record it as a derivation in the plan's
+   reasoning. Only a genuine gap in the design layer is an uncertainty, and
+   only those are filed. Writing "risk: HIGH — proceeded on the default" is
+   self-ruling, and the review gate blocks it.
+
    If the list is genuinely **empty** — every decision derived from
    `docs/DESIGN.md`, nothing guessed — say so in that section and continue
    without stopping. Do not manufacture a question to have something to ask.
