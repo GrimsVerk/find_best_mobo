@@ -145,6 +145,11 @@ fi
 GIT_TOOLS=(
   "Bash(git add:*)" "Bash(git commit:*)" "Bash(git status:*)"
   "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)"
+  # A worker already starts on its own branch in its own worktree, so it does
+  # not NEED these — but a denied `git switch` does not fail loudly, it makes
+  # the agent abandon the commit it was about to make. Observed: a finished plan
+  # left uncommitted in the worktree because the branch step was refused.
+  "Bash(git switch:*)" "Bash(git branch:*)"
 )
 BUILD_TOOLS=(
   "Bash(uv run:*)" "Bash(uv sync:*)"
@@ -215,6 +220,12 @@ STEWARD_TOOLS=(
   # unattended planner — which runs under this role — files uncertainties
   # there as BL-<n> items for the oracle to rule on (plan.md, the gate).
   "Write(docs/BACKLOG.md)" "Edit(docs/BACKLOG.md)"
+  # The gate scripts this role's own prompt tells it to run. Without them the
+  # instruction is unfollowable: plan.md points at oracle-decisions.sh, and a
+  # planner that cannot parse or lint its own plan finds out at CI instead.
+  "Bash(.github/scripts/oracle-decisions.sh:*)"
+  "Bash(.github/scripts/plan-parse.sh:*)"
+  "Bash(.github/scripts/plan-lint.sh:*)"
   "${GIT_TOOLS[@]}"
 )
 READ_ONLY_TOOLS=("Read" "Grep" "Glob")
