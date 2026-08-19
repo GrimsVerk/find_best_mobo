@@ -88,9 +88,52 @@ else
   skip "no pyproject.toml or project.yml, and no TEST_THE_TESTS_IMPL_DIR/TEST_THE_TESTS_TEST_DIR — cannot tell implementation from tests"
 fi
 
-changed() { git diff --name-only "${BASE_SHA}...${HEAD_SHA}" -- "$1"; }
-[[ -n "$(changed "$IMPL_DIR")" ]] || skip "this PR changes no files under $IMPL_DIR/"
-[[ -n "$(changed "$TEST_DIR")" ]] || skip "this PR changes no files under $TEST_DIR/"
+# THE DIFF IS COMPUTED ONCE, AND A FAILURE TO COMPUTE IT IS NOT A SKIP.
+#
+# This used to be `changed() { git diff ... -- "$1"; }` called inside `$( )`.
+# Inside a command substitution a git failure produces empty stdout, and empty
+# stdout was read as "this pull request changes nothing there" — so a bad
+# revision, an unfetched base, or any other git error skipped the check, and a
+# skip exits 0, which GitHub reports as a PASSING required check. That is the
+# same "I could not look" / "there is nothing" collapse `pr-queue.sh` refuses
+# by name, in the one script whose whole purpose is to catch checks that report
+# green without running.
+#
+# So: the range is stated out loud on every run, git's exit status is honoured,
+# and a pull request whose total diff is EMPTY is a refusal rather than a skip.
+# A pull request that changes no file at all does not exist; an empty total diff
+# means the range is wrong, and continuing past it would report green for a
+# comparison that never happened.
+echo "test-the-tests: comparing ${BASE_SHA}...${HEAD_SHA}"
+if ! ALL_CHANGED="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")"; then
+  cat >&2 <<EOF
+test-the-tests: could not diff ${BASE_SHA}...${HEAD_SHA}.
+
+Exit 2, not a skip. A git error here produces no file names, and no file names
+used to read as "nothing changed" — which exits 0 and is reported as a passing
+required check. Refusing to pass on a comparison that did not happen.
+EOF
+  exit 2
+fi
+if [[ -z "$ALL_CHANGED" ]]; then
+  cat >&2 <<EOF
+test-the-tests: ${BASE_SHA}...${HEAD_SHA} reports NO changed files at all.
+
+A pull request that changes nothing does not exist, so this range is wrong —
+usually a base ref that was never fetched, or a HEAD that already contains the
+base. Exit 2 rather than a skip: every check below would report green having
+compared nothing.
+EOF
+  exit 2
+fi
+
+# Anchored at the start, so a directory called `template` is not matched by a
+# path called `my-template/x`.
+changed() { printf '%s\n' "$ALL_CHANGED" | grep -E "^$1/" || true; }
+[[ -n "$(changed "$IMPL_DIR")" ]] || \
+  skip "this PR changes no files under $IMPL_DIR/ ($(printf '%s\n' "$ALL_CHANGED" | wc -l) file(s) changed in total)"
+[[ -n "$(changed "$TEST_DIR")" ]] || \
+  skip "this PR changes no files under $TEST_DIR/ ($(printf '%s\n' "$ALL_CHANGED" | wc -l) file(s) changed in total)"
 
 run_suite() {
   # A repository that had to name its own directories has to name its own
