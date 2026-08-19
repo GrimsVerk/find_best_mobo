@@ -1,0 +1,15 @@
+Preparing worktree (new branch 'worker/dft-1')
+HEAD is now at a694ae0 Plan the date fix and the whole-transcript threshold
+=== spawn-worker[dft-1] engine=claude branch=worker/dft-1 base=feat/date-from-timestamp (a694ae05a6f6474bb706aab5258145c4c0144dd5) bypass=1 ===
+=== 2026-08-15T22:20:01Z ===
+Slice 1 is built and committed on `worker/dft-1` (commit `8cb382b`), touching only `src/find_best_mobo/index.py` plus the architecture doc.
+
+**What changed.** `classify` now takes the video's date from `upload_date` when present and falls back to the listing's `timestamp` (epoch seconds, read as UTC) when it's absent, null, or unparseable — the flat listing only ever sends `timestamp`, which is why the first real run kept 0 of 1215 videos. The range comparison now uses the new public `effective_start_date(config)` — `config.start_date` minus the new module constant `DATE_SLOP_DAYS = 62` — so the listing's mid-month bucketing can't exclude anything uploaded from 2023-01-01 onward. The `Video` still records the real date; only the comparison shifts. Neither-field-present keeps the exact old behavior (`date.min` sentinel, `excluded_out_of_range`), a timestamp of `0` parses as the real date 1970-01-01, and duration is still checked before date. All eight contract points verified by hand against the running code; `ruff check`, `ruff format --check`, and `mypy` all pass.
+
+Two things worth reporting:
+
+1. **Ten pre-existing index tests now fail, as expected.** They were all green before my change; each encodes the old boundary — e.g. `TestClassify::test_upload_before_start_date_is_out_of_range` asserts a `20221231` video is excluded (the contract says it's now `pending`), and the zero-duration tests' backdrop fixture has a `20221115` entry inside the slop window, shifting every hard-coded summary count. Per the blind-test split I left them alone; this is the assembly-time disagreement the process wants surfaced, and it's noted in the commit body.
+
+2. **A latent, unrelated flake in `tests/test_select.py`.** `test_the_lower_threshold_what_if_reads_as_an_additional_count` failed once in a full run and passes otherwise. Its helper `directional_line` scans output for any line containing the number 2 plus a "lower" marker — and pytest's tmp path can accidentally supply both (`/pytest-2/test_the_lower_threshold_what_0/` appears in the "Wrote 9 selections" line). It depends on the machine's tmp-dir counter, predates my change, and I couldn't fix it without touching tests; someone should queue it in `docs/BACKLOG.md`.
+
+One judgement call beyond the contract: a `timestamp` counts only as a non-bool `int` or `float` (mirroring how `_duration` reads its field); numeric strings aren't parsed, and absurd values that make `fromtimestamp` raise fall through to the no-date sentinel path rather than crashing.
