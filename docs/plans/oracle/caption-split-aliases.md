@@ -10,293 +10,306 @@ covers: [R1002]
 
 Implements **OD-6** (`docs/DESIGN.oracle.md`), which adds **R1002** from the
 evidence in **BL-8**: auto-captions split product names across tokens, and the
-folding rule in `normalize` only joins letter-to-digit transitions, so
-`toma hawk`, `aor us master` and `air us elite` match nothing at all. Of the 52
-mangled variants the audit put through the shipped table, 49 matched and those
-three did not — silent losses, in the corpus the whole product is built from.
+shipped matcher is blind to the result. Measured offline against the shipped
+table, `toma hawk`, `aor us master` and `air us elite` matched nothing at all —
+silent losses in the corpus every later stage is built from.
 
 ## Summary
 
-Compile the split tolerance **into the pattern the table already becomes**: a
-surface form's characters may be separated by optional whitespace, a space
-*inside* a form still demands a real one, the alphanumeric lookarounds stay. That
-is R1002 verbatim — whole tokens at both ends, alias spaces on token boundaries.
+Two mechanical changes to the space the matcher works in, then BL-8's measured
+variant set as a fixture.
 
-- **No public signature moves.** `compile_matcher` still returns one compiled
-  `re.Pattern`, `find_mentions` and `find_title_hits` keep their arguments, and
-  `select`, `aliases --check` and every test holding a matcher are untouched. The
-  alternative — a token-join pass beside the regex — changes the matcher's type
-  and reaches into three modules to buy the same behaviour.
-- **`normalize` folds hyphens to spaces**, because R1002 says it does, so
-  `steel-legend` meets the table's `steel legend`. Two shipped `normalize` tests
-  assert the opposite and are rewritten, with the reason in the commit — the
-  visible test edit `AGENTS.md` asks to be declared. `x670e-plus` still matches:
-  table forms fold the same way.
-- **A multi-word alias will not match its fused spelling.** `steel legend` never
-  matches `steellegend` — R1002 wants the alias's space on a token boundary, and
-  one token has none. Captions split words; they do not weld them. It is the same
-  clause that keeps `b650` out of `theb650`.
-- **The table gains the mishearings no join can recover** — `air us elite`, and
-  its sibling `air us master`, which was *not* measured (see below). The
-  now-redundant `pro-rs` form goes, since it folds onto `pro rs`.
-- **The 52-variant set is reconstructed, not recovered.** BL-8 recorded the count
-  and the three failures, not the list, and it is nowhere in the tree. The fixture
-  is one mangled variant per canonical plus more of the shapes the audit stressed,
-  to 52, the three failures verbatim — with a reject set pinning what R1002 forbids.
-- **Not done here: OD-7's ITX rule and OD-8's descriptions.** Separate decisions,
-  separate plans; OD-7 edits these same files, so the two are sequenced.
-- **What it costs the owner:** recall rises, so more videos are selected and the
-  projection rises with them — R1002's whole point, and both numbers are already
-  reported by `aliases --check` and R4's in/out counts.
+- **The hyphen stops being a kept character.** `normalize` folds it to a space,
+  so `steel-legend` meets the table's `steel legend`. Only hyphens: a slash or
+  a plus still blocks a join, which is a separate reading of R3. Two existing
+  `tests/test_normalize.py` tests assert the retired rule and are rewritten.
+- **Each surface form compiles to a pattern with an optional space between
+  adjacent characters and a required space where the form has one** —
+  `tomahawk` matches `toma hawk`, `aorus master` matches `aor us master`. Still
+  one compiled pattern, longest form first, so R22 and R23 are untouched.
+- **A fused token is never matched into.** `b650` is not in `theb650`, and
+  `aorus master` does not match `aorusmaster`: R1002 makes the alias's own space
+  require a real token boundary. Pinned as negative cases.
+- **The table gains `airus elite` and `airus master`.** `air us` for `aorus` is
+  a mishearing no join recovers, and R1002 leaves those to the table. Additions
+  only — forms the join rule makes redundant stay, so `aliases --check`'s
+  per-form counts stay comparable across the change.
+- **The 52-variant set is reconstructed, not recovered** — BL-8's list was never
+  committed. This plan enumerates 52 built from the shipped table by BL-8's own
+  damage classes, its named failures verbatim. Five of mine fail today where
+  BL-8 reported three, so it is not the original list and does not claim to be.
+- **Not done here:** OD-7/R1003's ITX rule, which lands in the same function;
+  splits straddling two cues; the table's move under OD-11/R1007.
 
-Two slices, ~515 lines, sequential — the second measures what the first does.
+Three slices, ~420 lines, **sequential**. Three uncertainties, one HIGH and
+proceeded on because this role cannot stop for a ruling.
 
-**What I need you to rule on:** (1) `air us master` is added by symmetry with the
-measured `air us elite`; delete the line if you would rather the table carried
-only what was heard. (2) The 52-variant fixture is a reconstruction of BL-8's
-set, not the set itself — say if a fixture that cannot be the original is worth
-less to you than a smaller one that names only what was measured.
+**What I need you to rule on:**
+
+1. **The reconstructed 52.** R1002 asks for BL-8's set by that number and the
+   set is not in the repository. If a fixture of the five genuinely observed
+   failures is the honester artifact, slice 3 shrinks to those.
+2. **Cross-cue splits stay unmatched** — `toma` ending one cue, `hawk` starting
+   the next. Worth a backlog item; it is not this plan's to file.
+3. **Merge order.** OD-7 edits the same matcher and OD-11 moves the same table
+   file. Whichever lands second carries the rebase.
 
 ## Uncertainties
 
-Two guesses, both filed here and in the steward's report; neither changes a
-slice boundary or a signature, so both are **LOW** and proceed on the recorded
-default for the oracle to review next cycle. Nothing here stopped for a ruling —
-this plan was written unattended and cannot.
+Three, none of them stopped this plan — the steward role runs while nobody is
+awake and continues on its best reading of the decision. All three are in the
+report to the owner as well as here.
 
-- **Q:** Which 52 variants? BL-8's measured set is not in the repository — the
-  entry records the count and the three failures only, and no run report,
-  journal entry or fixture carries the list. — **risk:** LOW; it is the content
-  of one test fixture, and the slice, its files and its signatures are the same
-  whichever set is used. — **proposed:** reconstruct 52 by the composition rule
-  in slice 2, with `toma hawk`, `aor us master` and `air us elite` carried
-  verbatim as the entries that must match, and record in the fixture's header
-  that it is a reconstruction.
+- **Q:** Do splits that straddle two cues have to match? `find_mentions` scans
+  one cue at a time, so `toma` at the end of cue N and `hawk` at the start of
+  cue N+1 stay invisible. — **risk:** HIGH — the candidate answer changes
+  `find_mentions`'s shape (it would have to scan joined text and map offsets
+  back to cue starts) and therefore slice 2's boundary. — **proposed:** no
+  cross-cue joining. R1002's rule is about tokens within the text being
+  matched, its named failures are all within-cue, and cue-spanning matches
+  raise a timestamp question (which cue's start is the mention's?) that OD-6
+  does not answer.
+  **Ruling:** proceeded on the default. Filed to the owner in the steward's
+  report as a candidate backlog item rather than as a `BL-<n>`, because a
+  steward writes only its plan.
+- **Q:** What are BL-8's 52 variants? The backlog entry records the count, the
+  three failures and the damage classes, not the list; nothing in the tree, the
+  journal or `docs/runs/` holds it. — **risk:** LOW — fixture content; no
+  signature, slice boundary or external format turns on it. — **proposed:**
+  reconstruct 52 from the shipped table's own canonicals across BL-8's damage
+  classes, with the named failures verbatim, and say in the fixture that it is
+  a reconstruction.
+  **Ruling:** proceeded on the default (LOW), left for review. Two facts the
+  owner should see: BL-8's arithmetic (49 matched + 3 failures = 52) does not
+  leave room for the hyphenated `steel-legend` it also reports failing, and my
+  reconstruction has five failing variants, not three or four.
+- **Q:** Which path do the table additions go to — `data/aliases.toml` as
+  shipped, or the repository-root `aliases.toml` that OD-11/R1007 mandates? —
+  **risk:** LOW — a path, not a behaviour; the additions are the same three
+  lines either way. — **proposed:** the current path, `data/aliases.toml`, and
+  `tests/test_aliases.py`'s `SHIPPED_TABLE` constant as it stands. The plan
+  implementing R1007 moves the file and this content rides along.
   **Ruling:** proceeded on the default (LOW), left for review.
-- **Q:** Does the table gain `air us master` as well as the measured
-  `air us elite`? R1002 says "the table gains the observed spoken forms", and
-  only the Elite spelling was observed. — **risk:** LOW; one line of data, and
-  deleting it is the whole reversal. — **proposed:** add it. The mishearing is
-  of `aorus`, the token both family names share, so a table that recovers the
-  Elite and not the Master is inconsistent in a way nothing in the pipeline
-  would ever report.
-  **Ruling:** proceeded on the default (LOW), left for review.
 
-Four more questions came close enough to the line that showing the derivation is
-worth more than asserting there was none.
+Everything else was derived: the required-space reading of "every space inside
+the alias aligns with a token boundary", the hyphen-only fold (R1002 names
+hyphens and nothing else), and the choice of one regex per form over a
+token-scanning matcher (R22 and R23 both point at the single compiled pattern
+the built system already has).
 
-- **The mechanism.** R1002 fixes the behaviour and not the implementation, and
-  OD-4 set the precedent that a mechanism the decision does not name is the
-  plan's to choose, not a gap to route back to the oracle. It resolves to the
-  pattern rather than a token-join pass on the design's own stated grounds:
-  `aliases.py` compiles the whole table to ONE regex so a two-hour transcript is
-  scanned once, and a second pass over token windows would either scan twice or
-  retire that property. The equivalence argument is in slice 1.
-- **Whether hyphen folding is this plan's to do.** It is: R1002 states it in the
-  requirement text ("Normalization folds hyphens to spaces"), so it is design,
-  not scope this plan widened into — even though `normalize.py`'s docstring
-  currently argues the opposite in bold.
-- **Whether the fixture runs against the shipped table.** Yes — the shipped table
-  is what BL-8 measured and what decides the real corpus, and `tests/test_aliases.py`
-  already holds a `SHIPPED_TABLE` constant for exactly this. OD-11/R1007 moves
-  that file to the repository root; whichever of the two plans lands second
-  updates the constant, and this is named in Out of scope so it is not a surprise.
-- **Whether split tolerance applies to every form or only to compound ones.**
-  Every form. R1002 says "an alias", without qualification, and a rule that
-  applied to some entries of a data table and not others would have to be
-  explained in the table itself.
+## The slices
 
-## The work, sliced
+Three, and they are **sequential**: slice 2's join rule is stated over the space
+slice 1 produces, and slice 3's variant set is green only once both have landed.
+They share files for that reason, which is safe because none of them runs beside
+another.
 
-Two slices, and deliberately not three. The change is one rule in the matcher
-plus the recall measurement that proves it on the evidence that produced it;
-cutting the normalization change out as its own slice would be horizontal — a
-slice whose only observable is a function nothing user-facing calls yet.
+## Slice 1 — A hyphen no longer hides a family name
 
-**They are sequential.** Slice 2 asserts against the behaviour slice 1 delivers,
-so it is built after slice 1 has landed, not beside it.
-
-## Slice 1 — A product name split by the captions is found anyway
-
-- **Delivers:** `uv run find-best-mobo aliases --check` reports `MAG Tomahawk`
-  and `Aorus Master` matching in videos where the captions wrote `toma hawk` and
-  `aor us master`, with those spellings named in the report's `forms:` column —
-  today they match nothing and the canonicals can read as NEVER MATCHED. A video
-  titled with a split form is admitted by `select` on its title hit. Covers R1002.
-- **Files:** `src/find_best_mobo/normalize.py`, `src/find_best_mobo/aliases.py`, `data/aliases.toml`, `tests/test_normalize.py`, `tests/test_aliases.py`, `docs/architecture.md`
-  <!-- One line deliberately: `.github/scripts/plan-parse.sh` reads the file
-  list off this single line, so a wrapped continuation is invisible to the
-  reviewer's scope check. -->
-- **Estimate:** ~250 lines
+- **Delivers:** `steel-legend` in a caption or a title matches the table's
+  `Steel Legend`, and `x670e-plus` still matches `X670E`. Observable in
+  `find-best-mobo aliases --check`, where the hyphenated spelling appears in a
+  canonical's `forms:` list instead of being absent. Covers R1002 in part.
+- **Files:** `src/find_best_mobo/normalize.py`, `tests/test_normalize.py`, `tests/test_aliases.py`, `docs/architecture.md`
+- **Estimate:** ~70 lines
 
 ### Signatures
 
 ```python
 def normalize(text: str) -> str: ...
-def compile_matcher(aliases: Sequence[Alias]) -> re.Pattern[str]: ...
-def find_mentions(transcript: Transcript, matcher: re.Pattern[str]) -> tuple[Mention, ...]: ...
-def find_title_hits(video: Video, matcher: re.Pattern[str]) -> frozenset[str]: ...
-def _split_tolerant(form: str) -> str: ...
 ```
 
-**Every public signature above is unchanged from what is in the tree today** —
-they are restated because they are the contract the blind test author works
-from, not because anything moved. `_split_tolerant` is new and private: it takes
-one already-normalized surface form and returns the regex source for it.
+Unchanged, and deliberately: this is a behaviour change inside a pure function
+every caller already routes through. Nothing else in the module is public.
 
-Per OD-12, the module of every shared type: `Alias` and `Mention` in
-`src/find_best_mobo/aliases.py`; `Transcript` and `Cue` in
-`src/find_best_mobo/transcripts.py`; `Video` in `src/find_best_mobo/index.py`.
-None of them changes shape here.
+### Behaviour the signature cannot carry
 
-### Behaviour the signatures cannot carry
-
-- **`_split_tolerant` is the whole rule.** For a normalized form, emit
-  `re.escape` of each character joined by `\s*` within a word, and join the
-  words with `\s+`. `tomahawk` becomes `t\s*o\s*m\s*a\s*h\s*a\s*w\s*k`;
-  `aorus master` becomes `a\s*o\s*r\s*u\s*s\s+m\s*a\s*s\s*t\s*e\s*r`. The
-  alternation, the group naming, the longest-form-first sort and the
-  `(?<![a-z0-9]) … (?![a-z0-9])` lookarounds around the whole alternation are
-  untouched.
-- **Why that is exactly R1002.** Normalized text separates tokens by single
-  spaces, so within a match `\s*` can only ever consume a whole token boundary.
-  The lookarounds force the match to begin and end at a token edge, so the
-  matched span is a run of adjacent whole tokens whose concatenation is the form
-  with its spaces removed; `\s+` forces every space inside the form onto one of
-  those boundaries. Both halves of R1002 fall out of that, including the one it
-  states as a prohibition — `b650` cannot be found inside `theb650`, because the
-  left lookaround sees `e`.
-- **`normalize` folds `-` to a space** before whitespace is collapsed, so
-  `x-670-e` still joins to `x670e` and `steel-legend` becomes `steel legend`.
-  With the hyphen gone from the text, `_SEPARATORS` reduces to a single space;
-  an em dash still separates, which is the distinction that comment was making.
-  The module docstring's "a hyphen is KEPT as a character" paragraph is now
-  false and is rewritten in this slice, citing OD-6.
-- **Two shipped tests assert the old rule** —
+- **A hyphen becomes a space** during cleaning, before the joining pass —
+  `normalize("steel-legend") == "steel legend"`, `normalize("The X670E-PLUS
+  board") == "the x670e plus board"`.
+- **The joining rule is unaffected.** `x-670-e` still folds to `x670e`: the
+  hyphen was already a member of `_SEPARATORS`, so a gap that joined before
+  joins now. `_SEPARATORS` collapses to a single space and can be simplified or
+  removed at the coder's discretion, provided the fold cases below hold.
+- **`normalize` stays pure, total and idempotent.** `normalize("")` is `""`,
+  it never raises, and `normalize(normalize(t)) == normalize(t)` — the existing
+  property tests hold unchanged and are the reason to state it.
+- **The two tests that assert the retired rule are rewritten**, not deleted:
   `test_hyphen_survives_as_a_character` and
-  `test_hyphenated_model_name_is_left_intact` in `tests/test_normalize.py`. They
-  are rewritten to assert the fold, and the commit says why: R1002 changed the
-  contract they pin. Under `AGENTS.md` this is an allowed but visible test edit,
-  not a weakening — the new assertions are as strict as the old ones.
-- **The table changes are three lines.** `air us elite` on `Aorus Elite`,
-  `air us master` on `Aorus Master`, and `pro-rs` deleted from `Pro RS` because
-  it now normalizes onto the `pro rs` already there, where global de-duplication
-  would silently drop it anyway. `aor us master` and `toma hawk` get **no** table
-  entry: they are what the rule recovers, and adding them would hide whether it
-  works.
-- **Determinism holds (R23).** Pattern construction is a pure function of the
-  table's file order and form lengths, as it is today, so a given table still
-  compiles to a byte-identical pattern and the same run produces the same
-  mentions.
-- **One regex, one scan (R22).** The pattern roughly doubles in source length
-  and gains no alternation; `\s*` over single-space text cannot backtrack
-  quadratically, so a two-hour transcript is still one pass per cue.
-- **`matched_form` reports what the captions actually wrote** — `toma hawk`, not
-  `tomahawk` — because it is `match.group(0)`, unchanged. That is what makes the
-  `aliases --check` report evidence rather than a restatement of the table.
-- **`docs/architecture.md` is corrected in this slice.** Its normalization row
-  and its "the fix for one kind of caption damage" note describe a matcher that
-  cannot see a split compound; the new rule and its boundary guarantee replace
-  them, citing OD-6 and R1002.
+  `test_hyphenated_model_name_is_left_intact` become the assertions above, and
+  the commit message says why (`AGENTS.md`, blind-tests rule — an edit to a
+  test is allowed and must be visible).
+- **`tests/test_aliases.py` is listed only as a contingency.** The hyphen cases
+  there (`the b650e-plus board`, the `X870E-Nova` surface form) normalize on
+  both sides and are expected to pass untouched; if one does not, correcting it
+  belongs to this slice with the reason stated.
+- **`docs/architecture.md`** loses the claim that normalization keeps hyphens
+  (the components table's normalization row), citing OD-6.
 
-## Slice 2 — The recall the audit measured is pinned in the suite
+## Slice 2 — A name the captions split in half is still one name
 
-- **Delivers:** the 52-variant recall set as a fixture, run against the shipped
-  table: every variant matches its canonical, the three BL-8 failures included.
-  A reject set beside it holds the spellings that must **not** match, so the
-  slice measures the boundary as well as the recall. And the end-to-end
-  observation: a video whose only alias evidence is split spellings is selected
-  rather than excluded. Covers R1002.
-- **Files:** `tests/fixtures/alias_variants.toml`, `tests/test_alias_variants.py`, `tests/test_select.py`
-- **Estimate:** ~265 lines
+- **Delivers:** `mag tomahawk` matches `the mag toma hawk vrm`, `aorus master`
+  matches `aor us master`, and `b650` still finds nothing in `theb650`. The
+  `aliases --check` report shows the split spelling as the form that fired, and
+  R4's selection counts move for every video whose only mentions were split.
+  Covers R1002.
+- **Files:** `src/find_best_mobo/aliases.py`, `tests/test_aliases.py`, `docs/architecture.md`
+- **Estimate:** ~220 lines
 
 ### Signatures
 
 ```python
-@dataclass(frozen=True)
-class Variant:
-    text: str
-    canonical: str
-
-
-def load_variants(path: Path) -> tuple[Variant, ...]: ...
-def load_rejects(path: Path) -> tuple[Variant, ...]: ...
+def alias_pattern(form: str) -> str: ...
+def compile_matcher(aliases: Sequence[Alias]) -> re.Pattern[str]: ...
 ```
 
-Both live in `tests/test_alias_variants.py`; nothing under `src/` is touched by
-this slice.
+`alias_pattern` is new and public, in `src/find_best_mobo/aliases.py` alongside
+`compile_matcher`, so the rule has a unit the tests can reach without asserting
+on the shape of the whole table's pattern. `Alias`, `Mention`, `load_aliases`,
+`find_mentions` and `find_title_hits` keep the signatures they have; `Alias` and
+`Mention` stay in `aliases.py`, where they are defined today.
+
+### Behaviour the signatures cannot carry
+
+- **`alias_pattern` takes an already-normalized form** and returns regex source
+  for it — no group wrapper, no lookarounds, both of which stay
+  `compile_matcher`'s. Between every pair of adjacent characters inside one word
+  of the form it emits an optional single space; where the form itself has a
+  space it emits a required single space. Every literal character goes through
+  `re.escape`.
+- **`alias_pattern("")` raises `ValueError`.** `compile_matcher` already drops
+  forms that normalize to empty, so it is unreachable from there; an empty
+  pattern would match at every position, which is the failure worth naming.
+- **Tests exercise it by compiling and matching, never by string equality with
+  the regex source.** The source is an implementation detail; the language it
+  accepts is the contract.
+- **What must match**, over normalized text: `toma hawk` → `MAG Tomahawk`;
+  `aor us master` → `Aorus Master`; `tom a hawk` → `MAG Tomahawk` (a split may
+  fall anywhere); `steel leg end` → `Steel Legend` (the alias's space lands on
+  the boundary between `steel` and `leg`); and every form that matched before,
+  unchanged.
+- **What must not match:** `theb650` and `xb650e` (the alias would start inside
+  a token); `b650ex` and `x870ese` (it would end inside one); `aorusmaster` and
+  `steellegend` (the alias's own space has no boundary to land on); `verb 650`
+  (`b650` would start mid-token). These are R1002's "never a proper substring of
+  a fused token", and they are the assertions that make the rule safe rather
+  than merely wide.
+- **Longest-form-first is unchanged**, and still sorts on the length of the
+  *normalized form*, not of its pattern — a stable sort on negated length, file
+  order among equals. `mag tomahawk` therefore still wins over `tomahawk` at the
+  same position, and the compiled pattern stays byte-identical for a given
+  table (R23).
+- **`matched_form` stays `match.group(0)`** — the text as the caption spelled
+  it, so `aliases --check` reports `toma hawk` as the spelling that did the
+  work. That report is R1002's stated measurement; it only measures anything if
+  the split form survives into it.
+- **Global de-duplication is unchanged.** Two canonicals claiming one normalized
+  form still resolve to the first declared, and the loser still surfaces as a
+  zero-match canonical in the report.
+- **A form's own spaces are single spaces.** Normalized text has no runs and no
+  tabs, so the pattern needs no `+` and gains none — one more thing that cannot
+  drift between two runs.
+- **`docs/architecture.md`**'s "Inspecting the alias table" section gains the
+  join rule beside the longest-first rule, and the alias-table component row
+  says the pattern tolerates caption splits, citing OD-6.
+
+## Slice 3 — The measured variant set is green, and the mishearings are data
+
+- **Delivers:** a fixture of the 52 mangled spellings BL-8 tested, each with the
+  canonical it must reach, run against the shipped table; every one matches, and
+  the four `air us`-class mishearings match because the table now carries them.
+  Covers R1002.
+- **Files:** `tests/fixtures/caption_variants.json`, `tests/test_aliases.py`, `data/aliases.toml`, `docs/architecture.md`
+- **Estimate:** ~130 lines
 
 ### The fixture
 
-`tests/fixtures/alias_variants.toml` — TOML rather than JSON because the header
-has to carry the provenance, and a fixture that cannot say where its numbers
-came from is how BL-8's list got lost in the first place:
+`tests/fixtures/caption_variants.json`, one object:
 
-```toml
-[[variant]]
-text = "the msi mag toma hawk max wifi"
-canonical = "MAG Tomahawk"
-
-[[reject]]
-text = "theb650 board"
-canonical = "B650"
+```json
+{
+  "note": "Reconstructed from BL-8 (OD-6/R1002); see docs/plans/oracle/caption-split-aliases.md",
+  "variants": [{"text": "toma hawk", "canonical": "MAG Tomahawk", "damage": "split"}],
+  "never_match": ["theb650"]
+}
 ```
 
-**Composition — 52 variants, by this rule:**
+`damage` is one of `spacing`, `digit-split`, `hyphen`, `split`, `spelled-out`,
+`mishearing`, `plural`, `partial` — descriptive, not asserted on, and there so a
+future reader can tell which class a regression belongs to.
 
-- one mangled variant for each of the 29 canonicals in the shipped table, so a
-  canonical the table cannot reach is impossible to miss;
-- the remainder made of the shapes the audit stressed — split compounds
-  (`toma hawk`, `aor us master`, `cross hair`, `tai chi`), hyphenated forms
-  (`steel-legend`, `x-670-e`), digit-split part numbers (`x 6 70 e`,
-  `78 00 x 3 d`), and mishearings (`air us elite`, `steal legend`);
-- the three BL-8 failures verbatim, marked in the file as the measured ones.
+**The 52 variants, verbatim.** Each is matched inside a carrier sentence (`the
+<text> board`) as well as bare, so a match at a text boundary and a match
+mid-sentence are both covered. `†` marks the five that fail against the shipped
+table today.
 
-**The reject set is separate and is not part of the 52.** It pins what R1002
-forbids: `theb650` yields no `B650`, `st eellegend` yields no `Steel Legend`
-(the alias's space does not land on a token boundary), `steellegend` likewise,
-and `b650ex` stays unmatched. A recall fixture with no reject set passes just as
-well against a matcher that matches everything.
+Chipsets (15): `x 870 e`→X870E, `x870 e`→X870E, `x-870-e`→X870E,
+`x 8 70 e`→X870E, `x 870`→X870, `b 850`→B850, `b 840`→B840, `x 670 e`→X670E,
+`x 6 70 e`→X670E, `670 e`→X670E, `x 670`→X670, `b 650 e`→B650E,
+`b650 e`→B650E, `b 650`→B650, `a 620`→A620.
 
-Each variant is asserted through `compile_matcher(load_aliases(SHIPPED_TABLE))`
-and `find_mentions` over a one-cue transcript, so the assertion runs the same
-path the corpus does. The failure message names the variant and its canonical:
-this test is read when the table is extended, and "assert False" would waste
-that.
+Vendors (10): `as rock`→ASRock, `az rock`→ASRock, `ass rock`→ASRock,
+`as-rock`†→ASRock, `a sus`→ASUS, `assus`→ASUS, `giga byte`→Gigabyte,
+`m s i`→MSI, `em es eye`→MSI, `bio star`→Biostar.
 
-### The end-to-end observation
+Families (22): `tai chi`→Taichi, `ty chi`→Taichi, `steel legends`→Steel Legend,
+`steal legend`→Steel Legend, `steel-legend`†→Steel Legend,
+`cross hair`→ROG Crosshair, `r o g crosshair`→ROG Crosshair, `stryx`→ROG Strix,
+`r o g strix`→ROG Strix, `tough gaming`→TUF Gaming, `orus master`→Aorus Master,
+`aorus masters`→Aorus Master, `aor us master`†→Aorus Master,
+`orus elite`→Aorus Elite, `air us elite`†→Aorus Elite,
+`m p g carbon`→MPG Carbon, `carbon wifi`→MPG Carbon,
+`m a g tomahawk`→MAG Tomahawk, `tomohawk`→MAG Tomahawk, `toma hawk`†→MAG
+Tomahawk, `pro r s`→Pro RS, `pro-rs`→Pro RS.
 
-In `tests/test_select.py`, against a table and transcripts written into
-`tmp_path` as that module already does:
+CPUs (5): `7800 x 3 d`→7800X3D, `78 00 x 3 d`→7800X3D, `9800 x 3 d`→9800X3D,
+`9950 x 3 d`→9950X3D, `7950 x`→7950X.
 
-- a video titled `MSI MAG toma hawk MAX WIFI review` is selected with reason
-  `title_hit`, where the same video is excluded before this plan;
-- a video whose body spells three different canonicals only in split forms
-  passes the mention threshold, and `ThresholdReport` counts it under
-  `threshold_passes` rather than `excluded`.
+`never_match` (6): `theb650`, `verb 650 watts`, `steellegend`, `aorusmaster`,
+`x870ese`, `b650ex` — none of them may produce any mention at all, not merely
+not the obvious one.
 
-That second case is R1002's effect on the number the checkpoint spends against,
-which is the reason OD-6 names R4's selection counts as its measurement.
+### Assertions
+
+- every variant's canonical is in `find_title_hits` for a video titled with the
+  carrier sentence, and in `find_mentions` for a cue holding it;
+- `len(variants) >= 52`, with the count's provenance in the test's docstring —
+  a later addition is welcome, a loss is a regression;
+- the five named failures are present by exact text, so no future tidy-up can
+  drop the cases the evidence was written about;
+- nothing in `never_match` yields a mention against the shipped table.
+
+### The table additions
+
+`Aorus Elite` gains `airus elite` and `Aorus Master` gains `airus master`. One
+form covers both spoken shapes: under slice 2's rule `airus elite` matches
+`air us elite`, `airus elite` and (after slice 1) `air-us elite`, so the split
+spelling needs no second entry. `air us` for `aorus` is the observed mishearing;
+`air us master` is the same mishearing on the other family and is added with it
+rather than waiting for a second sighting.
+
+No form is removed. `docs/architecture.md` is left accurate — the alias-table
+row already says the table is hand-authored input, and this slice adds no new
+flow.
 
 ## Out of scope
 
-- **OD-7 / R1003, the ITX variant rule.** `b850i` counting as `B850` is its own
-  decision and its own plan. It lands in `aliases.py`, the same file, so the two
-  pull requests are sequenced rather than parallel — whichever is second rebases.
-  Nothing here anticipates it: this plan's rule joins what captions split and
-  says nothing about a trailing letter.
-- **OD-8 / R1004, matching the video description.** A different signal, a
-  different stage, its own plan.
-- **OD-11 / R1007, moving the alias table to the repository root.** This plan
-  reads the table where it is today. When that migration lands, the
-  `SHIPPED_TABLE` constant in the tests moves with it, in that plan's diff.
-- **Extending the alias table with boards the corpus turns out to name.** The
-  table is data (§9) and widening it is a run-time activity, not this plan's.
-  What lands here is only the mishearings R1002 names.
-- **The excerpt, bundle and estimate stages.** More mentions mean more windows
-  and a larger projection; nothing about how a window is cut, merged or costed
-  changes here.
-- **Any change to `Mention`, `Alias`, or `data/selected.jsonl`'s shape.**
-  Downstream slices read those, and this rule needs none of them different.
-</content>
-</invoke>
+- **OD-7 / R1003, the ITX variant rule.** A chipset matching `b850i` is a
+  different decision with its own requirement, and it lands in the same
+  `compile_matcher`. Nothing here relaxes the right boundary, which is the rule
+  that decision has to work with.
+- **Splits across a cue boundary.** See the uncertainties; `find_mentions` still
+  scans one cue at a time.
+- **Separators other than the hyphen.** `x670e/plus` and `steel+legend` still
+  block a join. R1002 names hyphens; anything wider is a fresh reading of R3.
+- **OD-11 / R1007's move of the alias table** to a tracked root path, and the
+  configured-path loading that goes with it. This plan edits the table where it
+  currently lives.
+- **OD-8 / R1004's description matching.** A new field to match against is
+  independent of how a form is matched, and the two meet only in the selection
+  report.
+- **Widening the table beyond the `air us` mishearings.** The table is data and
+  the owner extends it from the recall report; this plan adds only what R1002
+  names.
+- **Any change to `Mention`, `Excerpt`, the index, or the bundle format.**
+  Nothing downstream of the matcher sees this change except as more mentions.
