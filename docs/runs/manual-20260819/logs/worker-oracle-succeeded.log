@@ -1,0 +1,34 @@
+Preparing worktree (new branch 'worker/oracle-20260818225129')
+HEAD is now at 6da4157 Record TB-2: run evidence exceeds the exempt-branch cap (#80)
+=== spawn-worker[oracle-20260818225129] engine=claude branch=worker/oracle-20260818225129 base=main (6da4157b07eaf8ed3a112e87f683c7380e9cd130) bypass=0 ===
+=== 2026-08-18T22:51:29Z ===
+Permission allow rule (--allowed-tools): Write(docs/DESIGN.oracle.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/DESIGN.oracle.md) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/oracle/**) instead (Edit rules cover all file-editing tools).
+Committed. The ledger is on the branch; the driver will push it and open the pull request. My report:
+
+---
+
+## Oracle run complete — 12 decisions, all 18 scoped ids ruled, one machinery defect found
+
+**Decisions written** (`docs/DESIGN.oracle.md`, commit `c9fda54` on `worker/oracle-20260818225129`; the driver opens the PR):
+
+- **OD-1** (ESC-17, BL-12) — template-sync conflict handling is owner-owned gate work and template-upstream; nothing is commissioned here.
+- **OD-2** (ESC-18, ESC-19, ESC-20) — these process escapes are already answered by landed mechanisms (`escapes-append-only.sh`, the one-PR-in-flight rule plus the driver's WAIT, `pr-queue.sh`); the unbuilt candidates are gate paths and stay with the owner.
+- **OD-3** (ESC-21, ESC-22, ESC-23) — all three defects are fixed in the tree; ESC-21 and ESC-22 have their checks landed and are ready for closure rows, ESC-23's actionlint check remains an owner/template stub.
+- **OD-4** (BL-10, **R1000**) — merged excerpt windows are re-cut from the cues, never concatenated; a video's excerpts can never exceed its transcript. The measured 4.8x projection inflation was the deciding evidence.
+- **OD-5** (BL-13, BL-10, **R1001**) — excerpting stays (the owner's R28 hybrid stands); the whole-transcript path is capped at the bundle token cap. This answers the exact uncertainty that blocks `docs/plans/whole-transcript-threshold.md`, so that plan can be revised and built.
+- **OD-6** (BL-8, **R1002**) — caption-split alias forms match via token-boundary-aligned joining (`toma hawk` → `tomahawk`, without ever matching `b650` inside `theb650`); hyphens fold to spaces; true mishearings stay in the alias table as data.
+- **OD-7** (BL-9, **R1003**) — a chipset's ITX token (`b850i`) counts as the chipset, in titles and bodies. The measured case was total blindness to a 33-minute B850I review.
+- **OD-8** (BL-11, **R1004**) — the video description is recorded at fetch and an alias hit there auto-includes like a title hit. BL-11's cost objection turned out to be false in the built system: `fetch_caption_track` already runs a full per-video extraction, so the description is retrieved and discarded today — recording it costs zero extra requests.
+- **OD-9** (BL-7, **R1005**) — a projection with a missing upstream artifact refuses instead of printing zeros as if they were counts.
+- **OD-10** (BL-5, **R1006**) — the CLI dispatcher forwards unrecognised arguments to subcommands, making `aliases --check` (and every future flagged subcommand) reachable without a shared subcommand table.
+- **OD-11** (BL-4, BL-6, **R1007**) — the alias table moves to a tracked path named by configuration; the `git add -f` exception is retired.
+- **OD-12** (BL-3) — no requirement; plan contracts must state each shared type's module, ratifying `FetchFailure` in `ledger.py`.
+
+**Contradictions found and not decided:** none — every scoped id is ruled. No halts; no tenet was at stake.
+
+**The handoff could not be written, and that is itself an escape.** The oracle role's tool grant in `.claude/scripts/spawn-worker.sh` spells its handoff permission as `Write(docs/oracle/**)` — the exact no-bind spelling that `.claude/settings.json`'s own `_comment_intent` documents (only `Edit(...)` rules cover file-editing tools; a `Write(...)` rule matches nothing). `Edit(docs/DESIGN.oracle.md)` bound, so the ledger was writable; `docs/oracle/handoff-2026-08-19-1.md` was not creatable by any granted route (Write denied, shell redirection and `tee` denied). Since `spawn-worker.sh` is a gate path, only the owner can fix it — and it belongs in `docs/template-bugs.md` and `docs/escapes.md`, neither of which I may write. **The orchestrator should log both.** The pipeline still converges without the handoff: once this ledger merges, every scoped id is cited, so the driver will not re-hand this evidence, and coverage gaps on R1000–R1007 will drive the steward phase mechanically.
+
+**Handoff guidance, delivered here instead** (also embedded in the decisions' prose): plan in three groups — cost-projection honesty (R1000+R1001, which is the revised `whole-transcript-threshold` plan, priority because the checkpoint number is ~4.8x wrong today), corpus recall (R1002–R1004, one plan across normalize/aliases/select plus the `ytdlp.py` boundary), and CLI/inputs (R1005–R1007). Do not act on OD-1 through OD-3 — those are owner/template work plus bookkeeping (ESC-21/ESC-22 closure rows on a chore branch). No BL id is done until its ruled work merges.
+
+**On the vision:** it has no sentence about the integrity of the cost checkpoint itself — OD-4 and OD-9 both stretched V3's "not being stupid" sentence; something like "a number I am asked to spend against must be right, or refuse to print" would carry that recurring class directly. And V1/V7 pull in opposite directions on recall — I resolved them by reading V7 (three videos, not thirty) as governing the report, not the matcher; if the owner disagrees, those are the sentences to edit.

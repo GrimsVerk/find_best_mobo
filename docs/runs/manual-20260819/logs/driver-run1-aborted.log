@@ -1,0 +1,63 @@
+deliver-loop: checking whether this repository can run unattended…
+unattended-ready: GrimsVerk/find_best_mobo
+  ready    auto_merge: true in .copier-answers.yml
+  ready    auto-merge workflow is present
+  ready    repository allows auto-merge
+  ready    repository deletes head branches on merge
+  ready    required check 'plan' is configured
+  ready    required check 'template-sync' is configured
+  ready    required check 'secrets' is configured
+  ready    required check 'test-the-tests' is configured
+  ready    required check 'acceptance-criteria' is configured
+  ready    required check 'review' is configured
+  ready    required check 'checks' is configured
+  ready    a pull-request rule is active (merges only via PR)
+  ready    CLAUDE_CODE_OAUTH_TOKEN is set (review gate can run)
+  ready    merge identity: GitHub App configured (a login that is not the owner's)
+  ready    CODEOWNERS resolves cleanly
+  ready    docs/VISION.md is filled in
+
+unattended-ready: this repository can run unattended.
+deliver-loop: budget: weekly at 38% (model 25%), allowance 35 points, window resets Aug
+deliver-loop: iteration 1: phase ORACLE
+deliver-loop: dispatch oracle worker (oracle-20260818225129)
+remote: 
+remote: Create a pull request for 'docs/oracle-20260818225129' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-20260818225129        
+remote: 
+deliver-loop: iteration 2: phase WAIT
+deliver-loop: waiting on PR #81 (docs/oracle-20260818225129) — mechanical watch, no model budget
+deliver-loop: PR #81 merged
+deliver-loop: iteration 3: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-4)
+remote: 
+remote: Create a pull request for 'docs/oracle-plan-od-4' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-plan-od-4        
+remote: 
+deliver-loop: iteration 4: phase WAIT
+deliver-loop: waiting on PR #82 (docs/oracle-plan-od-4) — mechanical watch, no model budget
+deliver-loop: PR #82 red (review ) — dispatching a fix
+deliver-loop: dispatch fix session
+deliver-loop: iteration 5: phase WAIT
+deliver-loop: waiting on PR #82 (docs/oracle-plan-od-4) — mechanical watch, no model budget
+deliver-loop: PR #82 merged
+deliver-loop: iteration 6: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-5)
+remote: 
+remote: Create a pull request for 'docs/oracle-plan-od-5' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-plan-od-5        
+remote: 
+deliver-loop: iteration 7: phase WAIT
+deliver-loop: waiting on PR #83 (docs/oracle-plan-od-5) — mechanical watch, no model budget
+deliver-loop: PR #83 red (review ) — dispatching a fix
+deliver-loop: dispatch fix session
+deliver-loop: iteration 8: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-6)
+deliver-loop: steward worker failed — see .claude/orchestration-logs/steward-od-6.log
+deliver-loop: iteration 9: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-6)
+deliver-loop: steward worker failed — see .claude/orchestration-logs/steward-od-6.log
+deliver-loop: iteration 10: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-6)
+deliver-loop: landing this run's evidence in docs/runs/20260818T225124Z ...
+deliver-loop: collect-evidence: 5 review(s) into docs/runs/20260818T225124Z/reviews (5 skipped).
