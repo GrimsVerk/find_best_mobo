@@ -438,3 +438,30 @@ Three things follow, and they bind every session this run commissions:
   `docs/template-bugs.md` so the fixes can be taken upstream after the run.
   A fix applied here to a template-owned file is drift, and saying so is part of
   logging it.
+
+## 2026-08-19 — Clustered excerpts, an uncapped whole-transcript path, and blanket backlog approval
+
+Owner's ruling, given in chat during the post-run review and recorded here
+because chat is not storage. Four parts:
+
+1. **OD-4 stands.** Its reasoning is correct; R1000's re-cut is kept. The
+   clustering language below is its formalization, not its reversal.
+2. **OD-5 is overruled on the cap.** The whole-transcript path is NOT capped
+   at the bundle token cap; R1001 is to be superseded. The lumpy-spend concern
+   it answered is handled where it arises instead: excerpt windows keep their
+   R5 sizes, but overlapping windows merge transitively into CLUSTERS. A
+   mention-dense video coalesces toward one cluster; a long stream that
+   mentions the board only at the start and the end yields two small clusters
+   and stays cheap. The 80% ratio (R28) is kept and computed from the re-cut
+   cluster characters: at or above it, the video is information-dense by
+   measurement, and paying for the whole transcript is V4's choice.
+3. **Why OD-5 went wrong, in the owner's reading:** the backlog items were
+   sitting unapproved, so the oracle treated BL-13 as "a logged proposal" it
+   could not adopt against an earlier ruling. All current backlog items
+   (BL-1 through BL-13) are approved by the owner as of this date — recorded
+   in `docs/BACKLOG.approved.md`.
+4. **Mechanics for the oracle:** supersede OD-5/R1001 next cycle citing this
+   entry and the owner's amended `docs/DESIGN.md` (R5/R28). A transcript
+   larger than one bundle's token cap is delivered across sequential bundles
+   rather than falling back to excerpts; the mechanics are the implementing
+   plan's to specify.
