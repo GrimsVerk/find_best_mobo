@@ -54,3 +54,17 @@ still wanted. It means somebody said yes once, and says who.
 ---
 
 _(nothing yet)_
+
+- `BL-1` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-2` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-3` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-4` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-5` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-6` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-7` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-8` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-9` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-10` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-11` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-12` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
+- `BL-13` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
