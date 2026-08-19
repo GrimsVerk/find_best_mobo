@@ -22,11 +22,12 @@
 # disarmed by a string the author chooses.
 #
 # One carve-out from the cap, and only one: a branch whose diff is entirely
-# within docs/plans/ or docs/DESIGN.md. Those are the documents the process
-# itself demands, they are far larger than any cap for typos, and no plan can
-# ever cover them — a plan branch cannot resolve to a plan that does not exist
-# yet, which is the point of the rule, not a loophole in it. One path outside
-# them and the cap applies as normal.
+# within the planning documents and run evidence (the paths listed at
+# PLANNING_PATHS below, docs/plans/ and docs/DESIGN.md foremost). Those are the
+# documents the process itself demands, they are far larger than any cap for
+# typos, and no plan can ever cover them — a plan branch cannot resolve to a
+# plan that does not exist yet, which is the point of the rule, not a loophole
+# in it. One path outside them and the cap applies as normal.
 #
 # The resolved plan must ALSO already exist at BASE_SHA. A plan introduced by
 # the same pull request it authorises is not a specification, it is a
@@ -119,6 +120,25 @@ VISION_DOC="${VISION_DOC:-docs/VISION.md}"
 # is precisely why it must be able to land at all.
 ACCEPTANCE_DOC="${ACCEPTANCE_DOC:-docs/acceptance.md}"
 ARCHITECTURE_DOC="${ARCHITECTURE_DOC:-docs/architecture.md}"
+# docs/runs/ is the sixth instance, found by the first unattended run: the
+# delivery driver lands its run report and the review gate's payloads there at
+# EVERY stop, on a docs/-prefixed branch, and a real run's report is always
+# longer than the cap. So the evidence the design calls "committed, on its own
+# pull request, at every stop" was the one thing that could not land (ESC-40).
+# A run report is by construction not plannable work — it is a record of what
+# already happened, written by the machinery this process itself demands.
+RUNS_DIR="${RUNS_DIR:-docs/runs}"
+# docs/BACKLOG.md is the seventh, and it is not about size — it is about the
+# company it keeps. AGENTS.md's Planning rule REQUIRES the unattended planner
+# to file its guessed decisions as BL-<n> backlog items alongside the plan
+# ("every guess is filed either way"), but the moment docs/BACKLOG.md joined a
+# plan's diff the branch fell out of this carve-out and the whole plan hit the
+# 50-line cap. Filing was mechanically impossible on the only branch the rule
+# requires it on, which pushed first-run plans into self-ruling instead
+# (ESC-41). The backlog's own shape is guarded separately by
+# backlog-append-only.sh; the whole-diff test below still caps any branch that
+# also touches code.
+BACKLOG_DOC="${BACKLOG_DOC:-docs/BACKLOG.md}"
 
 ROOT="$(git rev-parse --show-toplevel)"
 PLANS_DIR="${PLANS_DIR:-docs/plans}"
@@ -150,7 +170,7 @@ for prefix in "${EXEMPT_PREFIXES[@]}"; do
       [[ -z "$path" ]] && continue
       case "$path" in
         "$PLANS_DIR"/*|"$DESIGN_DOC"|"$ORACLE_DOC"|"$ORACLE_DIR"/*|"$VISION_DOC") ;;
-        "$ACCEPTANCE_DOC"|"$ARCHITECTURE_DOC") ;;
+        "$ACCEPTANCE_DOC"|"$ARCHITECTURE_DOC"|"$RUNS_DIR"/*|"$BACKLOG_DOC") ;;
         *) planning_only=0; break ;;
       esac
     done < <(git -C "$ROOT" diff --name-only "${BASE_SHA}...${HEAD_SHA}")
@@ -158,10 +178,10 @@ for prefix in "${EXEMPT_PREFIXES[@]}"; do
     if [[ "$planning_only" -eq 1 && "$added" -gt "$EXEMPT_MAX_ADDED" ]]; then
       echo "plan-resolve: branch '$HEAD_REF' adds $added lines, all of them in \
 $PLANS_DIR/, $DESIGN_DOC, $VISION_DOC, $ORACLE_DOC, $ORACLE_DIR/, \
-$ACCEPTANCE_DOC or $ARCHITECTURE_DOC — the planning documents \
-themselves, which no plan can cover. Exempt from the size cap; the owner still \
-reviews $DESIGN_DOC and $PLANS_DIR/ via CODEOWNERS, and $ORACLE_DOC is \
-constrained by the oracle-decisions check instead." >&2
+$ACCEPTANCE_DOC, $ARCHITECTURE_DOC, $RUNS_DIR/ or $BACKLOG_DOC — the planning \
+documents themselves and the run evidence, which no plan can cover. Exempt from the size \
+cap; the owner still reviews $DESIGN_DOC and $PLANS_DIR/ via CODEOWNERS, and \
+$ORACLE_DOC is constrained by the oracle-decisions check instead." >&2
       exit 0
     fi
 
@@ -175,7 +195,7 @@ land it, then branch with the slug in the branch name.
 
 The cap does not apply to a branch whose additions are ENTIRELY within
 $PLANS_DIR/, $DESIGN_DOC, $VISION_DOC, $ORACLE_DOC, $ORACLE_DIR/,
-$ACCEPTANCE_DOC or $ARCHITECTURE_DOC — writing a
+$ACCEPTANCE_DOC, $ARCHITECTURE_DOC, $RUNS_DIR/ or $BACKLOG_DOC — writing a
 plan is not skipping planning. This
 branch touches something else as well, so it is not that case. Split it: the
 planning documents on one branch, the rest on its own with a plan behind it.

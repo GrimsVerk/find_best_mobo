@@ -76,6 +76,44 @@ cd "$ROOT" || exit 2
 REVIEWS="$RUN_DIR/reviews"
 mkdir -p "$REVIEWS"
 
+# ------------------------------------------------------------- worker logs
+# The per-session logs under .claude/orchestration-logs/ are the only record of
+# what each dispatched worker actually did, and they are gitignored where they
+# are written — the same defect the run report had, fixed for the report and
+# not for the logs feeding it (ESC-42). On the first unattended run every
+# diagnosis — the frontmatter failure, the abandoned commit, the refused
+# permissions — came from these files, and on a reclaimed web container all of
+# it would have been gone. So they are copied beside the reviews, bounded to
+# this run by --since where one is given.
+WORKERS_SRC=".claude/orchestration-logs"
+if [[ -d "$WORKERS_SRC" ]]; then
+  WORKERS_DEST="$RUN_DIR/workers"
+  # --since is RFC3339 (2026-08-18T22:26:21Z). `touch -t` takes CCYYMMDDhhmm.SS
+  # and both are fixed-width UTC, so the conversion is character surgery — no
+  # GNU date, per the portability rule the timestamp comparison below follows.
+  MARKER=""
+  if [[ "$SINCE" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2}) ]]; then
+    MARKER="$(mktemp)"
+    TZ=UTC touch -t \
+      "${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}${BASH_REMATCH[4]}${BASH_REMATCH[5]}.${BASH_REMATCH[6]}" \
+      "$MARKER" 2>/dev/null || { rm -f "$MARKER"; MARKER=""; }
+  fi
+  COPIED_LOGS=0
+  while IFS= read -r logfile; do
+    [[ -n "$logfile" ]] || continue
+    mkdir -p "$WORKERS_DEST"
+    cp "$logfile" "$WORKERS_DEST/" 2>/dev/null && COPIED_LOGS=$((COPIED_LOGS + 1))
+  done < <(
+    if [[ -n "$MARKER" ]]; then
+      find "$WORKERS_SRC" -maxdepth 1 -name '*.log' -newer "$MARKER" 2>/dev/null
+    else
+      find "$WORKERS_SRC" -maxdepth 1 -name '*.log' 2>/dev/null
+    fi
+  )
+  [[ -n "$MARKER" ]] && rm -f "$MARKER"
+  echo "collect-evidence: $COPIED_LOGS worker log(s) into ${WORKERS_DEST}."
+fi
+
 if ! command -v "$GH" >/dev/null 2>&1; then
   echo "collect-evidence: '$GH' is not on PATH — no review evidence collected."
   exit 0

@@ -1,0 +1,38 @@
+Preparing worktree (new branch 'worker/dft-1-tests')
+HEAD is now at a694ae0 Plan the date fix and the whole-transcript threshold
+=== spawn-worker[dft-1-tests] engine=claude branch=worker/dft-1-tests base=feat/date-from-timestamp (a694ae05a6f6474bb706aab5258145c4c0144dd5) bypass=1 ===
+=== 2026-08-15T22:20:01Z ===
+Done. Commit `f307a23` on `worker/dft-1-tests` carries the blind tests with the `Blind-Tests: date-from-timestamp-1` trailer. The suite is red in exactly the expected way — `tests/test_index.py` fails at collection with `ImportError: cannot import name 'DATE_SLOP_DAYS'`, while the other 424 tests all pass untouched. Ruff check and format pass; mypy reports only the two not-yet-existing symbols.
+
+**What the fixture now carries** (12 entries: 7 kept + 2 Shorts + 3 out-of-range, all counts distinct): the six original full-extraction entries, plus real listing-shape entries — `upload_date` absent or null, `timestamp` in epoch seconds, live markers absent. That includes the owner's spot-check video `Q6fJWPZMC5M` dated only by timestamp (2025-12-03), a December 2022 timestamp-only entry kept by the slop, a mid-2022 timestamp-only entry still excluded, an entry whose two date fields disagree, an entry with no date field at all, and two entries deliberately sharing one timestamp, mirroring the observed bucketing.
+
+**Behaviours covered:** the day-one assertion (date arriving only as `timestamp` → kept, real date recorded); `effective_start_date` = start − 62 in two configs plus `DATE_SLOP_DAYS == 62`; the slop boundary in both directions via both `upload_date` and `timestamp` (2022-10-31 kept, 2022-10-30 excluded, December 2022 kept); the recorded date is real, never shifted; `upload_date` wins over `timestamp` in both directions; unparseable `upload_date` falls back; `timestamp: 0` is 1970-01-01, not the sentinel; neither field → `date.min` sentinel + `excluded_out_of_range`; duration still checked before date in the listing shape; and timestamps read as UTC, verified under pinned east and west timezones (`TZ` + `tzset`) so a local-time bug can't hide behind the machine's zone.
+
+**Two existing tests moved, both sanctioned by the plan, not weakened** (noted in the commit message): the old `test_upload_before_start_date_is_out_of_range` pinned 2022-12-31 as excluded, which the owner's ruling explicitly reverses — it now pins 2022-10-30, one day before the effective start. And the fixture's out-of-range entry moved from 2022-11-15 to 2022-06-01, because its old date now falls inside the slop window. Everything encoding the untouched rulings — livestreams kept, Shorts excluded, zero-duration reporting — is unchanged.
+
+**Where the coder and I are most likely to disagree at assembly:**
+1. The existing test asserts `list_channel_entries` is called with `config.start_date`, not the effective date. The boundary's docstring says the argument is unused ("a future early-stop optimisation, not filtering"), so I kept the assertion — but if the coder passes `effective_start_date(config)` there, that test fails on a call-shape choice the contract never settled.
+2. I asserted a listing-shape entry (no `was_live`/`live_status` keys) classifies with `was_live is False` rather than crashing — the contract doesn't state this, but the fixture mandate ("live markers absent") implies it, and `Video.was_live` is a non-optional bool.
+3. "Unparseable" is tested only with `""` and `"garbage"`; I deliberately did not pin behaviour for a dashed date like `"2023-06-15"`, since an implementation could reasonably parse or reject it.
+Preparing worktree (new branch 'worker/dft-1-tests')
+HEAD is now at a694ae0 Plan the date fix and the whole-transcript threshold
+=== spawn-worker[dft-1-tests] engine=claude branch=worker/dft-1-tests base=feat/date-from-timestamp (a694ae05a6f6474bb706aab5258145c4c0144dd5) bypass=1 ===
+=== 2026-08-15T22:30:41Z ===
+Committed as `9b50f62` on `worker/dft-1-tests` with the `Blind-Tests: date-from-timestamp-1` trailer. The tests are red exactly as expected — a single import error on `DATE_SLOP_DAYS` and `effective_start_date`, which don't exist in my tree — and style, format, and the other 424 tests are clean.
+
+## What the tests cover
+
+**The fixture now carries both real shapes** (12 entries: 7 kept + 3 Shorts + 2 out-of-range, all counts distinct). Five new listing-shape entries have no `upload_date` and no live markers, only epoch-seconds `timestamp` — including one mirroring the spot-check video (2025-12-03, kept), a December 2022 slop-window video (kept), a mid-2022 video (excluded), a Short, and a `upload_date: null` + timestamp entry.
+
+**`TestDateFromTimestamp`** — the day-one catcher first: a timestamp-only in-range video is `pending` with the real UTC date recorded. Then: timestamps read as UTC (both sides of UTC midnight), `upload_date` wins over `timestamp` in both directions (including when it excludes), unparseable `upload_date` falls back to `timestamp`, `timestamp: 0` is 1970-01-01 and not the sentinel, neither field yields `date.min` + `excluded_out_of_range`, and duration still beats date on the listing path.
+
+**`TestSlopBoundary`** — `DATE_SLOP_DAYS == 62`, `effective_start_date` is 2022-10-31 under the default config and tracks a changed `start_date`, the boundary day is kept and the day before it excluded (via both `upload_date` and `timestamp`), and the December-2022 keep records the real date, never the shifted one.
+
+The pipeline-level `enumerate_channel` test now asserts each listing-shape entry's outcome, and the run/CLI summary tests exercise the new counts.
+
+## Things you should know
+
+1. **`tests/test_index_zero_duration.py` will break at assembly, and it isn't mine to fix.** Its out-of-range backdrop video `oldVideo002` is dated `20221115`, which sits inside the new slop window — under the settled contract it becomes `pending`, so that file's `1 outside the date range` summary assertions will fail against the correct implementation. Its date needs to move before 2022-10-31; that's a blind-tests-trailer file from PR #59, so the editing commit must say why.
+2. **Two existing tests in my file contradicted the new contract and were updated, not weakened:** the old before-start-date test used `20221231`, which the slop now keeps — it now uses `20220615`, with the precise boundary pinned separately in `TestSlopBoundary`. The missing-`upload_date` test was renamed to say "without timestamp" and gained a `date.min` sentinel assertion. No livestream, Shorts, or zero-duration ruling was touched.
+3. **One guess:** "unparseable `upload_date`" is tested with `""` and `"unknown"` only — clearly unparseable under any reading of `YYYYMMDD`. I deliberately avoided values like `"2023-06-15"` that a lenient parser might accept, so the tests don't fail on trivia the contract never settled.
+4. The UTC tests can't distinguish local-time from UTC interpretation if the machine's zone happens to be UTC (they stay deterministic either way — they just discriminate best on non-UTC machines like this one).

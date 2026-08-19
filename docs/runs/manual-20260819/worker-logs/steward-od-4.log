@@ -1,0 +1,29 @@
+Preparing worktree (new branch 'worker/steward-od-4')
+HEAD is now at def3cd3 Oracle: rulings and handoff (#81)
+=== spawn-worker[steward-od-4] engine=claude branch=worker/steward-od-4 base=main (def3cd314fa714f86e409fd2ae1f7ed279642601) bypass=0 ===
+=== 2026-08-18T23:09:09Z ===
+Permission allow rule (--allowed-tools): Write(docs/plans/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/plans/oracle/**) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/BACKLOG.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/BACKLOG.md) instead (Edit rules cover all file-editing tools).
+Plan committed on `worker/steward-od-4` (the driver opens it as `docs/oracle-plan-od-4`).
+
+## Report
+
+**Plan:** `docs/plans/oracle/recut-merged-excerpts.md` — slug `recut-merged-excerpts` (unique, and no substring collision with `corpus-and-checkpoint`, `whole-transcript-threshold`, `date-from-timestamp`, `run-scripts`).
+
+**Implements:** OD-4 / R1000 — merged excerpt windows are re-cut from the transcript cues instead of concatenated, so a video's excerpts can never total more than its transcript. Two slices, ~330 lines, sequential: the merge contract change, then the regression built from BL-10's measured case.
+
+**What I had to guess at** (all four are in the plan's uncertainties, all proceeded on a default because nobody is awake):
+
+1. **The signature shape.** OD-4 says only "`merge_overlapping` gains access to the cues". I chose one `Transcript` argument with a `ValueError` for an excerpt from another video, which retires today's cross-video merging. Derived as far as it goes from R22 and the single caller; the guess is that nothing later wants the mixed-video form back.
+2. **What "its transcript's characters" means.** Nothing defines it. I defined it as the single-space join of every cue's text, exposed as `transcript_characters()`, so the bound is exact and the R28 ratio has one denominator.
+3. **Whether the regression fixture is the real captions.** I read "the measured real-video case lands as a regression fixture" as the case's geometry, not its text — R21 holds the corpus local-only and never redistributed, and the cache isn't in the tree anyway. Cost: the test pins the bound, not the literal 28,438 / 137,246 figures.
+4. **Who covers R1000.** Mine does. Flagged below.
+
+**Plans this decision makes partly wrong:**
+
+- **`docs/plans/whole-transcript-threshold.md`** — its premise that the merged excerpt total is a real measurement is now false, and its "measured after merging and capping" rule only becomes correct once this lands. It also needs revising for OD-5 (the bundle-cap ceiling that unblocks its one open uncertainty). **The conflict worth the owner's attention:** OD-5's prose says that plan "should be revised to carry R1000 and R1001". R1000 is delivered here, per OD-4 handing the signature change to this plan, so that revision should carry **R1001 only** — otherwise two plans claim one requirement and the same change gets built twice.
+- **`docs/plans/corpus-and-checkpoint.md`** — its slice 5 Signatures block declares the old one-argument `merge_overlapping`. Historical record of merged work, so nothing needs rebuilding; OD-12 already queues a revision of that plan, and this signature can ride along.
+
+**I did not stop** — OD-4 was plannable without inventing a second decision. The one thing I deliberately did not build is R1000's clause about the R28 saturation ratio: that path doesn't exist yet and belongs to OD-5/R1001. This plan makes the ratio correct by construction and hands the other plan the denominator.
+
+I could not run `.github/scripts/oracle-decisions.sh` or `plan-parse.sh` locally — the sandbox declined both — so the plan is checked by inspection against what those scripts read, not by a run.

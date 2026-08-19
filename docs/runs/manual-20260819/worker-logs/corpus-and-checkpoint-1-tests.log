@@ -1,0 +1,610 @@
+Preparing worktree (new branch 'worker/corpus-and-checkpoint-1-tests')
+HEAD is now at 9d0e52c Add yt-dlp as the channel enumeration and caption dependency
+=== spawn-worker[corpus-and-checkpoint-1-tests] engine=codex branch=worker/corpus-and-checkpoint-1-tests base=feat/corpus-and-checkpoint bypass=0 ===
+=== 2026-08-14T14:03:44Z ===
+error: unexpected argument '--full-auto' found
+
+  tip: to pass '--full-auto' as a value, use '-- --full-auto'
+
+Usage: codex exec [OPTIONS] [PROMPT]
+       codex exec [OPTIONS] <COMMAND> [ARGS]
+
+For more information, try '--help'.
+Preparing worktree (new branch 'worker/corpus-and-checkpoint-1-tests')
+HEAD is now at 9d0e52c Add yt-dlp as the channel enumeration and caption dependency
+=== spawn-worker[corpus-and-checkpoint-1-tests] engine=claude branch=worker/corpus-and-checkpoint-1-tests base=feat/corpus-and-checkpoint bypass=0 ===
+=== 2026-08-14T14:12:06Z ===
+# Result: blocked — no file writes or commits were possible in this session. The tests were written and are delivered in full below.
+
+## What happened
+
+This worker was spawned headless (`claude -p`, per `.claude/scripts/spawn-worker.sh`) **without `--bypass-sandbox`**. In that mode every mutation channel is denied, and I verified each one directly:
+
+- **Write/Edit tools**: auto-denied (headless sessions cannot grant the permission prompt).
+- **Bash file writes** (`mkdir`, `touch`, redirection, `sed -i`): blocked by the sandbox *even for paths inside this worktree* — the block message names this exact worktree as the allowed directory and then blocks paths inside it, so the path matcher appears broken for worktrees under `.claude/worktrees/`. `/tmp` is blocked too.
+- **`git commit`, `git hash-object`, `uv run`**: classified as approval-requiring → auto-denied headless.
+- **Harness worktree tools**: `EnterWorktree` into a fresh harness-created worktree exhibits the identical write blocks (probe worktree created, tested, and removed cleanly).
+
+The branch `worker/corpus-and-checkpoint-1-tests` is untouched: nothing written, nothing committed, so **there is no commit with the `Blind-Tests: corpus-and-checkpoint-1` trailer**. I did not spawn any agents and did not route the blocked writes through a peer session (that would bypass the permission decision). I notified the orchestrator session (`find-best-mobo-09`) with a pointer to this log. Recommended fix: respawn this worker via `spawn-worker.sh --bypass-sandbox` — either with the same prompt for a fresh blind run, or to commit the content below verbatim (it was written with no implementation to read; the trailer stays honest either way, and the committing session must not alter it).
+
+The tests below were written **from the spec only** — plan slice 1, `docs/DESIGN.md` §5/§9, and the two owner rulings that constrain this slice (livestreams stay in; only Shorts are excluded / R23 byte-identical reproducibility). Everything red on first run is the expected state.
+
+---
+
+## File 1: `tests/fixtures/channel_entries.json`
+
+```json
+[
+  {
+    "id": "reg4400aaa1",
+    "title": "ASRock X870E Taichi VRM analysis — actually hardcore",
+    "upload_date": "20240305",
+    "duration": 3720,
+    "was_live": false,
+    "live_status": "not_live",
+    "webpage_url": "https://www.youtube.com/watch?v=reg4400aaa1",
+    "channel_id": "UCfakechannel0000000000f",
+    "view_count": 51234
+  },
+  {
+    "id": "sho0048bbb2",
+    "title": "This VRM is fine #shorts",
+    "upload_date": "20240601",
+    "duration": 48,
+    "was_live": false,
+    "live_status": "not_live"
+  },
+  {
+    "id": "old2022ccc3",
+    "title": "B550 board VRM ramble from before the range",
+    "upload_date": "20220615",
+    "duration": 1800,
+    "was_live": false,
+    "live_status": "not_live"
+  },
+  {
+    "id": "liv3hr0ddd4",
+    "title": "Motherboard Q&A livestream VOD",
+    "upload_date": "20231120",
+    "duration": 11700,
+    "was_live": true,
+    "live_status": "was_live"
+  },
+  {
+    "id": "nuldur0eee5",
+    "title": "Entry whose duration came back null",
+    "upload_date": "20240110",
+    "duration": null,
+    "was_live": false,
+    "live_status": "not_live"
+  },
+  {
+    "id": "nodate00ff6",
+    "title": "Entry with no upload_date at all",
+    "duration": 2400,
+    "was_live": false,
+    "live_status": "not_live"
+  }
+]
+```
+
+## File 2: `tests/test_config.py`
+
+```python
+"""Blind tests for ``find_best_mobo.config`` (corpus-and-checkpoint, slice 1).
+
+Written from the slice specification alone, in parallel with the
+implementation and without access to it. Expected defaults below are the ones
+pinned by ``docs/DESIGN.md`` (R4, R5, R24) and the plan's recorded rulings.
+"""
+
+from dataclasses import FrozenInstanceError
+from datetime import date
+from pathlib import Path
+
+import pytest
+
+from find_best_mobo.config import load_config
+
+FULL_TOML = """\
+channel_url = "https://example.invalid/@SomeOtherChannel/videos"
+start_date = 2023-02-03
+data_dir = "elsewhere"
+shorts_max_seconds = 95
+mention_threshold = 4
+window_before_seconds = 60
+window_after_seconds = 240
+per_video_excerpt_cap = 7
+bundle_token_cap = 25000
+calibration_batch_size = 12
+batch_count = 5
+chars_per_token = 3.5
+consecutive_fetch_error_limit = 2
+fetch_error_rate_limit = 0.02
+missing_caption_rate_limit = 0.07
+"""
+
+
+def write_toml(tmp_path: Path, body: str) -> Path:
+    path = tmp_path / "config.toml"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_load_config_reads_every_key(tmp_path: Path) -> None:
+    config = load_config(write_toml(tmp_path, FULL_TOML))
+    assert config.channel_url == "https://example.invalid/@SomeOtherChannel/videos"
+    assert config.start_date == date(2023, 2, 3)
+    assert isinstance(config.data_dir, Path)
+    assert config.data_dir.name == "elsewhere"
+    assert config.shorts_max_seconds == 95
+    assert config.mention_threshold == 4
+    assert config.window_before_seconds == 60
+    assert config.window_after_seconds == 240
+    assert config.per_video_excerpt_cap == 7
+    assert config.bundle_token_cap == 25000
+    assert config.calibration_batch_size == 12
+    assert config.batch_count == 5
+    assert config.chars_per_token == pytest.approx(3.5)
+    assert config.consecutive_fetch_error_limit == 2
+    assert config.fetch_error_rate_limit == pytest.approx(0.02)
+    assert config.missing_caption_rate_limit == pytest.approx(0.07)
+
+
+def test_load_config_empty_file_yields_documented_defaults(tmp_path: Path) -> None:
+    """An absent key is never a crash: in-code defaults fill every field.
+
+    Only defaults actually pinned by the design doc or a recorded ruling are
+    asserted exactly; ``shorts_max_seconds`` is only "~2 minutes" in the plan,
+    so it gets a sanity range rather than a number the spec never stated.
+    """
+    config = load_config(write_toml(tmp_path, ""))
+    assert config.start_date == date(2023, 1, 1)
+    assert config.mention_threshold == 3
+    assert config.window_before_seconds == 120
+    assert config.window_after_seconds == 300
+    assert config.consecutive_fetch_error_limit == 3
+    assert config.fetch_error_rate_limit == pytest.approx(0.03)
+    assert config.missing_caption_rate_limit == pytest.approx(0.05)
+    assert config.chars_per_token == pytest.approx(4.0)
+    assert 30 <= config.shorts_max_seconds <= 180
+    assert isinstance(config.data_dir, Path)
+    assert isinstance(config.start_date, date)
+    assert "youtube.com" in config.channel_url
+
+
+def test_load_config_partial_file_keeps_defaults_for_absent_keys(tmp_path: Path) -> None:
+    body = "mention_threshold = 5\nshorts_max_seconds = 90\n"
+    config = load_config(write_toml(tmp_path, body))
+    assert config.mention_threshold == 5
+    assert config.shorts_max_seconds == 90
+    assert config.start_date == date(2023, 1, 1)
+    assert config.window_after_seconds == 300
+
+
+def test_config_is_frozen(tmp_path: Path) -> None:
+    config = load_config(write_toml(tmp_path, ""))
+    with pytest.raises(FrozenInstanceError):
+        config.mention_threshold = 9  # type: ignore[misc]
+```
+
+## File 3: `tests/test_index.py`
+
+```python
+"""Blind tests for ``find_best_mobo.index`` and the ``index`` command (slice 1).
+
+Written from the slice specification alone, in parallel with the
+implementation and without access to it. The network boundary is faked at the
+``yt-dlp`` library seam: a stand-in for ``yt_dlp.YoutubeDL`` serves
+hand-authored channel entries, so nothing here touches the network (the
+autouse guard in ``conftest.py`` enforces that regardless).
+"""
+
+import copy
+import importlib
+import json
+import re
+from argparse import Namespace
+from collections.abc import Sequence
+from dataclasses import replace
+from datetime import date
+from pathlib import Path
+
+import pytest
+
+from find_best_mobo.cli import main
+from find_best_mobo.commands.index import run
+from find_best_mobo.config import Config
+from find_best_mobo.index import Video, classify, enumerate_channel, read_index, write_index
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def make_config(data_dir: Path | None = None) -> Config:
+    return Config(
+        channel_url="https://www.youtube.com/@ActuallyHardcoreOverclocking/videos",
+        start_date=date(2023, 1, 1),
+        data_dir=data_dir if data_dir is not None else Path("data"),
+        shorts_max_seconds=120,
+        mention_threshold=3,
+        window_before_seconds=120,
+        window_after_seconds=300,
+        per_video_excerpt_cap=10,
+        bundle_token_cap=30_000,
+        calibration_batch_size=10,
+        batch_count=3,
+        chars_per_token=4.0,
+        consecutive_fetch_error_limit=3,
+        fetch_error_rate_limit=0.03,
+        missing_caption_rate_limit=0.05,
+    )
+
+
+CONFIG = make_config()
+
+
+def load_entries() -> list[dict[str, object]]:
+    raw = json.loads((FIXTURES / "channel_entries.json").read_text(encoding="utf-8"))
+    assert isinstance(raw, list)
+    return [dict(item) for item in raw]
+
+
+def fixture_entry(video_id: str) -> dict[str, object]:
+    for item in load_entries():
+        if item["id"] == video_id:
+            return item
+    raise KeyError(video_id)
+
+
+def make_entry(
+    video_id: str,
+    *,
+    title: str = "Some regular VRM breakdown",
+    upload_date: str | None = "20240301",
+    duration: int | None = 3600,
+    was_live: bool = False,
+) -> dict[str, object]:
+    entry: dict[str, object] = {
+        "id": video_id,
+        "title": title,
+        "duration": duration,
+        "was_live": was_live,
+        "live_status": "was_live" if was_live else "not_live",
+    }
+    if upload_date is not None:
+        entry["upload_date"] = upload_date
+    return entry
+
+
+def install_fake_channel(
+    monkeypatch: pytest.MonkeyPatch, entries: Sequence[dict[str, object]]
+) -> None:
+    """Replace ``yt_dlp.YoutubeDL`` with an offline stand-in serving ``entries``.
+
+    Patches both the ``yt_dlp`` module attribute and (if present) the name
+    re-bound inside ``find_best_mobo.ytdlp``, so either import style is
+    covered. Any URL resolves: a video URL returns its entry, everything else
+    returns the channel playlist.
+    """
+    playlist: dict[str, object] = {
+        "_type": "playlist",
+        "id": "UCfakechannel0000000000f",
+        "title": "Actually Hardcore Overclocking - Videos",
+        "entries": [copy.deepcopy(dict(item)) for item in entries],
+    }
+
+    class FakeYoutubeDL:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> "FakeYoutubeDL":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def close(self) -> None:
+            pass
+
+        def extract_info(
+            self, url: str, download: bool = False, **kwargs: object
+        ) -> dict[str, object]:
+            for item in entries:
+                vid = str(item["id"])
+                if url == vid or url.endswith("=" + vid) or url.rstrip("/").endswith("/" + vid):
+                    return copy.deepcopy(dict(item))
+            return copy.deepcopy(playlist)
+
+    monkeypatch.setattr(importlib.import_module("yt_dlp"), "YoutubeDL", FakeYoutubeDL)
+    boundary = importlib.import_module("find_best_mobo.ytdlp")
+    monkeypatch.setattr(boundary, "YoutubeDL", FakeYoutubeDL, raising=False)
+
+
+# --- classify: the pure function carrying the owner's rulings ---
+
+
+def test_classify_regular_long_video_is_kept_pending() -> None:
+    video = classify(fixture_entry("reg4400aaa1"), CONFIG)
+    assert video.video_id == "reg4400aaa1"
+    assert video.title == "ASRock X870E Taichi VRM analysis — actually hardcore"
+    assert video.upload_date == date(2024, 3, 5)
+    assert video.duration_seconds == 3720
+    assert video.was_live is False
+    assert video.classification == "regular"
+    assert video.inclusion == "pending"
+
+
+def test_classify_shorts_boundary_is_config_driven() -> None:
+    entry = make_entry("boundary0001", duration=150)
+    at_limit = classify(entry, replace(CONFIG, shorts_max_seconds=150))
+    assert at_limit.classification == "short"
+    assert at_limit.inclusion == "excluded_short"
+    just_over = classify(entry, replace(CONFIG, shorts_max_seconds=149))
+    assert just_over.classification == "regular"
+    assert just_over.inclusion == "pending"
+
+
+def test_classify_fixture_short_is_excluded() -> None:
+    video = classify(fixture_entry("sho0048bbb2"), CONFIG)
+    assert video.classification == "short"
+    assert video.inclusion == "excluded_short"
+
+
+def test_classify_before_start_date_is_out_of_range() -> None:
+    video = classify(fixture_entry("old2022ccc3"), CONFIG)
+    assert video.classification == "regular"
+    assert video.inclusion == "excluded_out_of_range"
+
+
+def test_classify_start_date_boundary() -> None:
+    on_start = classify(make_entry("onstart0001", upload_date="20230101"), CONFIG)
+    assert on_start.inclusion == "pending"
+    day_before = classify(make_entry("daybefore01", upload_date="20221231"), CONFIG)
+    assert day_before.inclusion == "excluded_out_of_range"
+
+
+def test_classify_has_no_end_date_exclusion() -> None:
+    # The range runs to today: a recent upload is never out of range.
+    video = classify(make_entry("recentvid01", upload_date="20260810"), CONFIG)
+    assert video.inclusion == "pending"
+
+
+def test_classify_livestream_is_included() -> None:
+    """Owner ruling (docs/DECISIONS.md): livestreams stay in the corpus.
+
+    ``was_live`` is recorded faithfully but never causes exclusion, and there
+    is no duration ceiling — this 3h15m VOD is kept.
+    """
+    video = classify(fixture_entry("liv3hr0ddd4"), CONFIG)
+    assert video.was_live is True
+    assert video.duration_seconds == 11700
+    assert video.classification == "regular"
+    assert video.inclusion == "pending"
+
+
+def test_classify_long_regular_video_has_no_duration_ceiling() -> None:
+    video = classify(make_entry("longvid0001", duration=3 * 3600), CONFIG)
+    assert video.classification == "regular"
+    assert video.inclusion == "pending"
+
+
+def test_classify_null_or_missing_duration_counts_as_zero() -> None:
+    null_duration = classify(fixture_entry("nuldur0eee5"), CONFIG)
+    assert null_duration.duration_seconds == 0
+    entry = fixture_entry("nuldur0eee5")
+    del entry["duration"]
+    missing_duration = classify(entry, CONFIG)
+    assert missing_duration.duration_seconds == 0
+
+
+def test_classify_missing_upload_date_is_excluded_not_an_error() -> None:
+    video = classify(fixture_entry("nodate00ff6"), CONFIG)
+    assert video.inclusion == "excluded_out_of_range"
+
+
+def test_classify_pre_start_short_is_excluded_either_way() -> None:
+    # Precedence between the two exclusion reasons is unspecified; what the
+    # slice does promise is that a pre-range Short is not pending.
+    video = classify(make_entry("oldshort001", upload_date="20220101", duration=30), CONFIG)
+    assert video.inclusion in {"excluded_short", "excluded_out_of_range"}
+
+
+# --- write_index / read_index: the on-disk contract ---
+
+
+def sample_videos() -> list[Video]:
+    return [
+        Video(
+            video_id="reg4400aaa1",
+            title="ASRock X870E Taichi — «hardcore» VRM 分析",
+            upload_date=date(2024, 3, 5),
+            duration_seconds=3720,
+            was_live=False,
+            classification="regular",
+            inclusion="pending",
+        ),
+        Video(
+            video_id="liv3hr0ddd4",
+            title="Motherboard Q&A livestream VOD",
+            upload_date=date(2023, 11, 20),
+            duration_seconds=11700,
+            was_live=True,
+            classification="regular",
+            inclusion="pending",
+        ),
+        Video(
+            video_id="sho0048bbb2",
+            title="This VRM is fine #shorts",
+            upload_date=date(2024, 6, 1),
+            duration_seconds=48,
+            was_live=False,
+            classification="short",
+            inclusion="excluded_short",
+        ),
+        Video(
+            video_id="old2022ccc3",
+            title="B550 board VRM ramble from before the range",
+            upload_date=date(2022, 6, 15),
+            duration_seconds=1800,
+            was_live=False,
+            classification="regular",
+            inclusion="excluded_out_of_range",
+        ),
+    ]
+
+
+def test_write_index_returns_count_and_writes_one_json_line_per_video(tmp_path: Path) -> None:
+    videos = sample_videos()
+    path = tmp_path / "index.jsonl"
+    assert write_index(videos, path) == len(videos)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == len(videos)
+    for line in lines:
+        assert isinstance(json.loads(line), dict)
+    text = path.read_text(encoding="utf-8")
+    for video in videos:
+        assert video.video_id in text
+    assert "excluded_short" in text
+    assert "excluded_out_of_range" in text
+
+
+def test_index_round_trip_preserves_every_field(tmp_path: Path) -> None:
+    path = tmp_path / "index.jsonl"
+    videos = sample_videos()
+    write_index(videos, path)
+    assert list(read_index(path)) == videos
+
+
+def test_write_index_is_byte_identical_for_same_input(tmp_path: Path) -> None:
+    """DESIGN R23: same input and configuration produce byte-identical output."""
+    videos = sample_videos()
+    first = tmp_path / "a.jsonl"
+    second = tmp_path / "b.jsonl"
+    write_index(videos, first)
+    write_index(iter(videos), second)  # a streaming iterable writes the same bytes
+    assert first.read_bytes() == second.read_bytes()
+    rewritten = tmp_path / "c.jsonl"
+    write_index(read_index(first), rewritten)
+    assert rewritten.read_bytes() == first.read_bytes()
+
+
+# --- enumerate_channel and the index command, over the faked boundary ---
+
+
+def test_enumerate_channel_records_every_upload_with_its_reason(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    entries = load_entries()
+    install_fake_channel(monkeypatch, entries)
+    videos = list(enumerate_channel(make_config(tmp_path / "data")))
+    # R1: exclusions are recorded in the index, not silently dropped.
+    assert len(videos) == len(entries)
+    by_id = {video.video_id: video for video in videos}
+    assert by_id["reg4400aaa1"].inclusion == "pending"
+    assert by_id["liv3hr0ddd4"].inclusion == "pending"
+    assert by_id["liv3hr0ddd4"].was_live is True
+    assert by_id["sho0048bbb2"].inclusion == "excluded_short"
+    assert by_id["old2022ccc3"].inclusion == "excluded_out_of_range"
+    assert by_id["nodate00ff6"].inclusion == "excluded_out_of_range"
+    assert "nuldur0eee5" in by_id  # a null duration enumerates without raising
+
+
+def summary_entries() -> list[dict[str, object]]:
+    kept = [make_entry(f"keptvid{i:04d}") for i in range(9)]
+    shorts = [make_entry(f"shortv{i:05d}", duration=30) for i in range(3)]
+    out_of_range = [make_entry(f"oldvid{i:05d}", upload_date="20220301") for i in range(2)]
+    return kept + shorts + out_of_range
+
+
+def test_run_writes_index_and_prints_the_summary_counts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    install_fake_channel(monkeypatch, summary_entries())
+    config = make_config(tmp_path / "data")
+    assert run(config, Namespace()) == 0
+    index_path = tmp_path / "data" / "index.jsonl"
+    assert index_path.exists()  # the command creates data_dir itself
+    videos = list(read_index(index_path))
+    assert len(videos) == 14
+    assert sum(video.inclusion == "pending" for video in videos) == 9
+    assert sum(video.inclusion == "excluded_short" for video in videos) == 3
+    assert sum(video.inclusion == "excluded_out_of_range" for video in videos) == 2
+    out = capsys.readouterr().out
+    for count in (14, 9, 3, 2):
+        assert re.search(rf"\b{count}\b", out), f"summary must state the count {count}: {out!r}"
+
+
+def test_run_is_reproducible_byte_for_byte(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    install_fake_channel(monkeypatch, load_entries())
+    config = make_config(tmp_path / "data")
+    assert run(config, Namespace()) == 0
+    index_path = tmp_path / "data" / "index.jsonl"
+    first = index_path.read_bytes()
+    assert first
+    assert run(config, Namespace()) == 0
+    assert index_path.read_bytes() == first
+
+
+def test_main_index_subcommand_runs_end_to_end(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    entries = load_entries()
+    install_fake_channel(monkeypatch, entries)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.toml").write_text('data_dir = "data"\n', encoding="utf-8")
+    assert main(["index"]) == 0
+    index_path = tmp_path / "data" / "index.jsonl"
+    assert index_path.exists()
+    assert len(list(read_index(index_path))) == len(entries)
+```
+
+---
+
+## Behaviours covered
+
+- **`classify`** (the slice's highest-value target): faithful field mapping including `YYYYMMDD` parsing; the Shorts boundary at exactly `shorts_max_seconds` and proof it is config-driven, not a constant; start-date boundary on both sides; no end-date exclusion; **the livestream ruling** (`was_live` recorded, never excluding, no duration ceiling); null/missing `duration` → 0 without raising; missing `upload_date` → out-of-range without raising; a pre-range Short is excluded without asserting which reason wins.
+- **`write_index`/`read_index`**: count returned, one valid JSON record per line carrying the inclusion reasons, lossless round-trip (unicode title included), and R23 byte-identical output — including write-of-read and streaming-iterator input.
+- **`enumerate_channel`**: every upload gets a record with its reason (exclusions recorded, not dropped), through a fake `yt_dlp.YoutubeDL`.
+- **`run`**: exit 0, creates `data_dir`, writes `index.jsonl` with the right per-category counts, prints all four summary numbers, and produces byte-identical output on a rerun (R23 end-to-end).
+- **`load_config`**: every key read from TOML; empty and partial files never crash; doc-pinned defaults (threshold 3, 2023-01-01, 120/300 windows, 3/3%/5% halt levers, chars÷4); frozen dataclass.
+
+## Not tested, and why
+
+- The real `find_best_mobo.ytdlp` internals — it is the network boundary and its surface is not in the interface contract (see below).
+- `main`'s error paths (unknown subcommand, missing config file): behaviour unspecified, and guessing would produce failures about trivia.
+- Which exclusion reason wins for a pre-range Short: deliberately asserted as "either, but not pending".
+
+## Where I had to guess — the likely disagreement points
+
+1. **The `find_best_mobo.ytdlp` surface is not declared** in the signatures block. I faked one level lower, at `yt_dlp.YoutubeDL` itself (patching both the `yt_dlp` module attribute and any rebound name inside `find_best_mobo.ytdlp`), assuming the conventional `YoutubeDL(...).extract_info(url, download=False)` returning a playlist dict with `"entries"`. If the implementation uses an aliased import or a nested channel-tab extraction shape, these tests fail on the seam, not on behaviour.
+2. **TOML shape**: flat top-level keys named exactly like the `Config` fields, with `start_date` as a native TOML date. Sections or string dates would break `test_config`.
+3. **`run`'s contract**: that it prints the summary itself, returns 0, creates `data_dir`, writes to `data_dir / "index.jsonl"`, and accepts an empty `Namespace`.
+4. **`main`'s contract**: argv without the program name (`main(["index"])`) and `config.toml` discovered relative to the current working directory.
+5. **Out-of-range videos appear in the index** rather than being dropped before it — derived from R1's "excluded … not silently" and the summary's out-of-range count, but the "from 2023-01-01" wording in the Delivers line could be read the other way.
+6. **Defaults asserted exactly** are only those pinned in the design/plan; `shorts_max_seconds` ("~2 minutes") got a 30–180s sanity range, and the default `channel_url` is only asserted to contain `youtube.com`.
+Preparing worktree (new branch 'worker/corpus-and-checkpoint-1-tests')
+HEAD is now at c743fc4 Add yt-dlp as the channel enumeration and caption dependency
+=== spawn-worker[corpus-and-checkpoint-1-tests] engine=claude branch=worker/corpus-and-checkpoint-1-tests base=feat/corpus-and-checkpoint bypass=1 ===
+=== 2026-08-14T14:47:53Z ===
+Committed as `2b6d09e` on `worker/corpus-and-checkpoint-1-tests`, with the `Blind-Tests: corpus-and-checkpoint-1` trailer. The suite is red for exactly the right reason — `ModuleNotFoundError` on the four not-yet-existing modules — and both files pass ruff check and format. I created only the three files I own: `tests/test_config.py`, `tests/test_index.py`, `tests/fixtures/channel_entries.json`.
+
+**Behaviours covered**
+
+- `classify`, tested directly with hand-built entry dicts: regular video → `("regular", "pending")` with all fields copied faithfully; duration at the ceiling excluded, one second over kept (both boundary sides); upload before `start_date` excluded, on the date kept; a 2026 upload kept (no end-date exclusion); the owner's livestream ruling gets its own test (`was_live=True`, three hours, kept, flag recorded); no duration ceiling for non-live videos either; Short-before-start-date excluded as a Short per the settled duration-before-date rule; missing/null `duration` → 0 without raising; missing/null `upload_date` → out-of-range without raising. Two tests vary `shorts_max_seconds` and `start_date` to catch either threshold being hardcoded instead of read from config.
+- `write_index`/`read_index`: round-trip equality (including from a plain iterator, since the signature promises `Iterable`), returned count, empty-index round-trip, one-JSON-record-per-line with exclusion reasons visible in the records (R1), and byte-identical output for the same input (R23).
+- `enumerate_channel` against the 7-entry fixture, faking only `list_channel_entries`: all 7 classified, the fake receives `(config.channel_url, config.start_date)`, livestream kept, counts 7/4/2/1 — all distinct so summary numbers can't be confused.
+- `run(config, Namespace())`: bare Namespace, creates a missing `data_dir`, writes `index.jsonl` with all 7 records including exclusions, returns 0, and the summary contains all four counts. `main`: both `["index", "--config", path]` and `["index"]` with `config.toml` in cwd.
+- `load_config`: full flat TOML with native TOML date parsed exactly (single dataclass-equality assertion covering all 15 fields and their types), empty file → in-code defaults without crashing, partial file overriding only present keys.
+
+**Could not test:** cross-process byte-identity (the R23 test writes twice in one process, so hash-seed nondeterminism wouldn't be caught); laziness of the iterators (R22) — no way to assert without reaching into internals; the `youtubetab:approximate_date` extractor argument, which lives inside `find_best_mobo.ytdlp`, the exact module I'm required to fake.
+
+**Guesses the implementation may disagree with** — the places to look first if we disagree at assembly:
+
+1. **Missing duration → `excluded_short`.** The spec says missing duration counts as 0 and a video at-or-under the ceiling is a Short; composed literally, a duration-less video is excluded as a Short. If the coder read "counts as 0" as only don't-crash and kept such videos, my fixture counts (2 Shorts, 4 kept) and two assertions break.
+2. **The live-flag key.** The contract never says which entry key carries liveness. My entries carry both `was_live` (bool) and `live_status` (str) so either read works, but an implementation reading a third key would see every entry as non-live — invisible here since liveness never affects inclusion anyway.
+3. **Default rate-limit convention.** I couldn't tell whether 3%/5% are stored as 0.03/0.05 or 3.0/5.0, so I only assert `0 < fetch_error_rate_limit < missing_caption_rate_limit`.
+4. **Default `data_dir == Path("data")`** and `"youtube.com" in channel_url` — derived from the plan ("writes `data/index.jsonl`", gitignored `data/`) but not literally stated as defaults.
+5. **Summary shape.** I assert the four counts appear as whole numbers in stdout, not any wording — but if the summary prints only three of them (the plan's Delivers line omits out-of-range; the orchestrator brief includes it), the out-of-range=1 assertion fails.
+6. **Import-binding of the fake.** I patch `list_channel_entries` on `find_best_mobo.ytdlp` and also rebind the same name in `index`/`commands.index`/`cli` if they imported it directly — same declared surface, but a coder who aliased it to a different name at import would slip past the patch.

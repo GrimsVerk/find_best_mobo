@@ -1,0 +1,31 @@
+deliver-loop: checking whether this repository can run unattended…
+unattended-ready: GrimsVerk/find_best_mobo
+  ready    auto_merge: true in .copier-answers.yml
+  ready    auto-merge workflow is present
+  ready    repository allows auto-merge
+  ready    repository deletes head branches on merge
+  ready    required check 'plan' is configured
+  ready    required check 'template-sync' is configured
+  ready    required check 'secrets' is configured
+  ready    required check 'test-the-tests' is configured
+  ready    required check 'acceptance-criteria' is configured
+  ready    required check 'review' is configured
+  ready    required check 'checks' is configured
+  ready    a pull-request rule is active (merges only via PR)
+  ready    CLAUDE_CODE_OAUTH_TOKEN is set (review gate can run)
+  ready    merge identity: GitHub App configured (a login that is not the owner's)
+  ready    CODEOWNERS resolves cleanly
+  ready    docs/VISION.md is filled in
+
+unattended-ready: this repository can run unattended.
+deliver-loop: budget: weekly at 40% (model 27%), allowance 33 points, window resets Aug
+deliver-loop: iteration 1: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-6)
+remote: 
+remote: Create a pull request for 'docs/oracle-plan-od-6' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-plan-od-6        
+remote: 
+deliver-loop: iteration 2: phase WAIT
+deliver-loop: waiting on PR #85 (docs/oracle-plan-od-6) — mechanical watch, no model budget
+deliver-loop: landing this run's evidence in docs/runs/20260819T001105Z ...
+deliver-loop: collect-evidence: 1 review(s) into docs/runs/20260819T001105Z/reviews (1 skipped).

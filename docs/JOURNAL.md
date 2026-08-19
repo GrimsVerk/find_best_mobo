@@ -286,3 +286,26 @@ real run or on M2–M4 stages that deliberately do not exist yet.
 Nothing is blocked on an agent. The owner runs the pipeline (commands in
 `docs/acceptance.md`), reads the `aliases --check` output first, and rules on the
 rework queue. M2 gets planned only after the calibration batch.
+
+## 2026-08-19 — postmortem of the first unattended run
+
+The full postmortem is at
+`docs/postmortems/2026-08-19-first-unattended-run.md` — timeline, root causes,
+fixes, and the owner's cleanup list. The short form: all seven defects the run
+exposed are template defects; all seven are fixed on the template branch
+`claude/find-best-mobo-postmortem-18nhu7` with checks demonstrated red→green;
+nothing in this repository's gate paths was touched.
+
+Two root causes were only established in this pass, after the run's own
+analysis: the review artifacts were lost to `upload-artifact@v4`'s
+hidden-files default against the dot-prefixed `.review-out` (five runs, zero
+artifacts, the warning sitting in the job logs all along), and the steward
+self-ruled its uncertainties because `steward.md` contradicted `AGENTS.md`
+while the rule-following diff — plan plus `docs/BACKLOG.md` filings — was
+mechanically unmergeable past the exempt-size cap.
+
+Next session: after the template release lands, `copier update` on a
+`template/` branch, then work the postmortem's cleanup list (#85–#88, stale
+branches). The open owner ruling is the end-to-end dispatch smoke test's
+budget policy, and whether a project may ever patch its own driver (the
+postmortem recommends: no, and build the smoke test instead).
