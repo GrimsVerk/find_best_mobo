@@ -198,3 +198,13 @@ proposal and neither the design nor any plan has been edited.
 _(nothing yet — filed by `/plan` when a design leaves a question open; format:_
 _`BL-<n>` — the question, the proposed default, HIGH or LOW risk, one line on_
 _why that class, and `— filed by: plan`.)_
+
+- **BL-14** — Does the merged plan `capped-whole-transcript-path` still stand
+  now that the owner's 2026-08-19 ruling (`docs/DECISIONS.md`) overrules OD-5's
+  cap and amends R5/R28 to clustered excerpts with an uncapped whole-transcript
+  path? Proposed default: supersede OD-5/R1001 citing that ruling and the
+  amended design, mark the plan partly wrong, and have the steward re-cut it to
+  the clustering design before anything builds it. **HIGH**: it changes a merged
+  plan's slice boundaries and an external routing behaviour, and building the
+  capped path as merged would implement a decision the owner has reversed.
+  — filed by: owner (recorded from chat by the postmortem session)
