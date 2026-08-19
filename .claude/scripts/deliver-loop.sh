@@ -314,6 +314,19 @@ SIG_FILE="$STATE_DIR/failure-signatures"
 # that "recomputed state cannot go stale"; the driver's own persisted file was
 # the exception, and it decided the most consequential thing in the run.
 rm -f "$STATE_DIR/acceptance-dispatched"
+# THE BUFFER CARRIES ONE RUN. It is appended to during the run and landed at
+# the stop — but a run killed too hard for its EXIT trap to fire leaves its
+# lines behind, and the next run's landed report then opened with the previous
+# run's header (ESC-44: a report named for one run began with another run's).
+# Wiping would destroy the dead run's only evidence — the exact defect this
+# whole arrangement repairs — so a leftover buffer is set aside under the run
+# id its own first line names, and land_evidence ships it beside THIS run's
+# report, labeled as what it is.
+if [[ -s "$STATE_DIR/run.md" ]]; then
+  PREV_RUN="$(sed -n 's/^# Delivery run //p' "$STATE_DIR/run.md" | head -1)"
+  cat "$STATE_DIR/run.md" >> "$STATE_DIR/unlanded-${PREV_RUN:-unknown}.md" \
+    && rm -f "$STATE_DIR/run.md"
+fi
 { echo "# Delivery run $RUN_ID"; echo; echo "Started $RUN_STARTED_AT."; echo; } >> "$STATE_DIR/run.md"
 
 # ------------------------------------------------- the evidence, at every stop
@@ -347,6 +360,14 @@ land_evidence() {
     echo "means. Every stop says why; none degrades silently."
   } > "$RUN_DIR/run.md"
 
+  # A previous run's set-aside buffer (the run-start rotation above) travels
+  # with this run's evidence, under unlanded/ rather than inside this run's
+  # report — preserved, and labeled as what it is.
+  if compgen -G "$STATE_DIR/unlanded-*.md" >/dev/null 2>&1; then
+    mkdir -p "$RUN_DIR/unlanded"
+    cp "$STATE_DIR"/unlanded-*.md "$RUN_DIR/unlanded/" 2>/dev/null || true
+  fi
+
   .claude/scripts/collect-evidence.sh --run-dir "$RUN_DIR" \
     --since "$RUN_STARTED_AT" 2>&1 | sed 's/^/deliver-loop: /' || true
 
@@ -368,15 +389,24 @@ land_evidence() {
       echo "deliver-loop: nothing to land."
     elif ! git commit -q -m "Run evidence for $RUN_ID" 2>/dev/null; then
       echo "deliver-loop: could not commit the run evidence."
-    elif ! git push -q origin "$ref" 2>/dev/null; then
-      echo "deliver-loop: could not push $ref — the evidence is committed locally."
-    elif token="$("$APP_TOKEN_CMD" 2>/dev/null)" && [[ -n "$token" ]]; then
-      GH_TOKEN="$token" "$GH" pr create --head "$ref" \
-        --title "Run evidence for $RUN_ID" \
-        --body "The run report and the review gate's payloads and replies, collected by .claude/scripts/collect-evidence.sh. Opened mechanically at the run's stop." \
-        >/dev/null 2>&1 || echo "deliver-loop: could not open the pull request for $ref"
     else
-      echo "deliver-loop: no App token — $ref is pushed but has no pull request."
+      # Committed: the buffer's content is in git history now, so the buffer is
+      # cleared. Left in place, the NEXT run's start rotation would set an
+      # already-landed report aside as "unlanded" and land it a second time —
+      # the mirror image of ESC-44. Kept when the commit failed, because then
+      # the buffer is still the only copy.
+      : > "$STATE_DIR/run.md"
+      rm -f "$STATE_DIR"/unlanded-*.md 2>/dev/null
+      if ! git push -q origin "$ref" 2>/dev/null; then
+        echo "deliver-loop: could not push $ref — the evidence is committed locally."
+      elif token="$("$APP_TOKEN_CMD" 2>/dev/null)" && [[ -n "$token" ]]; then
+        GH_TOKEN="$token" "$GH" pr create --head "$ref" \
+          --title "Run evidence for $RUN_ID" \
+          --body "The run report and the review gate's payloads and replies, collected by .claude/scripts/collect-evidence.sh. Opened mechanically at the run's stop." \
+          >/dev/null 2>&1 || echo "deliver-loop: could not open the pull request for $ref"
+      else
+        echo "deliver-loop: no App token — $ref is pushed but has no pull request."
+      fi
     fi
   else
     echo "deliver-loop: could not create $ref — the report is at $RUN_DIR/run.md."
