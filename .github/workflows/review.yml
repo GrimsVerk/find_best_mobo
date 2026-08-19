@@ -115,6 +115,13 @@ jobs:
         with:
           name: review-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
           path: ${{ github.workspace }}/.review-out
+          # REQUIRED, because the path is dot-prefixed: upload-artifact@v4
+          # excludes hidden files by default (since v4.4), so without this it
+          # finds nothing under .review-out, warns, and uploads no artifact at
+          # all — while the comment step right after it reads the same files
+          # happily. Every review of the first unattended run was lost exactly
+          # this way: five runs, five MISSING.md placeholders, zero artifacts.
+          include-hidden-files: true
           if-no-files-found: warn
           # Ninety days is the platform default and it is not the retention
           # policy: collect-evidence.sh copies these into docs/runs/ at run end,
