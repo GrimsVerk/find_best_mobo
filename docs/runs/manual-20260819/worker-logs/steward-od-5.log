@@ -1,0 +1,34 @@
+Preparing worktree (new branch 'worker/steward-od-5')
+HEAD is now at def3cd3 Oracle: rulings and handoff (#81)
+=== spawn-worker[steward-od-5] engine=claude branch=worker/steward-od-5 base=main (def3cd314fa714f86e409fd2ae1f7ed279642601) bypass=0 ===
+=== 2026-08-18T23:26:57Z ===
+Permission allow rule (--allowed-tools): Write(docs/plans/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/plans/oracle/**) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/BACKLOG.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/BACKLOG.md) instead (Edit rules cover all file-editing tools).
+The plan is written and committed. Here is the report.
+
+## Plan
+
+**Path:** `docs/plans/oracle/capped-whole-transcript-path.md`
+**Slug:** `capped-whole-transcript-path` — no substring collision with `corpus-and-checkpoint`, `date-from-timestamp`, `run-scripts`, `whole-transcript-threshold`.
+**Implements:** OD-5 → **R1001** (`covers: [R1001, R28]`), three slices, ~725 lines estimated.
+
+It builds R28's saturated-video routing *together with* OD-5's cap: a video whose merged-and-capped excerpts reach 80% of its transcript is sent whole, unless its transcript would not fit in one bundle at `bundle_token_cap`, in which case it stays on the excerpt path. Routing goes in a new `submission.py`; `Excerpt` gains a defaulted `form` field so the bundle XML can say what each block is; the projection reports three path counts with their characters and tokens.
+
+## What I had to guess at
+
+All of it is in the plan's Uncertainties section, none of it ruled — a steward running unattended cannot stop or file a `BL-<n>`.
+
+- **HIGH — scope.** OD-5 says `docs/plans/whole-transcript-threshold.md` "should be revised to carry R1000 and R1001". A steward may not write outside `docs/plans/oracle/`, and that plan's own text still reads *"do not build this slice until it is answered"* — nothing will lift that while nobody is awake. So this plan carries the whole behaviour and supersedes that slice. If the intended reading was a cap-only plan waiting on an owner revision, this plan is one slice too wide.
+- **HIGH — `covers:` names R28** as well as R1001, duplicating the superseded plan's coverage, because this plan genuinely delivers R28's behaviour.
+- **HIGH — the third count.** R1001 says "how many videos took each path"; I read the cap-forced fallback as its own path and put it in the `Projection` dataclass, since otherwise nothing observes OD-5 at all.
+- **LOW** — routing in a new module rather than `excerpt.py`; the ratio measured on cue texts joined identically on both sides; "fits the cap" read as projected tokens, not characters; the 80% threshold left a module constant rather than a config lever; and build order after R1000's plan.
+
+## Plans this decision makes partly wrong
+
+**`docs/plans/whole-transcript-threshold.md`** (covers R5, R17, R28), in three places: its second uncertainty is answered rather than pending; its Slice 1 is superseded and must not also be built; and its "Out of scope" still excludes the ceiling that is now in scope. Its Signatures also disagree with mine on module placement. Marking it superseded is the owner's edit — I did not touch it.
+
+`docs/plans/corpus-and-checkpoint.md` is unaffected; `docs/architecture.md` needs its "Estimating the cost, and stopping" section updated at assembly, which the plan states.
+
+## One thing needs your attention
+
+The commit is `1c296d2` on **`worker/steward-od-5`**, not on a `docs/`-prefixed branch: creating a branch and pushing both needed approval this session and were declined, so the commit is local to this worktree only. The plan pull request must be opened from a branch prefixed `docs/` (or one containing the slug) — `worker/steward-od-5` is neither exempt nor slug-matching, so the `plan` check would fail on it as it stands.

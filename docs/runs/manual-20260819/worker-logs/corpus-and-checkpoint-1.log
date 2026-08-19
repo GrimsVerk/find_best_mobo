@@ -1,0 +1,56 @@
+Preparing worktree (new branch 'worker/corpus-and-checkpoint-1')
+HEAD is now at 9d0e52c Add yt-dlp as the channel enumeration and caption dependency
+=== spawn-worker[corpus-and-checkpoint-1] engine=codex branch=worker/corpus-and-checkpoint-1 base=feat/corpus-and-checkpoint bypass=0 ===
+=== 2026-08-14T14:03:44Z ===
+error: unexpected argument '--full-auto' found
+
+  tip: to pass '--full-auto' as a value, use '-- --full-auto'
+
+Usage: codex exec [OPTIONS] [PROMPT]
+       codex exec [OPTIONS] <COMMAND> [ARGS]
+
+For more information, try '--help'.
+Preparing worktree (new branch 'worker/corpus-and-checkpoint-1')
+HEAD is now at 9d0e52c Add yt-dlp as the channel enumeration and caption dependency
+=== spawn-worker[corpus-and-checkpoint-1] engine=claude branch=worker/corpus-and-checkpoint-1 base=feat/corpus-and-checkpoint bypass=0 ===
+=== 2026-08-14T14:12:06Z ===
+I'm blocked and must stop here: **this worker session cannot create, modify, or commit any file — every write path is denied by the permission layer**, so Slice 1 could not be built.
+
+## What happened
+
+- Reading works fine; I read `AGENTS.md`, the design doc, the plan, the decisions, and the existing tree, and had the full implementation designed.
+- Every mutation is refused: the `Write` and `Edit` tools are denied ("permission not granted"), sandboxed and unsandboxed `Bash` file writes (`touch`) are blocked with "may only create or modify files in the allowed working directories" — even though the target path is *inside* the stated allowed directory (`/home/loke/code/GrimsVerk/find_best_mobo/.claude/worktrees/corpus-and-checkpoint-1`, no symlinks involved; verified with `readlink -f`). Git mutations (`git hash-object -w`) also require approval that never arrives; only read-only commands run.
+- Diagnosis: this worktree lives under the parent repository's `.claude/` directory, which Claude Code treats as protected, so every file in the worktree is write-blocked; and `spawn-worker.sh` launched this worker as `claude -p` **without** `--bypass-sandbox`, so in headless mode every permission prompt auto-denies. `.claude/settings.json` allowlists only `spawn-worker.sh`, `codex exec`, `claude -p`, and `git worktree` — no file-modification tools.
+- I did not route around it: the only allowlisted escape hatches (`claude -p`, `codex exec`) would mean spawning another agent, which my brief explicitly forbids.
+
+**Remedy for the orchestrator:** relaunch this worker with `--bypass-sandbox` (the script's supported flag for exactly this), or allowlist `Edit`/`Write` for the worktree in settings.
+
+## Design notes worth carrying into the relaunch
+
+So the retry doesn't re-derive everything:
+
+- **The two open defaults:** `per_video_excerpt_cap = 10` (windows are ~7 minutes each; ten caps a single-board deep-dive at roughly an hour of excerpt while leaving multi-board videos untouched) and `bundle_token_cap = 24000` (a bundle stays a comfortable single-prompt read for a low-effort extraction agent at chars÷4, ~6 hefty merged excerpts).
+- **Flat-extraction caveat found while designing `ytdlp.py`:** yt-dlp's flat playlist entries carry **no `upload_date`** by default — without intervention every video would be excluded as out-of-range. The fix is the `youtubetab:approximate_date` extractor argument, which attaches an approximate date to flat entries; that approximation is worth a "known rough edges" note in `docs/architecture.md`. Also, yt-dlp ships no `py.typed`, so the import needs `# type: ignore[import-untyped]` under strict mypy.
+- **Spec ambiguity:** a pre-2023 Short matches both exclusion rules. I resolved it as short-wins (`classification="short"`, `inclusion="excluded_short"`, checked before the date test), since the slice text ties that classification/inclusion pair together unconditionally.
+- **Missing `upload_date` sentinel:** `Video.upload_date` is a non-optional `date`, so a missing date classifies as out-of-range and serialises as `0001-01-01` (`date.min`) — deterministic and obviously not a real upload date.
+- **CLI forward-compatibility:** later slices' commands take flags (`aliases --check`) and may not edit `cli.py`, so `main` must use `parse_known_args` (command + `--config` only) and pass leftover args through on the namespace for command modules to parse themselves.
+
+Nothing was committed — the branch is untouched and will read as empty to the collector, which is accurate: no work exists.
+Preparing worktree (new branch 'worker/corpus-and-checkpoint-1')
+HEAD is now at c743fc4 Add yt-dlp as the channel enumeration and caption dependency
+=== spawn-worker[corpus-and-checkpoint-1] engine=claude branch=worker/corpus-and-checkpoint-1 base=feat/corpus-and-checkpoint bypass=1 ===
+=== 2026-08-14T14:47:53Z ===
+Slice 1 is built, gated, and committed on `worker/corpus-and-checkpoint-1` (commit `d2e2a2b`).
+
+**What was built.** `uv run find-best-mobo index` now enumerates every upload on the Buildzoid channel and writes `data/index.jsonl`, one record per video with its classification and inclusion reason, then prints the summary (total found, out-of-range, excluded Shorts, kept). The pieces sit exactly where the contract puts them: `Config`/`load_config` in `config.py` (all fifteen levers, TOML-backed with in-code defaults), `Video`/`classify`/`enumerate_channel`/`write_index`/`read_index` in `index.py`, `main` in `cli.py` with import-dispatch to `commands/<name>.run`, and `list_channel_entries` in `ytdlp.py` as the sole yt-dlp surface — library import, one client per run, `youtubetab:approximate_date` set so flat entries carry dates at all. `config.toml`, the `data/` gitignore line, the console-script entry point, and a rewritten `docs/architecture.md` are in the same commit. All settled contract points are followed literally, including duration-before-date (a pre-2023 Short is `excluded_short`), excluded videos still written as records, and `run` working with an empty `Namespace`.
+
+**Verification.** `ruff check`, `ruff format --check`, and strict `mypy` all pass. I also ran an offline smoke check (hand-built entry dicts, no network, nothing under `tests/`): classification rules, the short-wins-over-date rule, missing-date and missing-duration handling, byte-identical output regardless of input order, the write/read round-trip, and clean exit code 2 on unknown subcommands all behave as specified. No tests were written, per the brief.
+
+**Ambiguities I had to settle**, all recorded in the commit body and where relevant in `docs/architecture.md`:
+- A missing `upload_date` yields `Video.upload_date = date.min` (`0001-01-01`) — the contract fixes the inclusion outcome but not the field value, and the field is a non-optional `date`. This is the seam most likely to disagree with the blind tests if they asserted a different sentinel.
+- `load_config` treats a missing *file* as all-defaults, extending "a missing key is never a crash" to the file.
+- Missing/null duration → 0 → classified as a Short, which follows literally from the brief's two rules combined; logged as a known rough edge.
+- `was_live` is true for `was_live` flag or `live_status` in `is_live`/`was_live`/`post_live`; never affects inclusion.
+- `start_date` is accepted by `list_channel_entries` but not used to filter, since out-of-range entries must reach the index to be recorded.
+
+**Not verifiable here:** the real network path (bare-channel-URL tab layout, the approximate-date behavior) — the brief forbids network during checks, so that's confirmed against yt-dlp's documented behavior, not a live run.
