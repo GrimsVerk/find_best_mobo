@@ -127,7 +127,13 @@ specific fact I would need to confirm myself before buying.
   window is asymmetric and starts deliberately wide: 2 minutes before the
   mention and 5 minutes after, because a verdict follows the analysis rather
   than preceding it. Window size is configuration, and narrowing it re-runs the
-  corpus stage from cache without refetching anything.
+  corpus stage from cache without refetching anything. Merging is transitive
+  **clustering** (owner's 2026-08-19 ruling, `docs/DECISIONS.md`): windows that
+  overlap join one cluster, a video's excerpts are its clusters, and each
+  transcript character appears in at most one cluster (R1000's re-cut). A
+  mention-dense video coalesces toward one big cluster; a long stream that
+  mentions the board only at the start and the end yields two small clusters
+  and stays cheap.
 - **R6** — Group excerpts into work bundles capped by projected token load, and
   assign bundles to recency-ordered batches: a small calibration batch first,
   then larger batches.
@@ -203,6 +209,16 @@ specific fact I would need to confirm myself before buying.
   full-review instruction instead; below that ratio, the excerpts are sent.
   Overlapping windows on a board-heavy video otherwise cost several times what
   excerpting was meant to save, while delivering nearly the whole text anyway.
+  The ratio is computed from the re-cut cluster characters (R5, R1000). **The
+  whole-transcript path is not capped** — this supersedes R1001
+  (`docs/DESIGN.oracle.md`, OD-5), by the owner's 2026-08-19 ruling in
+  `docs/DECISIONS.md`: a video at or above the ratio is information-dense by
+  measurement, and paying for all of it is V4's choice. The lumpy-spend
+  concern R1001 answered is handled where it arises — sparse long streams
+  cluster small and never reach the ratio. A transcript larger than one
+  bundle's token cap is delivered across sequential bundles rather than
+  falling back to excerpts; the mechanics are the implementing plan's to
+  specify.
 
 **Non-functional**
 
