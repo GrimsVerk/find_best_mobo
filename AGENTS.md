@@ -123,16 +123,25 @@ adding more than ~50 lines fails the `plan` check — and the reviewer is told t
 scrutinise exempt branches harder rather than to relax, because an unplanned
 change is less checked than a planned one, not more trusted.
 
-**The planning documents themselves are exempt from that cap**, and only they: a
-branch whose entire diff sits inside `docs/plans/`, `docs/DESIGN.md`,
-`docs/DESIGN.oracle.md` or `docs/oracle/` passes at any size. A completed design doc runs to hundreds of lines and the plan template
-is over a hundred before anything is filled in, so the cap made the two
-documents this process demands the two documents it could not accept — and no
-plan can cover them anyway, since a plan branch cannot resolve to a plan that
-does not exist yet. Writing a plan is not skipping planning; it is the planning,
-and `CODEOWNERS` still puts it behind the owner's review. Touch one file outside
-those paths and the cap is back: split the branch rather than widening the
-exemption.
+**The documents this process itself demands are exempt from that cap**, and
+only they: a branch whose entire diff sits inside `docs/plans/`,
+`docs/DESIGN.md`, `docs/DESIGN.oracle.md`, `docs/oracle/`, `docs/VISION.md`,
+`docs/acceptance.md`, `docs/architecture.md`, `docs/runs/` or `docs/BACKLOG.md`
+passes at any size. This list is exactly the one
+`.github/scripts/plan-resolve.sh` enforces — the prose and the script must name
+the same paths, because the review gate judges by this text while the `plan`
+check judges by that script, and a path present in one and absent from the
+other is a branch one gate passes and the other blocks. Each entry earned its
+place the same way: a document the process requires, necessarily long, that no
+plan can ever cover — a completed design doc runs to hundreds of lines, the
+plan template is over a hundred before anything is filled in, a real run's
+evidence under `docs/runs/` always exceeds a cap meant for typo fixes, and the
+`BL-<n>` filings the Planning rule requires must be able to travel with the
+plan that raised them. Writing a plan is not skipping planning; it is the
+planning, and `CODEOWNERS` still puts the owned paths behind the owner's
+review, while `docs/DESIGN.oracle.md` and `docs/BACKLOG.md` are constrained by
+their own append-only checks instead. Touch one file outside those paths and
+the cap is back: split the branch rather than widening the exemption.
 
 **Commits.** One conceptually contained commit per unit of work, pushed
 when complete, with an imperative one-line message. The test suite must
