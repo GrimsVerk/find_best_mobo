@@ -208,3 +208,19 @@ _why that class, and `— filed by: plan`.)_
   plan's slice boundaries and an external routing behaviour, and building the
   capped path as merged would implement a decision the owner has reversed.
   — filed by: owner (recorded from chat by the postmortem session)
+- **BL-15** — Must OD-6/R1002's caption-split matching also recover a split that
+  straddles two cues — `toma` ending one cue and `hawk` starting the next?
+  `find_mentions` normalizes and scans one cue at a time, so a token-join rule
+  stated over "the text being matched" leaves cue-spanning splits invisible, and
+  R1002 does not say whether that population is in scope. Proposed default: no
+  cross-cue joining — R1002's rule reads as tokens inside the text handed to the
+  matcher, all three of BL-8's named failures sit inside one cue, and a
+  cue-spanning match has no answer to which cue's start time the resulting
+  `Mention` carries. **HIGH**: the other answer changes `find_mentions`'s shape
+  and with it the plan's Signatures block and a slice boundary — it would have to
+  scan the cues joined into one string and map every match offset back to a cue
+  start, and R22's one-transcript-at-a-time property would need restating over
+  that joined text. The first OD-6 plan (PR #85, preserved at
+  `docs/oracle/od-6-plan-draft.md`) was blocked by the review gate for ruling on
+  exactly this question itself; the re-cut plan is pending this ruling.
+  — filed by: steward
