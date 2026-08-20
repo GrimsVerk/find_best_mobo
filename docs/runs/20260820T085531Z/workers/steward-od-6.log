@@ -1,0 +1,35 @@
+Preparing worktree (new branch 'worker/steward-od-6')
+HEAD is now at 07162d3 Oracle: rulings and handoff (#101)
+=== spawn-worker[steward-od-6] engine=claude branch=worker/steward-od-6 base=run/local (07162d33610dd4f420e7ee82816b4fca5a54e5b1) bypass=0 ===
+=== 2026-08-20T09:03:59Z ===
+Permission allow rule (--allowed-tools): Write(docs/plans/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/plans/oracle/**) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/BACKLOG.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/BACKLOG.md) instead (Edit rules cover all file-editing tools).
+**Plan pending oracle ruling on BL-16.** No plan was written.
+
+## What I was asked to do
+
+Turn **OD-6** — "an alias split across caption tokens still matches" (R1002, from BL-8) — into a plan under `docs/plans/oracle/`.
+
+## Why it stopped
+
+OD-6 fixes *how* an alias matches: the alias's text must line up with whole word boundaries, so `toma hawk` finds the MSI MAG Tomahawk while `b650` still never gets found buried inside `theb650`. What it never says is *what stretch of text* that rule is applied to.
+
+That matters because the transcript arrives as a sequence of caption cues, and the matcher reads them one at a time. If the captions happen to break between `toma` and `hawk`, the board stays invisible no matter what the new rule does. BL-8's three measured failures were all inside a single cue, so the evidence doesn't answer it either.
+
+The two answers lead to different plans. "No" is a small, contained change to the matcher. "Yes" means rebuilding how mentions are found — and it immediately raises a second question OD-6 doesn't answer: which timestamp does a mention that straddles two cues get? That timestamp is what every excerpt window is cut from and what every link in the final report points at, so guessing it wrong is expensive.
+
+That makes it HIGH-risk under the planning rule, which means I may not rule on it. So I filed it as **BL-16** in `docs/BACKLOG.md`, with my proposed default (no cross-cue joining), committed that alone, and stopped. The driver should now run the oracle on BL-16 and re-dispatch me.
+
+This is the same question that killed the first attempt at this plan — PR #85 was blocked for answering it itself, back when filing it was mechanically impossible. The preserved draft at `docs/oracle/od-6-plan-draft.md` says to file it first; that is what I did.
+
+## What else I found, for the record
+
+- **Nothing else in OD-6 needed a ruling.** The remaining open points from the old draft — reconstructing BL-8's lost 52-variant test set, which path the alias table lives at, one extra table entry — are all low-risk and will ride with the plan when it is written.
+- **No existing plan is made wrong by OD-6.** It supersedes no requirement; it adds behaviour inside functions `corpus-and-checkpoint` already delivered, and that plan's interface contract still holds. Two other pending decisions touch the same matcher (OD-7's ITX rule) and move the same table file (OD-11) — whichever lands second pays the rebase.
+- **Verification note:** the change is one markdown file, additions only. I could not run the test suite in this session (the sandbox declined it), but nothing outside `docs/` was touched, and the pre-commit hooks that did run passed.
+Preparing worktree (new branch 'worker/steward-od-6')
+HEAD is now at 6858653 Oracle: rulings and handoff (#103)
+=== spawn-worker[steward-od-6] engine=claude branch=worker/steward-od-6 base=run/local (68586537674ad3581ceb7c353343f3547455acb6) bypass=0 ===
+=== 2026-08-20T09:18:36Z ===
+Permission allow rule (--allowed-tools): Write(docs/plans/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/plans/oracle/**) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/BACKLOG.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/BACKLOG.md) instead (Edit rules cover all file-editing tools).

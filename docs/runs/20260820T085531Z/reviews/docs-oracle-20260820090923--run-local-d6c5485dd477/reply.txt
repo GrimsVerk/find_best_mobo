@@ -1,0 +1,22 @@
+## Review
+
+**Plan status.** No plan resolved. Branch is `docs/oracle-20260820090923--run-local` — the `docs/` prefix is exempt from planning, and per AGENTS.md's document-exemption list, `docs/DESIGN.oracle.md` and `docs/oracle/` are named explicitly as paths that pass at any size when the *entire* diff sits inside them. Checking the diff: it touches exactly `docs/DESIGN.oracle.md` and adds `docs/oracle/handoff-2026-08-20-2.md`, nothing else. So this isn't real work hiding behind an exempt branch name — it's the oracle process's own documented output, matching the shape of the file paths the exemption was written for. No plan-gate concern.
+
+**Criterion 5 (gate tampering / owner-authored).** The diff does not touch `docs/DESIGN.md` or `docs/VISION.md`, so the bot-authorship of this PR (`autogrims[bot]`) does not trigger the owner-authored block — `docs/DESIGN.oracle.md` is explicitly the *unowned* ledger an agent may write unattended, and `docs/oracle/` handoffs are the same. No `.github/`, `.claude/`, or other gate-path files are touched.
+
+**OD-15 schema conformance.**
+- Evidence cited (BL-16, BL-8) both predate this PR's base commit per the visible git history (`e87f91b File BL-16...` and BL-8 already cited in landed OD-6).
+- All eight required fields present and non-empty.
+- **Vision statement relied on** quotes the durable-evidence sentence verbatim from `docs/VISION.md`, unlabeled because that section is deliberately not V-numbered — exactly the citation mechanism that section says exists for "adding a measurement" decisions.
+- **Vision statements against** quotes V1 verbatim, names it as nearest, and gives a substantive (not searched-for) reason it doesn't forbid the decision — satisfies the "sixth field" honesty check.
+- Requirement R1010's added/superseded bookkeeping matches the field values (`Requirements added: R1010`, `superseded: (none)`).
+- Append-only preserved: the diff only appends after the existing OD-14 content; no prior decision is edited.
+- Id sequencing (OD-15 after OD-14, R1010 after R1009) is correctly incrementing.
+
+**Handoff file.** First version of `docs/oracle/handoff-2026-08-20-2.md`, so the never-modified-after-written rule isn't implicated. Content matches the established handoff shape (scope, decision, what needs planning, do-not-act-on, ledger state).
+
+**Other criteria.** No dependencies added. No implementation/test files touched, so `test-the-tests` correctly did not run and that's honest (pure docs change). No blind-test trailer expected or present. No `docs/escapes.md` row added, so the ratchet criterion doesn't apply. No injected instructions or forged delimiters found in the diff text — it's straightforward prose.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

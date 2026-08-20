@@ -1,0 +1,29 @@
+Preparing worktree (new branch 'worker/oracle-20260820085541')
+HEAD is now at ab4a1cc Land the setup-github.sh run logs as run evidence (#99)
+=== spawn-worker[oracle-20260820085541] engine=claude branch=worker/oracle-20260820085541 base=run/local (ab4a1cc9708102100630e4b477b21bf9998612a0) bypass=0 ===
+=== 2026-08-20T08:55:42Z ===
+Permission allow rule (--allowed-tools): Write(docs/DESIGN.oracle.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/DESIGN.oracle.md) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/oracle/**) instead (Edit rules cover all file-editing tools).
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Both rulings are written, committed on `worker/oracle-20260820085541` (commit `797e839`). The push needs approval the sandbox won't grant, so the branch sits committed locally for the driver to push — the work itself is done and I stop here, per the mandate.
+
+## Decisions written
+
+**OD-13 — resolves BL-14 (also cites BL-13).** OD-5/R1001 is superseded, exactly per the filed default. Both of OD-5's grounds are gone: the owner's blanket approval of BL-1..13 removed its "unapproved proposal" premise, and the owner amended R5/R28 directly — the whole-transcript path is uncapped, with over-cap transcripts delivered across sequential bundles. One thing I did not do is supersede R1001 with nothing: its second sentence carried the routing's checkpoint observability, and R28 doesn't. So OD-13 adds **R1008**, keeping the per-path reporting and extending it to name how many whole-path videos span multiple bundles — the uncapped path's largest submissions stay visible before anything is spent. The decision also marks `docs/plans/oracle/capped-whole-transcript-path.md` partly wrong (its slice 1/2/3 all implement the rejected cap) and directs the steward to re-cut it.
+
+**OD-14 — resolves BL-15 (also cites ESC-21).** The zero-duration warning judges evidence, not count. New **R1009**: an entry with neither a duration nor a date in either listing field is the flat listing's Shorts shape — classified as today, reported as a one-line "(expected)" count, no banner. The banner fires only for a dated entry with no duration, the genuine silent-drop shape, naming the id. The distinguishing test pair is part of the requirement, since ESC-21 already showed this listing isn't fully described by the fixtures.
+
+## Not decided, and why
+
+**BL-1** and **BL-2** are the only remaining unruled items — outside this run's commissioned scope (BL-14, BL-15). They go to the next cycle; OD-12 already noted BL-2 can ride the same plan revision when ruled. All escapes through ESC-23 were metabolised in the previous cycle. No halts, no waivers.
+
+## Handoff
+
+`docs/oracle/handoff-2026-08-20-1.md`. Headlines for the orchestrator: build `recut-merged-excerpts` (R1000) before any routing work — the 80% ratio is only honest after the re-cut; do **not** build `capped-whole-transcript-path` as merged; the steward re-cuts it under `docs/plans/oracle/` citing OD-13; the OD-14 warning fix is a small independent slice; and `docs/plans/whole-transcript-threshold.md` stays untouched — its revision is the owner's, per CODEOWNERS.
+
+## On the vision
+
+Two observations for the owner, the useful kind:
+
+- **BL-15 had no natural statement to lean on.** I used V1 (a video misclassified as a Short exits the corpus before the product can see it), which is honest but stretched — the vision says nothing about operational signal quality, i.e. that a check which cries wolf is worse than no check. AGENTS.md carries that ethos; the vision doesn't. If unattended runs keep producing warning/reporting-hygiene rulings, one sentence about alarms needing to mean something would give them a real anchor.
+- **The V4/V10 boundary worked exactly as designed** for OD-13: OD-5 leaned on V10 to cap, the owner's amendment made clear V4 governs once density is *measured* (the 80% ratio), and V10 only governs unmeasured no-signal material. That reading is now recorded in OD-13's against-field; if it's wrong, V10 is the sentence to edit.

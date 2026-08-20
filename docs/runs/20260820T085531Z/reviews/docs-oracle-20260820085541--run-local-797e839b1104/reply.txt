@@ -1,0 +1,18 @@
+Reviewed the diff: two oracle decisions (OD-13, OD-14) appended to `docs/DESIGN.oracle.md`, plus a new handoff file `docs/oracle/handoff-2026-08-20-1.md`.
+
+**Scope and gates**
+- Branch `docs/oracle-20260820085541--run-local` is `docs/`-prefixed. The entire diff sits inside `docs/DESIGN.oracle.md` and `docs/oracle/`, both explicitly named in AGENTS.md's uncapped-exemption list, so no plan is required and the (moot) size cap doesn't apply either — this is not a case of a real change hiding behind an exempt prefix.
+- Opened by `autogrims[bot]`, but the diff touches neither `docs/DESIGN.md` nor `docs/VISION.md`, so the owner-authorship requirement (criterion 5) is not triggered. `docs/DESIGN.oracle.md` and `docs/oracle/` are explicitly agent-writable by design.
+- No gate paths touched (`.github/`, `.claude/`, CODEOWNERS, pre-commit, AGENTS.md, DESIGN.md, VISION.md, plans/). Append-only structure of `docs/DESIGN.oracle.md` is preserved — the diff only adds lines after the existing OD-12 content, nothing earlier is edited.
+- No new files under `docs/oracle/` are modified after being written (this is a new file). New requirement ids R1008, R1009 continue the sequence correctly above R1007. `Requirements superseded: R1001` correctly targets a requirement id (not a decision id), matching the schema.
+
+**Content check**
+- Both decisions carry all 8 required schema fields, non-empty.
+- Vision quotes verified verbatim against `docs/VISION.md`: OD-13's V4 and V10 quotes match exactly; OD-14's V1 and V12 quotes match exactly (following the same "quote the sentence after the bold lead-in" convention already used in OD-3/OD-9).
+- OD-13 resolves a genuine, previously-flagged incoherence: `docs/DESIGN.md`'s R28 already states in the base-commit text "supersedes R1001," but the oracle ledger itself (the only place that may retire an oracle-added requirement) had not yet recorded that supersession. This decision closes that gap rather than inventing new scope, and correctly defers the actual plan rework to the steward via the handoff rather than editing `docs/plans/` itself.
+- OD-14's rationale (8 Shorts-shape false positives on the first real run, from BL-15/ESC-21) is consistent with the prior commits shown in git log (`f2cf072 File BL-15...`), and R1009's text pins concrete, testable behavior (dateless+durationless vs. dated+durationless) rather than leaving mechanism vague.
+- No prompt-injection attempts or forged section delimiters found in the diff.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS
