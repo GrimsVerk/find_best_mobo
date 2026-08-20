@@ -51,6 +51,14 @@
 #   5  iteration limit, or the livelock guard
 #   6  allowance spent: the weekly percentage-point allowance, or a limit the
 #      owner set (--max-prs, --max-hours)
+#   7  UNDOCUMENTED STOP: the run ended without reaching any of the stops above
+#      — killed by a signal, its shell torn down, or a fall-through nobody
+#      foresaw. The report names the last thing that happened, including a
+#      worker whose engine died. This code exists because the alternative is
+#      the failure it guards against: a run that dies mid-dispatch and reports
+#      exit code 0, the success code, with no reason given (anvil local F20).
+#      Success is a thing the driver has to EARN by reaching a stop that says
+#      its own name; it is never what is left over.
 #
 # THE CEILING IS ASKED FOR, EVERY RUN. Nothing below has a default, because a
 # limit the owner did not choose is a limit they will not recognise when it
@@ -281,7 +289,7 @@ print_command() {
 if [[ -n "$PRINT_PHASE" ]]; then print_command "$PRINT_PHASE"; exit 0; fi
 
 log() { echo "deliver-loop: $*"; echo "- $(date -u +%H:%M:%SZ) $*" >> "$STATE_DIR/run.md"; }
-die() { echo "deliver-loop: $*" >&2; exit 2; }
+die() { STOP_REASON="refused before dispatching anything: $*"; echo "deliver-loop: $*" >&2; exit 2; }
 
 # ---------------------------------------------------------------- preflight
 [[ -x "$SPAWN" && -x "$PHASE_SH" ]] || die "missing $SPAWN or $PHASE_SH"
@@ -315,7 +323,13 @@ CURRENT_BRANCH="$(git branch --show-current)"
 # there to record.
 if [[ "$LAND_ONLY" -eq 0 ]] \
    && [[ -d .worktrees ]] && [[ -n "$(ls -A .worktrees 2>/dev/null)" ]]; then
-  die "leftover worktrees under .worktrees/ — a previous run did not finish assembling; inspect and remove them first"
+  die "leftover worktrees under .worktrees/ ($(ls -A .worktrees 2>/dev/null | tr '\n' ' ')) — a previous run did not finish assembling.
+
+READ THEM BEFORE REMOVING THEM: a leftover worktree can hold a worker's
+finished but unpushed commits (git -C .worktrees/<name> log --oneline).
+Then 'git worktree remove <path>' each, or 'git worktree prune'.
+The readiness check reports these too, so a run refused here should have
+been refused a step earlier (ESC-76)."
 fi
 
 # ------------------------------------------------- readiness, said out loud
@@ -498,6 +512,29 @@ fi
 # Everything here is best-effort and nothing here changes the run's exit code. A
 # recorder that fails a run because it could not record has inverted its job.
 LANDED=0
+
+# WHY THIS RUN ENDED — carried to the report, and empty until something says it
+# (ESC-75). Every deliberate stop goes through stop(), so a report that has no
+# reason to print is a report whose run did NOT reach a stop of its own: killed,
+# torn down, or fallen through. That case used to print "exit code 0" — the
+# success code — with nothing else, and an owner reading it in the morning had
+# no reason to look further. Success is earned by reaching a named stop; it is
+# never what is left over.
+STOP_REASON=""
+LAST_WORKER_FAILURE=""
+stop() { # stop <exit-code> <one-line reason> — the only deliberate way out
+  STOP_REASON="$2"
+  exit "$1"
+}
+# A signal is not a stop this run chose, so it is recorded as what it is. Bash
+# runs these while it waits on a worker, which is exactly when a session
+# teardown lands.
+for _sig in TERM INT HUP; do
+  # shellcheck disable=SC2064  # $_sig must expand now, not at trap time
+  trap "STOP_REASON='killed by SIG$_sig — something outside this run ended it (a session teardown, a wrapper timeout, an owner Ctrl-C); the lines above are where it was, not a verdict'; exit 7" "$_sig"
+done
+unset _sig
+
 land_evidence() {
   local rc=$?
   [[ "$LANDED" -eq 1 ]] && return "$rc"
@@ -521,8 +558,30 @@ land_evidence() {
       echo "the run stopped without its exit landing firing, so its stop and"
       echo "its exit code were never recorded. The last lines above are the"
       echo "closest thing to a cause of death this report can offer."
+    elif [[ -n "$STOP_REASON" ]]; then
+      echo "Stopped $(date -u +%Y-%m-%dT%H:%M:%SZ) with exit code $rc: $STOP_REASON"
+      echo
+      echo "See .claude/scripts/deliver-loop.sh's header for what each exit code"
+      echo "means. Every stop says why; none degrades silently."
     else
-      echo "Stopped $(date -u +%Y-%m-%dT%H:%M:%SZ) with exit code $rc."
+      # NO REASON MEANS NO STOP WAS REACHED (ESC-75). Do not inherit the shell's
+      # status here: a run killed mid-dispatch hands back 0, and printing that
+      # would make a death look like a delivery. Exit code 7 says "ended without
+      # reaching any documented stop" and the report says what the last thing to
+      # happen was, which is the most this artifact honestly knows.
+      [[ "$rc" -eq 0 ]] && rc=7
+      FINAL_RC="$rc"
+      echo "Stopped $(date -u +%Y-%m-%dT%H:%M:%SZ) with exit code $rc — WITHOUT"
+      echo "REACHING A DOCUMENTED STOP. No rule, limit or failure ended this run:"
+      echo "it was killed, torn down, or fell through. Treat it as a failed run."
+      echo
+      if [[ -n "$LAST_WORKER_FAILURE" ]]; then
+        echo "The last thing that went wrong: $LAST_WORKER_FAILURE"
+        echo "Its log is under .claude/orchestration-logs/."
+      else
+        echo "Nothing here reported a failure first. The last lines above are the"
+        echo "closest thing to a cause of death this report can offer."
+      fi
       echo
       echo "See .claude/scripts/deliver-loop.sh's header for what each exit code"
       echo "means. Every stop says why; none degrades silently."
@@ -598,7 +657,11 @@ land_evidence() {
   git switch -q "$RUN_BASE" 2>/dev/null || true
   return "$rc"
 }
-trap land_evidence EXIT
+# `exit` inside the EXIT trap is what lets the recorder correct a status that
+# lies (ESC-75); FINAL_RC is set only when it does, so every other stop keeps
+# its own code untouched.
+FINAL_RC=""
+trap 'land_evidence; exit "${FINAL_RC:-$?}"' EXIT
 
 # Landing is the EXIT trap's job, so a land-only invocation is done the moment
 # the trap is armed. Exiting here also keeps the budget interview, the steering
@@ -644,6 +707,26 @@ if BUDGET_LINE="$(.claude/scripts/budget-probe.sh 2>/dev/null)"; then
   BUDGET_START_MODEL="$(read_field week_model)"
   BUDGET_RESET="$(read_reset)"
 fi
+
+# THE RESET BOUNDARY IS AN INSTANT, NOT A STRING (ESC-74). The gauge renders it
+# for a person and rounds to the minute, so the SAME instant reads "10:59am"
+# one moment and "11am" the next. Comparing the rendered text made that
+# rounding look like a weekly rollover — and the response to a rollover is to
+# re-baseline the allowance, i.e. to zero the accounting that --budget-points
+# exists to enforce. Any run crossing a minute boundary near the reset could
+# have its ceiling silently re-armed. So parse both sides to epoch seconds and
+# call it a rollover only when the boundary actually MOVED: a real weekly reset
+# jumps seven days, anything under an hour is the gauge rounding.
+reset_instant() { # reset_instant <rendered reset> -> epoch seconds, or nothing
+  local s="$1" tz=""
+  [[ -n "$s" && "$s" != "unknown" ]] || return 0
+  # "Aug 27, 11am (Europe/Amsterdam)" — the zone rides in parentheses and
+  # `date` cannot read it there, so it is lifted out and passed as TZ.
+  [[ "$s" =~ \(([A-Za-z_]+/[A-Za-z_]+)\) ]] && tz="${BASH_REMATCH[1]}"
+  s="${s%%(*}"; s="${s//,/ }"
+  if [[ -n "$tz" ]]; then TZ="$tz" date -d "$s" +%s 2>/dev/null || true
+  else date -d "$s" +%s 2>/dev/null || true; fi
+}
 
 ask() { # ask <prompt> — one line from the owner, or empty when not a terminal
   local reply=""
@@ -799,11 +882,22 @@ run_worker() { # run_worker <id> <role> <prompt> <docs-ref> <pr-title>
   local id="$1" role="$2" prompt="$3" ref="$4" title="$5"
   log "dispatch $role worker ($id)"
   local out_file="$STATE_DIR/worker-$id.out"
-  if ! timeout "$SESSION_TIMEOUT" "$SPAWN" --id "$id" --role "$role" \
+  local wrc=0
+  timeout "$SESSION_TIMEOUT" "$SPAWN" --id "$id" --role "$role" \
        --engine "$ENGINE" --base "$RUN_BASE" --prompt "$prompt" \
-       > "$out_file" 2>&1; then
+       > "$out_file" 2>&1 || wrc=$?
+  if [[ "$wrc" -ne 0 ]]; then
     cat "$out_file" >> "$STATE_DIR/run.md"; rm -f "$out_file"
-    log "$role worker failed — see .claude/orchestration-logs/$id.log"
+    # NAME THE CAUSE (ESC-75). A worker whose engine died and a worker that ran
+    # out of time are different problems with different answers, and if this run
+    # is killed before it can stop on its own this sentence is the only account
+    # of it the report will carry.
+    if [[ "$wrc" -eq 124 ]]; then
+      LAST_WORKER_FAILURE="the $role worker ($id) hit the ${SESSION_TIMEOUT} session timeout and was killed"
+    else
+      LAST_WORKER_FAILURE="the $role worker ($id) failed with exit code $wrc — its engine did not finish"
+    fi
+    log "$LAST_WORKER_FAILURE — see .claude/orchestration-logs/$id.log"
     return 1
   fi
   cat "$out_file" >> "$STATE_DIR/run.md"
@@ -847,7 +941,7 @@ note_dispatch_outcome() { # note_dispatch_outcome <rc-from-run_worker> [scope id
     log "workers ran and the lane did not move, so nothing here will change on its"
     log "own — every further iteration would spend a model worker to learn the same"
     log "thing. Evidence is being landed; read it before restarting."
-    exit 5
+    stop 5 "$NO_PROGRESS dispatches in a row produced no pull request — the livelock guard"
   fi
   log "that dispatch produced no pull request ($NO_PROGRESS in a row) — recording its scope as processed and re-detecting"
   return 0
@@ -907,7 +1001,7 @@ wait_on_pr() { # wait_on_pr <number> <headref>
       sleep 600; return 0
     fi
     log "PR #$pr is green and only the owner can merge it — stopping to report"
-    exit 4
+    stop 4 "PR #$pr is green and only the owner can merge it"
   fi
   # Red. Same signature three times is a pattern, not a blip.
   local failing sig count
@@ -917,7 +1011,7 @@ wait_on_pr() { # wait_on_pr <number> <headref>
   echo "$sig" >> "$SIG_FILE"
   if [[ "$count" -ge 2 ]]; then
     log "the same checks failed three times on $headref (${failing:-unknown}) — stopping (deliver.md step 5)"
-    exit 3
+    stop 3 "the same checks failed three times on $headref (${failing:-unknown})"
   fi
   log "PR #$pr red (${failing:-unknown}) — dispatching a fix"
   run_session "fix" "PR #$pr on branch $headref has failing required checks: ${failing:-see gh pr checks $pr}. Diagnose from the check output, fix ON THE EXISTING BRANCH ($headref), and push — the open pull request updates; never open a second one. Reproduce the failure locally before pushing. Never weaken a test or a gate to get green." \
@@ -930,7 +1024,7 @@ while :; do
   ITER=$((ITER + 1))
   if [[ "$MAX_ITER" -gt 0 && "$ITER" -gt "$MAX_ITER" ]]; then
     log "iteration limit ($MAX_ITER) reached"
-    exit 5
+    stop 5 "iteration limit ($MAX_ITER) reached"
   fi
   if [[ "$ITER" -gt "$HARD_MAX_ITER" ]]; then
     # Not an allowance. Reaching this means the loop kept choosing a phase and
@@ -939,7 +1033,7 @@ while :; do
     log "STOPPED after $HARD_MAX_ITER iterations without finishing. This is not a"
     log "budget stop: the loop kept picking work and never converged. Read the"
     log "phase lines above — the same phase repeating is the diagnosis."
-    exit 5
+    stop 5 "$HARD_MAX_ITER iterations without finishing — a livelock, not a spent budget"
   fi
 
   if [[ "${DELIVER_SKIP_PULL:-0}" != "1" ]] && git remote get-url origin >/dev/null 2>&1; then
@@ -960,16 +1054,31 @@ while :; do
   # per the ruling that the rate limit is the only stop by default.
   ELAPSED_H=$(( ($(date +%s) - START_EPOCH) / 3600 ))
   if [[ "$MAX_HOURS" -gt 0 && "$ELAPSED_H" -ge "$MAX_HOURS" ]]; then
-    log "wall-clock limit (${MAX_HOURS}h) reached"; exit 6
+    log "wall-clock limit (${MAX_HOURS}h) reached"; stop 6 "wall-clock limit (${MAX_HOURS}h) reached"
   fi
   if [[ "$MAX_PRS" -gt 0 && "$PR_COUNT" -ge "$MAX_PRS" ]]; then
-    log "pull-request limit (${MAX_PRS}) reached"; exit 6
+    log "pull-request limit (${MAX_PRS}) reached"; stop 6 "pull-request limit (${MAX_PRS}) reached"
   fi
   if [[ -n "$BUDGET_START" ]] && out="$(.claude/scripts/budget-probe.sh 2>/dev/null)"; then
     f() { sed -n "s/.*\\b$1=\\([^ ]*\\).*/\\1/p" <<<"$out" | head -1; }
     # Same end-of-line capture as the start-of-run parse (mobo F13).
     now_reset="$(sed -n "s/.*\\breset=\\(.*\\)$/\\1/p" <<<"$out" | head -1)"
+    # Did the window actually roll over, or did the rendering just round
+    # (ESC-74)? Instants where both sides parse; where they do not, the only
+    # other evidence a rollover leaves — the weekly reading going DOWN.
+    ROLLED=0
     if [[ -n "$BUDGET_RESET" && "$BUDGET_RESET" != "unknown" && "$now_reset" != "$BUDGET_RESET" ]]; then
+      old_i="$(reset_instant "$BUDGET_RESET")"; new_i="$(reset_instant "$now_reset")"
+      if [[ -n "$old_i" && -n "$new_i" ]]; then
+        (( new_i - old_i > 3600 || old_i - new_i > 3600 )) && ROLLED=1
+      elif awk -v a="$(f week)" -v b="$BUDGET_START" 'BEGIN{exit !(a < b)}'; then
+        ROLLED=1
+      fi
+      # Not a rollover: adopt the new rendering so the same rounding is not
+      # re-examined every iteration.
+      if [[ "$ROLLED" -eq 0 ]]; then BUDGET_RESET="$now_reset"; fi
+    fi
+    if [[ "$ROLLED" -eq 1 ]]; then
       # The weekly window rolled over mid-run. Every delta against the old
       # baseline is now meaningless — and negative — so re-baseline rather than
       # measure nonsense, and say so, because the allowance silently restarting
@@ -987,7 +1096,7 @@ while :; do
       which="$(awk -v x="$spent_all" -v y="$spent_mod" 'BEGIN{print (x>y?"weekly":"per-model weekly")}')"
       if awk -v s="$spent" -v cap="$BUDGET_POINTS" 'BEGIN{exit !(s >= cap)}'; then
         log "allowance spent: ${spent} of ${BUDGET_POINTS} points on the ${which} limit"
-        exit 6
+        stop 6 "allowance spent: ${spent} of ${BUDGET_POINTS} points on the ${which} limit"
       fi
       # SAY IT EVERY ITERATION (ESC-67). The reading was taken every time
       # already, but only ever logged at the start and at the stop — so a run
@@ -1026,7 +1135,7 @@ while :; do
   case "$PHASE" in
     SETUP)
       log "setup problem: $REASON — /design is interactive and owner-landed; the loop cannot do it"
-      exit 2 ;;
+      stop 2 "setup problem: $REASON — /design is interactive and owner-landed" ;;
     WAIT)
       wait_on_pr "$PR" "$HEADREF" ;;
     ORACLE)
@@ -1111,7 +1220,7 @@ owner."; then
       if [[ -f "$STATE_DIR/acceptance-dispatched" ]]; then
         log "acceptance recorded and nothing is open — the run is complete"
         log "report: $RUN_DIR/run.md (landed at the stop); the honest bottom line is the pending-on-owner list in docs/acceptance.md"
-        exit 0
+        stop 0 "the acceptance pass is recorded and nothing is open — the run is complete"
       fi
       ACC_BEFORE="$(git rev-parse -q --verify "HEAD:docs/acceptance.md" 2>/dev/null || echo none)"
       ACC_REF="docs/acceptance-$RUN_ID$LANE"
@@ -1132,7 +1241,7 @@ owner."; then
           ACCEPT_EMPTY=$((${ACCEPT_EMPTY:-0} + 1))
           if [[ "${ACCEPT_EMPTY}" -ge 2 ]]; then
             log "the acceptance pass produced nothing twice — stopping rather than reporting a complete run"
-            exit 3
+            stop 3 "the acceptance pass produced nothing twice"
           fi
         fi
       else
@@ -1140,7 +1249,7 @@ owner."; then
         ACCEPT_FAILS=$((${ACCEPT_FAILS:-0} + 1))
         if [[ "${ACCEPT_FAILS}" -ge 2 ]]; then
           log "the acceptance pass failed twice — stopping rather than reporting a complete run"
-          exit 3
+          stop 3 "the acceptance pass failed twice"
         fi
       fi
       PR_COUNT=$((PR_COUNT + 1)) ;;
