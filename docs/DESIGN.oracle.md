@@ -650,3 +650,66 @@ sides — `main(["aliases", "--help"])` exits 0 and the output names `--check`,
 and slice 2's package-walking guard test extends the property to every future
 stage, so the behaviour this ruling changes is observed by the suite on every
 pull request. No new collection mechanism is needed.
+
+## OD-19 — `whole-transcript-threshold` slice 1 is superseded work no agent may build; closing the plan is the owner's edit
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-20, BL-14
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** (none — no statement in docs/VISION.md tells against this; which plan a driver dispatches, and how a plan document is closed, is process below the vision's altitude — the routing behaviour itself was decided by the owner's amended R5/R28, R1000 and R1008, not here)
+- **Alternatives considered:** (1) Have an agent close the plan — mark it `status: merged`, delete it, or cut slice 1 — rejected: `docs/plans/` is `CODEOWNERS`-held and this plan is the owner's, so every closing edit is theirs, which is BL-20's own finding ("nothing an agent may write does"). (2) Leave the prohibition where it lives today, in the run handoffs — rejected: a handoff instructs one run's orchestrator, while `deliver-phase.sh` selects plans from frontmatter and merged `feat/` branches and reads no handoff, so the prohibition expires exactly when the queue ahead of the plan drains and the dispatch happens — BL-20's scenario. (3) Record the prohibition in this ledger — chosen: plans derive from the design layer (`docs/DESIGN.md` and this file read together, `AGENTS.md` "Mid-run authority") and the review gate reads both at every pull request's base commit, so a statement here is durable and stands in front of every future pull request, which is the strongest mitigation an oracle-writable path affords. A halt was not on the table: no tenet is at stake, and a decision exists.
+- **Rationale:** BL-20 is verified against the tree. The plan's `status:` is `draft`; `deliver-phase.sh` skips a plan only on `status: merged` or a merged `feat/<slug>` branch; no `feat/whole-transcript-threshold` branch will ever merge because the routing is being built under `capped-whole-transcript-path`; and the plan sorts last in the walk, so the dispatch happens precisely when everything else is built — unattended, with every mechanical check green. The slice itself is superseded three ways: it routes on a ratio computed from concatenated merged excerpts, which R1000 rules must be re-cut so each transcript character counts once — with the dishonest ratio, saturation over-triggers; it predates R5's clustering; and it treats its own ceiling uncertainty as "pending — do not build" although the owner's 2026-08-19 ruling and OD-13 answered it (uncapped, sequential bundles, R1008's routing report). So the decision makes the inevitable dispatch harmless rather than pretending to prevent it: the prohibition below is design-layer text the review gate reads, and any pull request building the slice contradicts the design at its base commit.
+
+**The standing prohibition:** slice 1 of `docs/plans/whole-transcript-threshold.md`
+implements design this ledger and the owner's amended `docs/DESIGN.md` have
+superseded, and it must not be built. An orchestrator dispatched with that slug
+has nothing lawful to build: the correct motion is to open no pull request,
+report this decision, and stop. A pull request that builds the slice anyway
+contradicts R5, R28 (as amended), R1000 and R1008 at its base commit, and the
+review gate should block it citing this decision.
+
+**The owner's closing edit**, any one of BL-20's three, with one timing nuance:
+`status: merged` is the template's own field for work that lands under another
+name, but the template says to set it when the work is done — its honest moment
+is after `feat/capped-whole-transcript-path` merges, not before. Deleting the
+plan, or cutting slice 1 and R28 from it, is honest immediately; the 80%-ratio
+ruling the document records is preserved in `docs/DECISIONS.md` either way, so
+deletion loses no record.
+
+Measurement: no new mechanism. The run report (`docs/runs/<timestamp>/run.md`)
+already records every dispatch, so a dispatch of this slug is durable evidence
+in the committed record, and the review gate reads this ledger at the base
+commit, so any pull request building the slice meets this decision.
+
+## OD-20 — A superseded requirement id is design history, not unscheduled work: R1001's coverage gap is false and no plan may claim it
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-21, BL-14
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** V12 — "Silence has to read as silence." — the nearest, one level down as OD-16 read it: subtracting an id from the coverage universe could make scheduled-looking work vanish silently, absence reading as completion. It does not forbid this because the ruling forbids exactly the silent form: a superseded id is reported as its own excused class, never dropped from the report, and the pairing rule below makes every retirement name its replacement in the ledger's own text.
+- **Alternatives considered:** (1) Green the report by having some plan name R1001 in its `covers:` — rejected by name: BL-21 identifies this as the harmful pressure, and it is the over-claim the adequacy note exists to expose — `covers:` is read as "this plan delivers this id", and R1001's behaviour (the cap, the excerpt-fallback above it) is deliberately not being built, so the claim is false the day it is written. (2) Fix `coverage.sh` from here — rejected: `.github/scripts/` is a gate path, owner-owned, and BL-21 is right that the hole is the template's, so the durable fix belongs upstream where every generated project inherits it. (3) Rule only that the gap is false and leave the script's eventual shape open — rejected: BL-21's three directions are not equivalent, and leaving the choice open invites the cheapest implementation, silent subtraction, which is the one form the nearest vision concern actually tells against. (4) Rule the semantics, bind the ledger's own pairing practice as a standing rule, and name the recommended script shape for the owner — chosen.
+- **Rationale:** BL-21 is verified against the tree. `coverage.sh`'s `ids_from()` reads `docs/DESIGN.md` §5 and column-anchored `**Requirements added:**` lines from this ledger, and nothing reads `**Requirements superseded:**`; this ledger is append-only, so R1001 sits in the requirement universe permanently; the re-cut plan honestly covers `[R28, R1008]`; therefore `R1001 NOT PLANNED`, exit 1, on every run from now on. The ruling on the semantics: the design layer is its two documents read together, and supersession is this ledger's documented lifecycle — so the current design is the surviving requirements, and a superseded id is design history. `AGENTS.md`'s definition of done ("every requirement of the design … covered by a merged plan") quantifies over surviving requirements; R1001's reported gap is a script limitation, not unscheduled work. Three consequences bind now: no plan may name a superseded id in `covers:`; no planning is commissioned for one; and until the script learns supersession, a `coverage.sh` exit 1 whose only gaps are superseded ids is read as "no gap", citing this decision, by anything that branches on it.
+
+**The standing rule this ledger binds on itself** (BL-21's third direction,
+already this ledger's practice): every superseding requirement's text names the
+id it retires — R1008 already opens its closing sentence "Supersedes R1001" —
+so a reader, and one day the script, can pair every retirement with its
+replacement from the text alone.
+
+**The recommended script fix, owner-owned and belonging upstream in the
+template:** BL-21's first direction with the second's reporting — subtract the
+ids named by column-anchored `**Requirements superseded:**` lines (the same
+anchoring that keeps the schema's indented example inert for `**Requirements
+added:**`), and report them as their own excused class alongside the
+non-functional absences — "superseded (design history): R1001, retired by
+R1008" — so the retirement reads as a decision, never as a silent
+disappearance.
+
+Measurement: no new mechanism. `coverage.sh`'s own report is the observable —
+re-runnable by anyone at any commit — and the run reports under `docs/runs/`
+record the driver's phase decisions that branch on it; the pairing rule is
+checkable by reading this ledger.
