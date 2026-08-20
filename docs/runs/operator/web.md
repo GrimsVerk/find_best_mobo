@@ -397,3 +397,43 @@ Steering SHAs at run start: `docs/DESIGN.md` 00a8a21f, `docs/VISION.md` 89ef09ec
   so it is not lost between rounds.
 - Severity: bug (duplicate of F5, still open)
 
+### Driver run, round 3
+
+Run timestamp `20260820T102700Z`. Run start 2026-08-20T10:27:06Z. Template v0.4.41.
+Limits unchanged: **30 pull requests, 12 wall-clock hours** (deadline 2026-08-20T22:27Z),
+**60 iterations**. Steering SHAs unchanged from rounds 1 and 2 — the owner has not steered.
+
+| Time | Iteration | PHASE | Detail |
+| --- | --- | --- | --- |
+| 10:27:06Z | preflight | - | Credential: mint fails rc 3, `gh api user` returns `GrimsVerk` — ESC-50 unchanged. `coverage.sh` rc 1. **ESC-72 precondition checked explicitly**: no open pull request targets `run/web`, so nothing holds the run. |
+| 10:27:18Z | 1 | ORACLE | Dispatched with the **full four-clause ESC-69 contract**, lifted by hand out of `.claude/scripts/deliver-loop.sh` because the web command file does not carry it (F10). |
+| 10:31Z | 1 | ORACLE | Worker returned `exit=0 commits=1`. **ESC-69 compliance confirmed positively**: the worker's log ends with the literal line `WORK_ON_BRANCH worker/oracle-20260820102718`. It did not address a human, offer a menu, or try to push. **ESC-68 reported no relocation** — the work is on the worker branch the driver expected, so no empty ref was pushed. |
+| 10:31:24Z | 1 | ORACLE | Branch pushed as `docs/oracle-20260820102718--run-web`. Contamination probe: clean. |
+| 10:32Z | 1 | WAIT | **PR #108 opened by `autogrims[bot]` (Bot)**, base `run/web`. Third App-authored pipeline pull request in three rounds. Detector reports `PHASE=WAIT PR=108`. |
+
+### Three independent oracle runs on identical input — a reproducibility note
+
+The same evidence (`BL-14`) was ruled on by three separate headless workers from
+three byte-identical bases, at v0.4.37, v0.4.39 and v0.4.41. All three:
+
+- reached the **same decision id and substance** — OD-13, supersede `R1001`,
+  re-cut the merged capped plan rather than discard it, keep `OD-4`/`R1000`
+  untouched and sequenced first;
+- cited `BL-14` as evidence and named the vision statement relied on, as the
+  append-only check requires;
+- stayed inside the design layer — every contamination probe clean.
+
+They differed on **one** point: rounds 1 and 2 added a new requirement `R1008` to
+carry the measurement the reversal creates; round 3 added no requirement and made
+the measurement the re-cut plan's stated obligation instead, explicitly
+considering and rejecting the new-id alternative on the grounds that the owner's
+own amended `R5`/`R28` already carry the behaviour and a duplicate id would split
+one behaviour across two.
+
+Recorded as an observation, **not** a finding: all three satisfy AGENTS.md's rule
+that a change nothing measures must bring its measurement. The variation is in
+where the measurement is booked, not whether it exists. Worth the owner's eye
+nonetheless, because nothing mechanical would have caught it had one of the three
+simply dropped the measurement — the rule is prose, and the check that enforces it
+is a reader.
+
