@@ -386,6 +386,28 @@ else
   ok "no pull request is open against '$RUN_BASE_EFF' — the run starts on a clear base"
 fi
 
+# ------------------------------------------------- debris from a dead run
+# THE CHECK THAT SAYS "READY" MUST COVER WHAT THE DRIVER REFUSES ON (ESC-76).
+# This script runs in the step immediately before "start your driver", so
+# anything the driver rejects at startup and this script cannot see is a
+# refusal that arrives minutes later, after the owner has walked away. Leftover
+# worktrees are exactly that: a previous run that died mid-dispatch leaves them
+# behind, the driver refuses to start on them, and readiness said ready.
+#
+# It is worth saying WHAT to do, because the obvious answer is wrong: a
+# leftover worktree can hold a worker's finished, unpushed commits — a real
+# plan was salvaged from one as a 562-line patch — so read it before removing
+# it.
+WORKTREES=""
+if [[ -d .worktrees ]]; then
+  WORKTREES="$(ls -A .worktrees 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
+fi
+if [[ -n "$WORKTREES" ]]; then
+  refuse "leftover worktrees under .worktrees/ ($WORKTREES) — a previous run died mid-dispatch and the driver refuses to start on them. READ THEM FIRST (git -C .worktrees/<name> log --oneline; git -C .worktrees/<name> status): one can hold a worker's finished but unpushed work. Then 'git worktree remove' each, or 'git worktree prune' if the directories are already gone"
+else
+  ok "no leftover worktrees — no dead run's debris in the way"
+fi
+
 # ------------------------------------------------------------------- verdict
 echo
 if [[ ${#MISSING[@]} -gt 0 ]]; then
