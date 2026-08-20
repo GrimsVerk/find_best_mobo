@@ -140,6 +140,35 @@ Times are UTC.
   probe returned `GrimsVerk (type: User)`.
 - Severity: bug
 
+### F6 — a web session cannot read CI job logs, and green checks carry no output, so ESC-45's duty cannot be discharged from inside the driver
+- Where: driver WAIT phase, PR #100; GitHub Actions job logs over REST
+- What happened: `gh api repos/.../actions/jobs/<id>/logs` redirects to Azure
+  blob storage, and the session's egress proxy refuses it:
+  ```
+  Get "https://productionresultssa5.blob.core.windows.net/actions-results/.../job-logs.txt?...": Forbidden
+  ```
+  Both zero-second-step checks failed the same way. The obvious fallback is
+  empty too: every `check_runs[].output.title` and `.output.summary` on this
+  pull request is `(none)`, so the checks publish no summary a REST reader can
+  see.
+- Expected: the driver's whole WAIT contract is "on waking to a red check,
+  compute the failure signature and fix on the existing branch". That needs the
+  log. And the anvil observation checklist requires recording, per check, that a
+  fast green one is not ESC-45's silent skip — which also needs the log. In a
+  web session neither is reachable. The only route left was to read
+  `.github/workflows/ci.yml` and `.github/scripts/*.sh` in the checkout and
+  reason about what the steps would have done, which is inference from source,
+  not observation of the run.
+- Consequence, stated plainly: a **red** check in this lane will be diagnosable
+  only if its failure is reproducible locally. A check that fails for an
+  environment reason visible only in its log would strand the driver with no way
+  to compute a failure signature beyond the check's name.
+- Suggested ratchet: have each check publish its one-line verdict into the
+  check-run's `output.summary` — the skip lines already exist as text
+  (`test-the-tests: SKIP — this PR changes no files under src/`), they are just
+  written somewhere a hosted driver cannot read.
+- Severity: bug
+
 ---
 
 ## Driver run
@@ -158,3 +187,27 @@ Steering SHAs at run start: `docs/DESIGN.md` 00a8a21f, `docs/VISION.md` 89ef09ec
 | 08:56Z | 1 | ORACLE | Worker returned: `WORKER_RESULT id=oracle-20260820085103 branch=worker/oracle-20260820085103 engine=claude exit=0 commits=1`. Diff: `docs/DESIGN.oracle.md` +37, `docs/oracle/handoff-2026-08-20-1.md` +67. Ruling **OD-13** — supersedes OD-5/R1001 on the owner's 2026-08-19 entry, adds R1008 to keep the per-path projection measurable, hands the re-cut to the steward. Cites BL-14 as its evidence and names the vision statement it relied on, as the append-only check requires. |
 | 08:56Z | 1 | ORACLE | **Contamination probe (anvil rule 10): clean.** The worker's diff references neither the operator ledger, nor the anvil kit, nor `run/local`. It stayed inside the design layer. |
 | 08:56:55Z | 1 | ORACLE | Marker `.pr-request.json` committed as the branch's last commit (base `run/web`), pushed as `worker/oracle-20260820085103:docs/oracle-20260820085103--run-web` — `docs/` prefix so the branch is plan-exempt, `--run-web` lane suffix so the two lanes cannot collide. Push accepted first attempt. |
+| 08:57:08Z | 1 | WAIT | **PR #100 opened by `autogrims[bot]` (type `Bot`)**, base `run/web`, head `docs/oracle-20260820085103--run-web`. The push-fired `open-pr` workflow did it server-side, ~13 seconds after the push. Checklist item (ESC-26/ESC-35): **pipeline pull request authored by the App, not the owner — confirmed positively.** |
+| 08:58Z | 1 | WAIT | Checklist item (ESC-36): **`arm-auto-merge` appears in the check list and succeeded (6s).** Merge completion still to be observed. |
+| 08:58Z | 1 | WAIT | Detector confirms `PHASE=WAIT BASE=run/web PR=100 HEADREF=docs/oracle-20260820085103--run-web`. `mergeable_state: blocked` while `review` runs. Subscribed to the pull request's activity and scheduled the ~1 hour fallback check-in, per the command file's event-driven rule. No polling inside the turn. |
+
+### Check durations on PR #100 (checklist item, ESC-45)
+
+Every required check, measured from the REST `check-runs` timestamps:
+
+| Check | Result | Duration | Honest? |
+| --- | --- | --- | --- |
+| `checks` | success | 15s | **Yes.** Step-level timings prove the work ran: `uv sync --locked` 1s, `ruff check` 0s, `ruff format --check` 0s, `mypy` 3s, `pytest` 2s. 474 tests that take 1.6s locally. |
+| `secrets` | success | 6s | Yes — gitleaks action 2s. |
+| `plan` | success | 6s | Yes — eleven sub-steps, each a small shell script, all reporting. |
+| `acceptance-criteria` | success | 10s | Yes — "Every scripted success criterion still holds" 4s. |
+| `template-sync` | success | 7s | **Yes, but by exiting early.** `SYNC_PREFIX` defaults to `template/`, and this is a `docs/` branch, so the script has nothing to do. Documented, not a silent skip. |
+| `test-the-tests` | success | 7s | **Yes, but by skipping.** The script prints `test-the-tests: SKIP — this PR changes no files under src/`. Correct for a docs-only pull request. |
+| `arm-auto-merge` | success | 6s | Yes. |
+| `open-pr` | success | 7s | Yes — this is the job that opened the pull request. |
+| `review` | pending | - | Still running at the time of writing. |
+
+No check finished in ~1 second while claiming to have done real work, so ESC-45's
+failure shape did not occur here. Getting to that answer, however, took a
+workaround — see F6.
+
