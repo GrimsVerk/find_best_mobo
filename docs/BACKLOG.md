@@ -224,3 +224,18 @@ _why that class, and `— filed by: plan`.)_
   `docs/oracle/od-6-plan-draft.md`) was blocked by the review gate for ruling on
   exactly this question itself; the re-cut plan is pending this ruling.
   — filed by: steward
+- **BL-16** — What is BL-8's measured 52-variant set? R1002 says "BL-8's
+  measured 52-variant set lands as a fixture", but the list itself was never
+  committed — the backlog entry records the count (49 matched + 3 failures), the
+  three named failures and the damage classes, and nothing in the tree, the
+  journal or `docs/runs/` holds the variants. Proposed default, proceeded on in
+  `docs/plans/oracle/caption-split-aliases.md`: reconstruct 52 spellings from
+  the shipped table's own canonicals across BL-8's damage classes, with the
+  three named failures verbatim, and record in the fixture that it is a
+  reconstruction rather than the original measurement. **LOW**: it is fixture
+  content only — no signature, slice boundary or external format turns on it,
+  and replacing the reconstruction with the real set later is an edit to one
+  JSON file. Two facts for the ruling: BL-8's arithmetic leaves no room for the
+  hyphenated `steel-legend` it also reports failing, and the reconstruction has
+  five failing variants rather than three.
+  — filed by: steward
