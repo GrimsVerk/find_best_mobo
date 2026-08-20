@@ -20,6 +20,8 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T15:26:51Z | RUN STOPPED | v0.4.42 run 20260820T112543Z: 26 iterations, exit code 3, three-strikes on PR #133 |
+| 2026-08-20T15:26:51Z | EVIDENCE SECURED BY HAND | evidence branch was local-only; operator pushed it (F31) |
 | 2026-08-20T11:26:39Z | RESTART/UPDATE | v0.4.41 -> v0.4.42, 4 files, 0 conflicts; PR #119 approved and merged |
 | 2026-08-20T11:26:39Z | DRIVER START | v0.4.42, base run/local, 20 points; readiness reports clear base AND no worktrees |
 | 2026-08-20T11:26:39Z | STEWARD | iteration 1, worker steward-od-8 |
@@ -767,4 +769,96 @@ before being stopped for this update; three of its findings are below.
   stop line against the landed report's exit code and reason (F26's fix); and
   any refusal readiness did NOT catch — that class is now the finding.
 - **Severity:** none
+
+### F31 — TEMPLATE SELF-RECORDING FAILURE: run evidence for 20260820T112543Z was collected but never pushed; the operator's manual push caught it
+- **Where:** v0.4.42 run stop, `deliver-loop.sh` evidence trap
+- **What the template failed to record:** the run's own evidence branch. The
+  trap ran and said it had done the work:
+
+  ```
+  deliver-loop: landing this run's evidence in docs/runs/20260820T112543Z ...
+  collect-evidence: 10 worker log(s) into docs/runs/20260820T112543Z/workers.
+  collect-evidence: 10 review(s) into docs/runs/20260820T112543Z/reviews (78 skipped).
+  ```
+
+  The branch `docs/run-20260820T112543Z--run-local` existed **locally only**.
+  `git ls-remote --heads origin` did not have it, and no evidence pull request
+  was opened. Ten worker logs and ten review payloads — the whole record of a
+  26-iteration run — sat on one machine with nothing pointing at them.
+- **The likely cause is visible three lines earlier in the same log:**
+  `deliver-loop: pull --ff-only failed; continuing on the local tree`. The
+  driver noted the failure, carried on, and the later push inherited the broken
+  state without a second complaint.
+- **Which failsafe caught it:** none of the template's. The operator checked
+  `git ls-remote` by hand at the stop, found the branch missing, and pushed it.
+  Verified after: 52 files, **zero `MISSING.md`**, so the *contents* were
+  complete — only the delivery failed.
+- **Why this is the named row and not a summary line:** the template promises to
+  land its own evidence at every stop. Here it announced success and delivered
+  nothing, which is worse than failing loudly — a reader of the log would have
+  believed the evidence was safe. This is the exact failure mode the anvil
+  exists to catch.
+- **Severity:** blocker
+
+### F32 — F26 confirmed fixed: the stop now carries a real exit code and a reason
+- The landed report reads:
+
+  ```
+  Stopped 2026-08-20T13:49:30Z with exit code 3: the same checks failed three
+  times on docs/r26-fifteen-percent (plan review )
+  ```
+
+  Against F26's `exit code 0` and no reason for a killed run. A reader of the
+  report can now tell what ended the run without the console log. Closure.
+- **Severity:** none
+
+### F33 — the driver spent three fix sessions on a pull request that could never go green
+- **Where:** iterations 24-26, PR #133 (`docs/r26-fifteen-percent`)
+- **What happened:** the operator opened a pull request editing `docs/DESIGN.md`
+  — an owner ruling, changing R26's cap from 10% to 15%. The `plan` check failed
+  with:
+
+  > An agent's job here ends at a pushed branch. GrimsVerk opens the pull
+  > request, reads the diff, and merges it — and that reading is the point.
+
+  `docs/DESIGN.md` may only reach a pull request the **owner** opened. The
+  operator opened it through the App, so it was App-authored and the check
+  failed — correctly, and it would fail identically on every retry.
+- **The driver could not tell.** It read a red required check, dispatched a fix
+  session, watched it fail, and repeated until its three-strikes rule stopped
+  the run. Three model-funded sessions against a check whose failure text says
+  the fix is not a code change but a different human opening the pull request.
+- **The run report says so itself**, unprompted: *"Nothing stopped a design edit
+  from being composed onto a driver-opened branch in the first place, which
+  guarantees a permanently red required check and stalls the lane until someone
+  notices by hand. That's a ratchet candidate."* The worker diagnosed the class
+  correctly and could not act on it.
+- **Operator error contributed** and is recorded as such: the App token should
+  not have been used to open a `docs/DESIGN.md` change. But the machinery has no
+  guard — nothing refuses the push, warns at open time, or marks the failure
+  unfixable-by-agent — so the same mistake costs three sessions every time.
+- **Suggested fix:** classify owner-authored failures as terminal for a fix
+  session, and stop after the first rather than the third.
+- **Severity:** bug
+
+### F34 — the steward has no delete or rename grant, and leaves scratch behind
+- **Where:** worktree `steward-od-13`, uncommitted file
+  `docs/plans/oracle/whole-transcript-sequential-bundles.md`
+- The steward wrote its own explanation into the file it could not remove:
+
+  > NOT A PLAN. Scratch left by the OD-13 steward session, never committed. …
+  > The steward's tool grant carries no file deletion or rename, so the
+  > replacement was done as an in-place rewrite of that file instead, and this
+  > one could not be removed. It is deliberately left with no front matter: if
+  > it were ever committed by accident, `plan-lint.sh` fails a plan with no
+  > `slug:` field, which is a loud failure rather than a silent second plan
+  > claiming the same routing.
+
+- **Good judgment under a bad grant.** The worker could not clean up, so it made
+  the leftover fail loudly if it ever landed, and documented the reason in the
+  artefact itself. But it leaves the tree dirty, which is the state the driver
+  refuses to start on — so a session that does this blocks the next run.
+- **Severity:** friction — the grant should cover removing a file the role is
+  already allowed to create.
+- **Action:** nothing salvaged; the file says "Delete this file" and it was.
 
