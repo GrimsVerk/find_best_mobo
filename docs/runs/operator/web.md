@@ -512,3 +512,14 @@ empty ref and the App would have opened a **contentless pull request**. Recorded
 as a **positive observation of a fix working on its first live opportunity** —
 the driver pushed the right branch because the script told it the truth.
 | 10:41Z | 2 | WAIT | **PR #110 opened by `autogrims[bot]` (Bot)** — title `File BL-15: OD-6 does not say whether cross-cue caption splits must match`, i.e. the marker I wrote, not the stale one inherited from `run/web`. Fourth App-authored pipeline pull request. Detector: `PHASE=WAIT PR=110`. Subscribed; turn ended. |
+| 10:41:34Z | 2 | WAIT | **PR #110 MERGED** by `autogrims[bot]`, 80 seconds after opening. Head branch deleted at 10:41:35Z — **1 second after the merge, ESC-21 confirmed a fourth time.** |
+| 10:42Z | 2 | WAIT | Merge speed checked rather than assumed, because 80 seconds is fast enough to look like a bypass. It is not: all seven required checks ran with real durations — `review` **71s**, `checks` 12-16s, `acceptance-criteria` 13s, `template-sync` 10s, `test-the-tests` 9s, `secrets` 5-8s, `plan` 7s. The checks run in parallel and the project is small. No check reported success in ~1 second while claiming work. |
+| 10:43Z | 3 | ORACLE | Base pulled. Detector: `PHASE=ORACLE BASE=run/web REASON=evidence UNCITED=BL-15`. **The feedback loop closed end to end**: the steward hit a HIGH uncertainty, filed `BL-15` instead of self-ruling, that filing merged, and the detector routed it straight back to the oracle to rule on. Uncertainty -> filing -> merge -> ruling is the exact path AGENTS.md specifies for unattended work, observed running unassisted. Oracle worker dispatched for BL-15 with the full ESC-69 contract. |
+| | | | Pull request count this round: **2 of 30** (#108, #110), both merged. Iterations: 3 of 60. Wall clock used: ~16 minutes of 12 hours. |
+
+**Measurement caveat, noted in passing:** some `skipped` check-runs report a
+`completed_at` EARLIER than their `started_at`, giving negative durations
+(`arm-auto-merge -1s`, `delete-merged-branch -5s`, `plan -7s`). This is a
+GitHub artifact on skipped jobs, not a template defect — recorded only so the
+duration figures above are not read as sloppy arithmetic.
+
