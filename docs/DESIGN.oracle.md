@@ -461,3 +461,39 @@ Signatures block) states, per shared type and exception, the module it lives
 in. That revision ratifies `FetchFailure` in `ledger.py` and retires the
 `transcripts.py` re-export shim. BL-2, outside this run's scope, is the same
 class of correction and can ride in the same revision when it is ruled.
+
+## OD-13 — OD-5/R1001 is superseded by the owner's ruling; the capped plan is re-cut to the clustering design before anything builds it
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-14
+- **Requirements added:** (none)
+- **Requirements superseded:** R1001
+- **Vision statement relied on:** V4 — "Given a choice between a cheaper run and a better-sourced answer, take the better answer."
+- **Vision statements against:** V10 — "Where some other goal can only be met by processing content with no AMD or AM5 signal, that goal loses and a cheaper design is chosen." — it was OD-5's own ground for the cap, and it does not forbid removing it: the whole-transcript path opens only at R28's measured 80% ratio, computed from re-cut cluster characters, so what the uncapped path pays for is by measurement almost entirely signal — the opposite of the no-chance-of-relevance material V10 guards against. The lumpy-spend concern the cap answered is handled where it arises: R5's transitive clustering keeps a sparse long stream's clusters small, so it never reaches the ratio at all.
+- **Alternatives considered:** (1) Let OD-5 stand and lean on R28's amended text alone — rejected: `coverage.sh` unions both design documents, so an unsuperseded R1001 would sit in the requirement set directly contradicting R28's "the whole-transcript path is not capped", and the merged plan carrying `covers: [R1001, R28]` would remain lawfully buildable; the DECISIONS.md mechanics instruction explicitly says to supersede OD-5/R1001 here. (2) Supersede R1001 and add a replacement oracle requirement for sequential-bundle delivery — rejected: the owner already amended R5 and R28 in `docs/DESIGN.md` to carry the behaviour, and the ruling states the mechanics are "the implementing plan's to specify"; a duplicate oracle requirement would restate the owner's own document and split one behaviour across two ids. (3) Rule the merged plan wholly dead — rejected: most of it survives the reversal (the `submission.py` routing module, the ratio measured on re-cut clusters after merge and cap, the `form` attribute in the bundle XML, the per-path projection counts, the build-after-R1000 sequencing); re-cutting keeps what stands and removes only the cap.
+- **Rationale:** BL-14 is the owner's own filing, and the evidence is not in doubt: the 2026-08-19 ruling in `docs/DECISIONS.md` overrules OD-5 on the cap by name, and the owner-landed R28 now reads "The whole-transcript path is not capped — this supersedes R1001". Verified against the tree: nothing was built from `docs/plans/oracle/capped-whole-transcript-path.md` — no `submission.py` exists and no code or test references `choose_submission` or R1001 — so superseding costs one ledger entry and no working code. Building that plan as merged would implement a decision the owner has reversed, which is exactly what BL-14 flags as HIGH.
+
+R1001 is superseded and adds nothing to the requirement set. The governing text
+is the owner's: R5 (transitive clustering, each transcript character in at most
+one cluster) and R28 (80% ratio on re-cut cluster characters; the
+whole-transcript path uncapped; a transcript larger than one bundle's token cap
+delivered across sequential bundles rather than falling back to excerpts).
+
+What this makes partly wrong, for the steward re-cutting the plan:
+`capped-whole-transcript-path.md`'s cap check, its `EXCERPTS_OVER_CAP` routing
+outcome, its `videos_over_cap` projection field, its slice-2 invariant that no
+bundle contains a whole block over the cap, and its premise that one video's
+submission always fits in one bundle are all reversed. What survives: the
+routing module and its placement, measuring the ratio on the excerpts actually
+sent (after merge and per-video cap, characters both sides joined identically),
+the always-present `form` attribute, per-path counts in the projection, and
+building after R1000's re-cut plan.
+
+Measurement, named because the reversal creates behaviour nothing yet counts:
+a whole transcript spanning several sequential bundles is a new observable, and
+the re-cut plan must make the projection report it — how many videos were sent
+whole, how many of those spanned more than one bundle, and how many bundles
+each took — so the checkpoint (R7) shows what the uncapped path costs before
+anything is spent. That is the existing projection mechanism carrying a new
+count, not a new collection mechanism; the durable-evidence section of
+`docs/VISION.md` is what asks for it.
