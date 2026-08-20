@@ -1,0 +1,19 @@
+Preparing worktree (new branch 'worker/steward-od-10')
+HEAD is now at f89f15e Plan for OD-9 (#122)
+=== spawn-worker[steward-od-10] engine=claude branch=worker/steward-od-10 base=run/local (f89f15e4e8967d9904c4df18456ce8bbe9b30da1) bypass=0 ===
+=== 2026-08-20T11:53:09Z ===
+Plan written and committed.
+
+**The plan** — `docs/plans/oracle/subcommand-flag-forwarding.md`, slug `subcommand-flag-forwarding` (unique, and no substring collision with any existing plan slug), `covers: [R1006]`, citing **OD-10** and the evidence behind it (BL-5).
+
+**What it builds.** Three sequential slices: (1) `cli.py` forwards unrecognised arguments via `parse_known_args` to an optional per-module `parse_args(argv) -> Namespace` hook, with a no-argument fallback so a flagless stage still rejects typos — `uv run find-best-mobo aliases --check` works; (2) the four flagless stages own their own parsers, so each answers `--help` with its own description, and four docstrings stop claiming the CLI cannot carry flags; (3) `scripts/run.sh`'s `python -c` workaround reverts to a plain CLI call, which R1006's last sentence requires, with a two-assertion guard test because nothing else in the suite would notice its return. ~530 lines total. The dispatcher gains no subcommand table, which is the property OD-10 rejected the alternative to keep.
+
+**What I had to guess at.** One thing, filed as **BL-19** (LOW) in the same commit and proceeded on: `-h/--help` is the one argument the top-level parser owns today, so R1006's forwarding rule and argparse's default disagree over it. The default taken is to forward it, so `find-best-mobo aliases --help` prints the help that documents `--check`; `find-best-mobo --help` and a bare invocation keep today's output and exit codes. Everything else is recorded as a derivation with the sentence of R1006 or OD-10 that delegates it.
+
+**Plans this decision makes partly wrong.** `docs/plans/run-scripts.md` — its summary decision "`aliases` is invoked through Python, not the CLI" and its out-of-scope entry "Fixing BL-5" are retired by R1006; the script changes here, the plan's own text is the owner's edit (`CODEOWNERS`). `docs/plans/corpus-and-checkpoint.md` — BL-5 is a rework item against its slice 3, whose file list excluded `cli.py` while its deliverable needed it; OD-12 already commissions that revision and this correction can ride along.
+
+**Build-order conflicts named in the plan:** `docs/plans/oracle/refuse-on-missing-artifact.md` edits all four command modules this plan touches, and OD-11/R1007 will move the alias-table path read in `commands/aliases.py` — neither builds in parallel with this one.
+
+I could not run `uv run pytest` (outside this session's tool grant), so the suite is unverified here; the commit is documentation only and touches no code.
+
+WORK_ON_BRANCH docs/oracle-plan-subcommand-flag-forwarding

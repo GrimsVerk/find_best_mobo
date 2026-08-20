@@ -1,0 +1,10 @@
+base:      78a8ae36b158f77c3f5ff779b867e71b5322725f
+head:      1c9d63aac03fe09b850202c5614250216bbcf563
+branch:    docs/oracle-plan-od-8--run-local
+author:    autogrims[bot]
+title:     Plan for OD-8
+engine:    claude
+model:     (engine default)
+plan:      (none)
+truncated: 0
+diff_bytes: 24259

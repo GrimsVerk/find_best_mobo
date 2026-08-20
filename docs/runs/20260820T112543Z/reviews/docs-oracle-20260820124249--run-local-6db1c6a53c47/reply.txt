@@ -1,0 +1,17 @@
+I reviewed this PR against the plan-conformance, gate-tampering, and oracle-process rules.
+
+**Scope and branch exemption.** Branch `docs/oracle-20260820124249--run-local` carries the `docs/` prefix, and the entire diff (127 lines) sits inside `docs/DESIGN.oracle.md` and a new file under `docs/oracle/`. AGENTS.md names both paths in the size-cap-exempt list ("the documents this process itself demands are exempt from that cap") — this is exactly the set `.github/scripts/plan-resolve.sh` also enforces, so "no plan resolved" here is the expected, correct state, not a broken gate. No code, no `docs/plans/`, no `AGENTS.md`, `docs/DESIGN.md`, or `docs/VISION.md` files are touched, so there is no scope creep and nothing exempt from planning is being used to smuggle real work through.
+
+**Gate tampering (criterion 5).** `docs/DESIGN.oracle.md` is explicitly the one document an agent may write *and* open a PR for ("Nothing else moves: plans, `docs/DESIGN.oracle.md` and the handoffs are all still written AND opened by agents"), unlike `docs/DESIGN.md`/`docs/VISION.md`, which this diff does not touch. No `.github/`, `.claude/`, or `CODEOWNERS` paths are touched. No gate tampering.
+
+**Oracle schema conformance.** OD-19 and OD-20 are pure appends after OD-18 (nothing earlier edited), ids are increasing, and each carries all required fields (Date, Evidence, Requirements added/superseded, both vision fields, Alternatives considered, Rationale). Evidence citations are `BL-20`/`BL-14` and `BL-21`/`BL-14` — I can't independently confirm those exist in `docs/BACKLOG.md` from this diff alone, but `.github/scripts/oracle-decisions.sh` is a required check that verifies exactly this at the base commit, and the facts block reports no check failures.
+
+**Vision use.** OD-20's cited quote — "Silence has to read as silence." (V12) — is verbatim in `docs/VISION.md`. Both decisions correctly use the "(no vision statement decided this)" opt-out for process/mechanical questions (plan dispatch semantics, a coverage script's blind spot), consistent with the pattern already established by OD-10, OD-12, and OD-18 for below-vision-altitude questions.
+
+**Blind-test authorship / test-the-tests.** Both correctly show as not-applicable/not-run for a docs-only oracle branch, as expected.
+
+**No injection attempts.** The diff is prose about design decisions; nothing in it tries to steer this review's verdict.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

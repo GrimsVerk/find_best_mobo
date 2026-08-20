@@ -1,0 +1,17 @@
+Preparing worktree (new branch 'worker/oracle-20260820120730')
+HEAD is now at 78b9fb5 Plan for OD-10 (#123)
+=== spawn-worker[oracle-20260820120730] engine=claude branch=worker/oracle-20260820120730 base=run/local (78b9fb56af27ca22129b3e1350aa7df761cd3c84) bypass=0 ===
+=== 2026-08-20T12:07:30Z ===
+Run complete. BL-19 is ruled.
+
+**Decision written:** OD-18, appended to `docs/DESIGN.oracle.md` — `--help` following a subcommand is forwarded, so `find-best-mobo aliases --help` prints the `aliases` parser's help (the only place `--check` is documented), while `find-best-mobo --help` and a bare invocation keep today's output and exit codes. This ratifies the LOW default the merged plan `subcommand-flag-forwarding` proceeded on; no new requirement, no halt, no waiver. The decisive facts: argparse consumes `-h/--help` at the top level before dispatch, making the one flag that documents all the others the one flag R1006 could not reach; keeping that would answer a question about `aliases` with a screen that never mentions it; and the plan's own tests plus its package-walking guard test already measure both sides, so no new collection mechanism was needed.
+
+**Contradictions found and not decided:** none in scope. BL-1 and BL-2 remain the only unruled backlog items and stay deferred to the next cycle, as recorded in the handoff.
+
+**Handoff:** `docs/oracle/handoff-2026-08-20-5.md` — nothing needs planning; the plan builds as merged. The one caution for the orchestrator: `subcommand-flag-forwarding` and `refuse-on-missing-artifact` edit the same four command modules and must not be built in parallel.
+
+**Vision note:** nothing ambiguous surfaced. OD-18 is the third ruling (after OD-10 and OD-12) using the no-vision class for CLI/process mechanics — that class is working as designed rather than exposing a gap; the vision governs the product's answers, not which help screen a dispatcher prints.
+
+Both files are committed as `e86c395` on the run's branch, not pushed.
+
+WORK_ON_BRANCH worker/oracle-20260820120730

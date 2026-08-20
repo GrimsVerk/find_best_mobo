@@ -1,0 +1,19 @@
+Preparing worktree (new branch 'worker/steward-od-9')
+HEAD is now at 443a190 Plan for OD-8 (#121)
+=== spawn-worker[steward-od-9] engine=claude branch=worker/steward-od-9 base=run/local (443a1905998fa549fa92fe7ea5ee930fced75cc6) bypass=0 ===
+=== 2026-08-20T11:39:15Z ===
+The plan is committed.
+
+**Plan:** `docs/plans/oracle/refuse-on-missing-artifact.md` — slug `refuse-on-missing-artifact` (checked against every plan in the tree; no substring collision with `corpus-and-checkpoint`, `date-from-timestamp`, `run-scripts`, `whole-transcript-threshold`, `capped-whole-transcript-path`, `caption-split-aliases`, `description-signal`, `itx-chipset-variant`, `recut-merged-excerpts`).
+
+**Implements:** **OD-9**, adding **R1005**, from the evidence in **BL-7**. There was no handoff to read — OD-9 comes from the 2026-08-19 oracle run, which predates `docs/oracle/`; the four handoffs present all cover OD-13 through OD-17.
+
+**Shape:** three vertical slices, ~495 lines, sequential. Slice 1 introduces `src/find_best_mobo/artifacts.py` and makes `estimate` refuse (deleting the `videos_indexed = … else 0` branch BL-7 measured) while `fetch` starts creating `data/transcripts/`; slice 2 does `select`; slice 3 stops `aliases --check` treating an empty cache as an absent one.
+
+**What I had to guess at:** nothing — "None: every decision derived from the design", with a Derivations section recording each place R1005 fixes behaviour and delegates mechanism. Nothing filed to `docs/BACKLOG.md`. The two judgment calls worth the owner's eye are in the summary rather than buried: R1005's first sentence is unqualified ("*a pipeline stage*"), so the rule reaches `select` and `aliases --check`, not just `estimate` — which means `select` now exits 1 before `fetch` has run, and `aliases --check` on an empty-but-present cache now exits 0 where it exits 1 today.
+
+**Existing plans this makes partly wrong:** none is invalidated. `docs/plans/oracle/capped-whole-transcript-path.md` already defers to R1005 for the absent-index case (line 366) and stays consistent. `docs/plans/corpus-and-checkpoint.md` slice 5 is the plan whose silence BL-7 records; it sits behind `CODEOWNERS` and OD-12 already commissions its revision, so this change rides that revision rather than commissioning a second one — noted in Out of scope.
+
+One honesty note: I did not run the test suite or the gate scripts — this sandbox denied `uv run` and `env`-prefixed invocations. The commit is documentation-only and touches no code, and pre-commit reported no files to check.
+
+WORK_ON_BRANCH docs/oracle-plan-refuse-on-missing-artifact

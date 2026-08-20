@@ -1,0 +1,19 @@
+Reviewed this PR against AGENTS.md, docs/DESIGN.md, docs/DESIGN.oracle.md, and docs/VISION.md.
+
+**What this PR is.** The branch (`docs/oracle-plan-od-11--run-local`) carries a single new file, `docs/plans/oracle/tracked-alias-table.md` — a plan implementing OD-11/R1007. Its entire diff sits inside `docs/plans/`, which AGENTS.md explicitly exempts from the size cap ("The documents this process itself demands are exempt from that cap... `docs/plans/`... passes at any size"). This is why the facts block correctly shows "no plan resolved" — this PR *is* the plan, not code being judged against one — and it is why the branch's `docs/` prefix is the right exemption to use here, not a red flag.
+
+**Plan-of-a-plan conformance (`docs/plans/oracle/` rule).** `.github/scripts/oracle-decisions.sh` requires a plan under `docs/plans/oracle/` to either cite an already-landed decision or cover only requirement ids that already exist in a design document. This plan cites OD-11 (present at the base commit in `docs/DESIGN.oracle.md`) and covers `[R1007]`, which OD-11 added. That's satisfied.
+
+**Content fidelity to OD-11/R1007.** R1007 requires: (1) the table becomes git-tracked outside the gitignored corpus dir, (2) default `aliases.toml` at repo root, (3) loaders read the path from configuration rather than assuming a location, (4) the `git add -f` exception retires, (5) the file move and the config default flip land in one change. The plan's two-slice design maps to this precisely: slice 1 introduces `alias_table_path` (defaulting to today's `data/aliases.toml` — no move yet), slice 2 does the `git mv` and flips the default together, satisfying point (5) exactly as worded. The "Out of scope" section correctly excludes things R1007 doesn't ask for (root discovery, a `--aliases` flag, `src/`-packaging, which OD-11 rejected by name) — no scope creep visible.
+
+**Structure vs. AGENTS.md's plan template.** Has a decision-complete `## Summary` (~38-39 lines, at but not over the ~40-line ceiling), an `## Uncertainties` section correctly using the "no uncertainties — every decision derived from the design" formulation, per-slice Signatures blocks that name the module of every shared type per OD-12, and a sequencing note against two other in-flight plans. This all matches what AGENTS.md asks a plan to contain.
+
+**Gate-tampering / owner-authored docs (criterion 5).** No `.github/`, `.claude/`, `AGENTS.md`, `docs/DESIGN.md`, or `docs/VISION.md` file is touched, so neither the gate-tampering block nor the bot-opened-DESIGN/VISION block applies, despite the PR being opened by `autogrims[bot]`.
+
+**Mechanical facts.** No test/implementation files touched (expected — this is a plan-only PR, so `test-the-tests` correctly did not run), no new dependencies, no blind-test trailers (expected for a docs branch), no other open PRs from this author. Nothing here contradicts the diff.
+
+I found no instructions embedded in the diff attempting to steer the verdict, and no forged section delimiters.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

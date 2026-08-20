@@ -1,0 +1,25 @@
+Preparing worktree (new branch 'worker/steward-od-5')
+HEAD is now at e042049 Oracle: rulings and handoff (#128)
+=== spawn-worker[steward-od-5] engine=claude branch=worker/steward-od-5 base=run/local (e042049d767a686da4b843e6a81411ccd4c3f0e8) bypass=0 ===
+=== 2026-08-20T12:50:10Z ===
+## Report
+
+**No plan was written for OD-5, and none may be.** OD-5 is superseded design history.
+
+**What I found, verified against the tree:**
+
+- `docs/DESIGN.oracle.md` **OD-13** (2026-08-20) supersedes OD-5 in full — `**Requirements superseded:** R1001`, replaced by **R1008**, which keeps the per-path observability and drops the cap and the excerpt-fallback above it.
+- The plan OD-5 produced, `docs/plans/oracle/capped-whole-transcript-path.md`, was **already re-cut to OD-13 and merged** (commits `a6365e0`, `2709dfa`). Its `covers:` reads `[R28, R1008]` and its opening paragraph states the rewrite. There is no unplanned work behind OD-5.
+- **OD-20** rules directly on this: *"no plan may name a superseded id in `covers:`; no planning is commissioned for one"* — and names greening the coverage report by having some plan claim R1001 as the harmful over-claim it exists to prevent. Writing an OD-5 plan would have violated the design layer, not served it.
+
+**What I guessed at:** nothing. No uncertainty gate fired — the question this dispatch raises was already ruled twice (OD-13, OD-20), so filing it as an uncertainty would have manufactured a question, and ruling on it myself was never available.
+
+**Which plans this decision makes partly wrong:** none newly. OD-13 already recorded the two it touched — `capped-whole-transcript-path` (since re-cut, merged) and `whole-transcript-threshold`, which stays the owner's to revise and whose slice 1 OD-19 prohibits building.
+
+**What I did instead — filed `BL-22` under "Proposed", committed alone.** The dispatch itself is evidence nothing in the repository would otherwise hold, and it turned out to be sharper than the backlog item it descends from. `.claude/scripts/deliver-phase.sh` step 4 maps `coverage.sh`'s gap list back to decisions and emits `PHASE=STEWARD` *before* the plan walk and before `PHASE=PLAN`. R1001 is a permanent false gap (BL-21/OD-20), so that map permanently yields OD-5: the driver emits `PHASE=STEWARD ODS=OD-5` every cycle and **cannot reach orchestration, milestone planning, or acceptance again**. BL-21 framed the cost as an unsatisfiable definition of done plus pressure to over-claim; the measured cost is a stalled delivery loop that spends a full unattended session per cycle re-deriving the supersession in order to stop — and a session that misses it writes a plan for a behaviour the owner reversed with every check green, since `oracle-decisions.sh` asks only that a cited decision has *landed*, and OD-5 has.
+
+BL-22 points the fix at the `coverage.sh` change OD-20 already recommends (it closes both, since the dispatch reads that script's gap list and nothing else) and notes that fixing this re-arms BL-20's hazard, at which point OD-19's prohibition has to hold. Both fixes are in owner-owned gate paths; I touched neither.
+
+Commit `7bceb30`, `docs/BACKLOG.md` only — an append, so `backlog-append-only.sh` is satisfied; `docs/` prefix and an exempt path, so the `plan` check exempts it. Not pushed.
+
+WORK_ON_BRANCH docs/bl-22-superseded-decision-dispatch

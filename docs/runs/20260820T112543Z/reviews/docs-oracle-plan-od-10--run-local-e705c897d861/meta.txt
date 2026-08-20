@@ -1,0 +1,10 @@
+base:      f89f15e4e8967d9904c4df18456ce8bbe9b30da1
+head:      e705c897d861116ec9947f3d85dae920322bdff9
+branch:    docs/oracle-plan-od-10--run-local
+author:    autogrims[bot]
+title:     Plan for OD-10
+engine:    claude
+model:     (engine default)
+plan:      (none)
+truncated: 0
+diff_bytes: 27393
