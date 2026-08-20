@@ -253,3 +253,18 @@ _why that class, and `— filed by: plan`.)_
   one-line edit. OD-15 ruled the same shape of question for R1002's fixture, so
   the default follows it: the reconstruction is declared, never quiet.
   — filed by: steward
+- **BL-18** — Does OD-9/R1005 bind `aliases --check`? R1005 states its rule over
+  "a pipeline stage", and the repository says this command is not one:
+  `scripts/run.sh` calls it a diagnostic and `docs/plans/run-scripts.md` says
+  "the pipeline is four stages, not five" — while `docs/architecture.md` calls
+  it "the inspection stage". It is the one place in the tree that breaks
+  R1005's second sentence: `not any(cache_dir.glob("*.json"))` refuses when the
+  transcript cache exists but holds no files, so emptiness reads as absence.
+  Proposed default, proceeded on in
+  `docs/plans/oracle/refuse-on-missing-artifact.md`: bind it — an absent cache
+  directory refuses naming `fetch`, a present-but-empty one reports every
+  canonical as never matched, which is a true report of an empty corpus.
+  **LOW**: one condition in one command — no slice boundary moves (slice 3
+  exists for `select` either way), no Signatures block changes, no artifact on
+  disk changes shape, and reversing it is restoring one `if`.
+  — filed by: steward
