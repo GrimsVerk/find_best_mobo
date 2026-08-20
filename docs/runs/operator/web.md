@@ -925,4 +925,26 @@ the run so far, and worth the owner's attention as a real finding about the
 Each of OD-6 and OD-7 took the same three-step shape — steward plans, hits an
 under-specified fixture, files LOW and proceeds; oracle ratifies next cycle;
 decision leaves the queue. Two decisions, six merged pull requests, no repeats.
+| 12:57:56Z | 3 | STEWARD | **ESC-68 fired a fourth time** — work relocated to `docs/plan-description-signal`, reported honestly. Plan `docs/plans/oracle/description-signal.md`, slug `description-signal`, `covers: [R1004]`, **394 lines**, and **no `BL-<n>` filed**. Evidence: `BL-11` — the pipeline reads titles and transcripts and nothing else, so a board named only in a description is invisible to selection. Contamination probe: clean. No slug collision against the eight existing slugs. |
+| 12:59Z | 3 | WAIT | **PR #130 opened by `autogrims[bot]`**, base `run/web`, head `e0de513f`. Tenth App-authored pipeline pull request. Counters: **9 of 30 pull requests, 15 of 60 iterations**, ~93 minutes of 12 hours. |
+| 12:59Z | 3 | WAIT | ESC-17 window checked again at the moment my pull request opened: **no pull request open on `run/local`**. Third consecutive miss. |
+
+### All three branches of the planning gate are now observed live
+
+AGENTS.md gives a planner three ways to finish, and this lane has now seen every
+one, each on a different decision, unattended:
+
+| Route | Where | What happened |
+| --- | --- | --- |
+| **HIGH — stop and file** | OD-6, `BL-15` | The steward would have had to guess whether cross-cue caption splits are in scope. It wrote **no plan**, filed the uncertainty with its proposed default, and stopped. Planning resumed only after `OD-14` ruled. |
+| **LOW — proceed on the default and file** | OD-6/`BL-16`, OD-7/`BL-17` | An under-specified fixture. The plan was written on a recorded default, the fixture was made to **declare itself a reconstruction**, and the filing went to the oracle, which ratified next cycle. |
+| **NONE — say so explicitly** | OD-8 | Nothing needed escalating. The plan writes `**None: every decision derived from the design.**` and adds a separate `Derivations, not uncertainties` section listing what it derived and from what. |
+
+The third route is the one worth pausing on, because it is the one that decays
+quietest. AGENTS.md's reason for demanding the sentence is that "a gate that
+fires when it has nothing to report trains people to click through it" — and a
+blank section reads identically to a forgotten one. This plan did not leave it
+blank, and it went further than the rule asks by making the empty list
+**checkable**: the derivations are written down, so a reviewer can test the claim
+rather than trust it.
 
