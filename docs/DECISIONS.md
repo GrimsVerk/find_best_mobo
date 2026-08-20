@@ -381,6 +381,38 @@ the unattended driver could edit its own gates.
 
 <!-- Append project decisions below, newest at the bottom. -->
 
+## 2026-08-20 — The extraction cap is 15% of the weekly limits, not 10%
+
+Owner's ruling, given in chat and recorded here because chat is not storage.
+R26's cap on total model spend for the extraction effort moves from 10% to
+**15%** of the owner's weekly subscription limits. The ruling was given just
+after a weekly reset, with the owner's words being that they are "only willing
+to spend 15%" — so 15 is a ceiling they have looked at and chosen, not a
+target to aim for or a number to grow again later.
+
+Nothing else about R26 changes. The cap is still enforced against REAL readings
+rather than against the projection, still taken before a batch, after it, and
+part-way through a long one, and a run still stops before crossing the line
+instead of discovering the overrun afterwards. The reader on this machine is
+still `omarchy-agent-usage-claude --limits-only --force`, the reading is still
+approximate because it counts only local sessions, and the owner's own figure
+is still the tiebreaker where the two disagree.
+
+Two things this ruling does NOT touch, said plainly because they are easy to
+confuse with it:
+
+- **The delivery driver's `--budget-points` allowance is a different number.**
+  That governs what an unattended pipeline run may spend on planning, review
+  and orchestration. R26 governs what the extraction effort may spend reading
+  transcripts. They are separate ceilings on separate work and neither implies
+  the other.
+- **`BL-23` (Stage B) cites the cap rather than restating it.** Its spend-guard
+  clause says "against the 10% weekly cap"; that figure is now stale and the
+  implementing plan must read R26 rather than BL-23 for the number. The backlog
+  is append-only, so the stale text stands where it was landed — this entry is
+  the correction, which is exactly what the append-only rule intends.
+
+
 ## 2026-08-16 — The agent can read subscription usage after all
 
 The owner asked whether a shell command could reach `/usage`. It can, by two

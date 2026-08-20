@@ -188,7 +188,7 @@ specific fact I would need to confirm myself before buying.
   are explicitly rejected: they would cost one network call per video instead of
   one for the channel, to sharpen a boundary that is a preference rather than a
   rule.
-- **R26** — Total model spend for the extraction effort is capped at 10% of the
+- **R26** — Total model spend for the extraction effort is capped at 15% of the
   owner's weekly subscription limits. The cap is enforced against real readings
   rather than the projection: `claude -p "/usage"` returns them headlessly, so a
   reading is taken before a batch, after it, and part-way through a long one,
