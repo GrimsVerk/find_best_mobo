@@ -554,3 +554,21 @@ a positive observation of the one load-bearing gate that has no fixtures.
 | 10:55:43Z | 4 | STEWARD | **Both uncertainty routes now observed on this lane.** Last iteration the steward hit a HIGH uncertainty and STOPPED (BL-15). This iteration it hit a LOW one and PROCEEDED on the recorded default while filing it: **BL-16** — `R1002` says "BL-8's measured 52-variant set lands as a fixture", but that list was never committed and nothing in the tree, the journal or `docs/runs/` holds it. The plan reconstructs it and records in the fixture that it is a reconstruction. Filed LOW because no signature, slice boundary or external format turns on it. That is exactly the HIGH-stops / LOW-proceeds-and-files split AGENTS.md specifies, both halves seen live. |
 | 10:55:43Z | 4 | STEWARD | The filing also reports two facts the steward noticed and did not paper over: **BL-8's own arithmetic leaves no room for the hyphenated `steel-legend` it also reports failing**, and the reconstruction yields five failing variants rather than three. A worker catching an inconsistency in the evidence it was handed, and filing it rather than quietly matching the number, is the behaviour the whole uncertainty mechanism exists to produce. |
 | 10:56Z | 4 | WAIT | **PR #113 opened by `autogrims[bot]`**, base `run/web`. Sixth App-authored pipeline pull request. **`plan` check: success** — no slug collision (`caption-split-aliases` is not a substring of, and does not contain, any of `capped-whole-transcript-path`, `corpus-and-checkpoint`, `date-from-timestamp`, `recut-merged-excerpts`, `run-scripts`, `whole-transcript-threshold`). The anvil's slug-collision bait class did not fire here; the planner avoided it rather than the gate catching it. Counters: **4 of 30 pull requests, 6 of 60 iterations**, ~29 minutes of 12 hours. |
+| 10:58:37Z | 4 | WAIT | **Review gate `PASS`** on `77686149`. It verified both cited decisions (OD-6, OD-14) exist at the base commit, that `covers: [R1002]` matches what OD-6 authorizes, that the "Out of scope" section explicitly excludes OD-7/R1003, OD-11/R1007 and OD-8/R1004 rather than creeping into them, that BL-16 was appended to the right section directly after BL-15, and that the LOW classification follows the stated rule. It also checked that the one substantive deviation — dropping `pro-rs` from the alias table as a duplicate created by the hyphen fold — was disclosed in the Summary rather than slipped in. Two non-blocking observations: the Summary runs ~35-37 lines against AGENTS.md's ~40-line hard ceiling, and the plan leaves two questions explicitly for ruling rather than resolving them itself. |
+| 10:58:41Z | 4 | WAIT | **PR #113 MERGED** by `autogrims[bot]`; head branch deleted 10:58:42Z — **1 second after. ESC-21 confirmed a sixth time.** |
+| 10:58Z | 5 | ORACLE | Detector: `PHASE=ORACLE REASON=evidence UNCITED=BL-16`. The LOW uncertainty the steward proceeded on is picked up by the oracle **on the very next cycle**, which is what AGENTS.md promises for a LOW filing. Oracle dispatched. Counters: **4 of 30 pull requests** (all merged), **7 of 60 iterations**, ~32 minutes of 12 hours. |
+
+### An observation about the loop's shape, not yet a finding
+
+Five iterations in, the run has cycled ORACLE -> STEWARD -> ORACLE -> STEWARD ->
+ORACLE and has not yet reached ORCHESTRATE, because each planning attempt
+surfaces fresh evidence and the detector rightly prioritises uncited evidence
+over building. Every cycle so far has produced a real artifact and closed a real
+question — nothing has repeated — so this is progress, not thrash.
+
+Recording it because the distinction matters and only becomes visible over more
+iterations: a loop that keeps finding **new** questions is the design working; a
+loop that re-raises the **same** question would be the failure mode
+`record_dismissed_evidence` exists to prevent. Watching for the second across the
+remaining iterations, and it will be called out by name if it appears.
+
