@@ -12,7 +12,54 @@ the owner's approval:
 
 ## Approved
 
-_(nothing yet)_
+- **BL-23** — **Build Stage B: extraction.** Stage A is complete and usable —
+  index, fetch, normalize, select, excerpt, bundle and estimate all run, and
+  `estimate` stops at the cost projection exactly as R7 requires. Nothing
+  consumes what it writes. Stage B is the first stage that reads a bundle and
+  produces knowledge, and until it exists every Stage A improvement sharpens an
+  input to a stage that is not there. Per the design (§"Stage B — Extraction"):
+  an agent reads ONE bundle and writes ONE claims file — for each board
+  mentioned, what was said, in which claim category, about which subject (VRM
+  capacity, voltage/firmware safety, memory behaviour, features, value), with
+  the short verbatim snippet, its timestamp, and its video's title and id. Low
+  effort: this is reading comprehension, not reasoning. An ingest step validates
+  each file against the schema and appends it to the append-only claim store,
+  tagged by batch. **Between batches the pipeline stops.**
+
+  What this item covers, and what it does not:
+
+  1. **The claim schema**, as a file, with the five subjects and the claim
+     categories named in the design. Python validates against it; the agent is
+     never trusted to self-check.
+  2. **The ingest step** — Python, no inference — that validates one claims file
+     and appends it to the store. Invalid file: rejected loudly, nothing
+     appended, the bundle stays unconsumed.
+  3. **The append-only claim store**, tagged by batch, so a rerun cannot
+     silently rewrite a claim already paid for (R27).
+  4. **The extraction agent's prompt and its contract**, in the repository, so
+     the same bundle produces a comparable file twice.
+  5. **The explicit continue command** R7 promises. `estimate` stops and says
+     continuing is a separate decision; today there is no command that decision
+     could invoke. This is that command, and it must take one batch at a time.
+  6. **The R26 spend guard around it** — a real usage reading before a batch,
+     after it, and part-way through a long one, against the 10% weekly cap,
+     stopping BEFORE the line rather than discovering the overrun after. The
+     reader is `omarchy-agent-usage-claude --limits-only --force`.
+  7. **R8's calibration record** — the first batch is the small calibration
+     batch; projected against actual is recorded and the chars-per-token factor
+     corrected for later projections. That closes S3.
+
+  **Not covered here**, deliberately: Stage C synthesis, Stage D inheritance and
+  Stage E report are separate items. This one ends when a calibration batch has
+  been extracted, validated, stored and its factor corrected.
+
+  **Why it needs its own approval:** the whole backlog to date is Stage A. The
+  owner's 2026-08-19 blanket approval covered BL-1 through BL-13, all of which
+  are input-side. This is the first item that spends model budget on the real
+  corpus, so it is approved as its own decision rather than inherited from that
+  one. — filed by: the operator of the 2026-08-20 local-lane run, at the owner's
+  instruction, after confirming Stage A runs end to end on the real channel
+
 
 ## Plan rework
 
