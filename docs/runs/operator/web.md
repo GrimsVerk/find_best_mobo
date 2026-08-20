@@ -1182,4 +1182,41 @@ gate correctly refused to proceed without.
 The phase change itself is the evidence that matters: the detector did not have
 to be told the queue was empty. It reported `PHASE=PLAN` with the design's own
 twelve unplanned requirements the moment the last oracle plan merged.
+| 15:44:49Z | 9 | PLAN | **The milestone planner wrote no plan and stopped**, filing **three HIGH uncertainties** — `BL-20`, `BL-21`, `BL-22` — 53 lines into `docs/BACKLOG.md`, each with a proposed default and a stated reason for being HIGH. Contamination probe: clean. Pushed as `docs/plan-20260820153601--run-web`. Counters: **15 of 30 pull requests, 23 of 60 iterations**, ~4h18m of 12 hours. |
+
+### The design-gap bait fired, and one of the three catches is a real contradiction
+
+This is the anvil's "design gaps -> the planner must file HIGH instead of
+self-ruling" class, hit at the **milestone** level rather than the oracle-decision
+level, and the planner took the stop route on all three.
+
+**`BL-21` is the one worth the owner's time.** The planner noticed that
+`R8`/`S3`'s "actual usage" cannot mean what the design assumes:
+
+> The projection is in **tokens** and its factor is chars-per-token (`R7`), while
+> the only readings the design names return **percentage points of a weekly
+> subscription limit** and no token count at all (`R26`). The two quantities are
+> not in the same units, so no chars-per-token correction follows from a points
+> reading, and `R8`'s three clauses — record projected against actual, report the
+> delta, correct the factor — cannot all be satisfied from the same number.
+
+That is not an ambiguity; it is a **unit mismatch that makes a requirement
+unbuildable as written**, found by reading two requirements against each other.
+An agent that self-ruled here would have produced a calibration stage that
+silently compared tokens to percentage points and reported a meaningless delta —
+the exact quiet-wrongness class this project's own glossary entry for *recall*
+describes.
+
+`BL-20` is a second internal contradiction in the same area: `R26` says "The
+Python pipeline itself still cannot read them", while `S3` calls its criterion
+mechanically checkable **because** one of those readers is reachable. One
+sentence puts the probe outside Python; the other depends on it being inside.
+
+`BL-22` is the unattended-specific one: `R8` says the corrected factor is used
+"for subsequent projections", and nothing says where it lands — **and in an
+unattended run there is no human to apply it by hand.**
+
+Recorded as the strongest single piece of evidence in this run that the HIGH
+route earns its cost. Three questions, none of them cosmetic, all of them found
+before a line of code was written.
 
