@@ -41,8 +41,9 @@ One steward per decision, in parallel, each given exactly one `OD-<n>`:
 
 The steward prompt is `.claude/commands/steward.md` plus the decision id. Read
 which decisions the handoff says NOT to act on yet, and do not act on them.
-Stewards branch off the **default branch** — their plans depend on the landed
-ledger, not on any feature's code.
+Stewards branch off the **run's base branch** (the default branch, unless the
+commissioning driver named another) — their plans depend on the landed ledger,
+not on any feature's code.
 
 Their plans land on their own pull requests, before any code, exactly like every
 other plan. The steward's branch is `worker/steward-<od>`, which neither the
@@ -96,7 +97,7 @@ the plan, not to push through.
 
 ## 3. Create the branch, then spawn the workers
 
-Get onto the feature's branch. Create it off the default branch the
+Get onto the feature's branch. Create it off the run's base branch the
 first time; switch to it if it already exists, because **dispatching a fix into
 an open pull request runs this same command** (`/deliver` step 4) and must not
 fail on a branch that is already there:
@@ -104,6 +105,13 @@ fail on a branch that is already there:
 ```sh
 git switch feat/<slug> 2>/dev/null || git switch -c feat/<slug> main
 ```
+
+The base branch is `main` unless a commissioning driver's dispatch names
+another — an unattended dispatch states its base branch and the exact
+feature-branch name (a non-default base adds a `--<base>` suffix, e.g.
+`feat/<slug>--run-web`). When it does, use BOTH exactly as given: the branch
+name is how the driver and the plan check find the work, and the base is what
+keeps two runs on two base branches out of each other's pull requests.
 
 If the branch already existed you are in **fix-dispatch mode**: the feature's
 pull request is open, its checks have said something, and you are adding commits

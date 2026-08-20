@@ -180,18 +180,26 @@ jobs:
         # It fails only on a definite answer. An unreadable API is a note, not a
         # block: a check that goes red when GitHub is having a bad morning is a
         # check people learn to re-run without reading.
+        # ?ref= and the numeric guard are ESC-48, propagated (ESC-57): without
+        # the ref this validates the DEFAULT branch — which may not carry a
+        # .github/ at all (a lane-based repository), so the endpoint 404s —
+        # and gh prints the error body on STDOUT, so `2>/dev/null` does not
+        # stop the JSON flowing into $errs and the step fails on garbage.
+        # The head commit is the CODEOWNERS this pull request actually ships.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CO_REF: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          errs="$(gh api "repos/${GITHUB_REPOSITORY}/codeowners/errors" \
+          errs="$(gh api "repos/${GITHUB_REPOSITORY}/codeowners/errors?ref=${CO_REF}" \
                     --jq '.errors | length' 2>/dev/null || true)"
+          case "$errs" in *[!0-9]*|"") errs="";; esac
           if [ -z "$errs" ]; then
             echo "codeowners: cannot read the validation API here — not treating that as a failure."
           elif [ "$errs" = "0" ]; then
             echo "codeowners: resolves cleanly, so the ownership rules actually bind."
           else
             echo "codeowners: $errs unresolvable line(s) in .github/CODEOWNERS." >&2
-            gh api "repos/${GITHUB_REPOSITORY}/codeowners/errors" \
+            gh api "repos/${GITHUB_REPOSITORY}/codeowners/errors?ref=${CO_REF}" \
               --jq '.errors[] | "  line \(.line): \(.message)"' >&2 || true
             {
               echo ""
@@ -220,6 +228,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Hoisted because the secrets context is not available in ANY `if:` — a
+    # workflow that references it there fails validation and dies with zero
+    # jobs (the ESC-36 shape). The step below tests the hoisted copy.
+    env:
+      APP_ID: ${{ secrets.APP_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -227,14 +240,47 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
       - run: uv tool install copier
+      - name: Which repository is the template
+        # The token below must be scoped to exactly the template repository,
+        # and only .copier-answers.yml knows which one that is.
+        id: tpl
+        run: |
+          SRC="$(sed -n 's/^_src_path: *//p' .copier-answers.yml | tr -d "\"'" | head -1)"
+          OWNERREPO="$(printf '%s' "$SRC" \
+            | sed -E 's#^(gh:|https://github\.com/|ssh://git@[^/]+/|git@github\.com:)##; s#\.git$##')"
+          echo "owner=${OWNERREPO%%/*}" >> "$GITHUB_OUTPUT"
+          echo "repo=${OWNERREPO##*/}"  >> "$GITHUB_OUTPUT"
+      - name: Mint a read-only token for the template repository
+        # Only needed when the template repository is private — the built-in
+        # GITHUB_TOKEN is scoped to THIS repository and cannot read another
+        # one. The token is minted from the same GitHub App the pipeline
+        # already uses (APP_ID / APP_PRIVATE_KEY), down-scoped to
+        # Contents: read on the template repository alone. Deliberately no PAT
+        # fallback: a PAT expires — a year at most — and when it does,
+        # template updates fail in EVERY generated project simultaneously,
+        # while an App key does not expire (the owner's ruling).
+        #
+        # continue-on-error, deliberately: this job runs on every pull
+        # request and exits 0 for non-template branches, so a mint that fails
+        # (App not installed on the template repository yet) must not redden
+        # unrelated pull requests. A template/ branch without a token still
+        # fails CLOSED further down, with a message naming the fix.
+        id: tpl-token
+        if: env.APP_ID != ''
+        continue-on-error: true
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ steps.tpl.outputs.owner }}
+          repositories: ${{ steps.tpl.outputs.repo }}
+          permission-contents: read
       - name: Verify this is exactly what the template produces
         env:
-          # Only needed when the template repository is private — the built-in
-          # GITHUB_TOKEN is scoped to THIS repository and cannot read another
-          # one. Create a fine-grained PAT with read access to the template repo
-          # and store it as the TEMPLATE_TOKEN secret. Without it, a template/
-          # branch fails closed here rather than merging unverified.
-          TEMPLATE_TOKEN: ${{ secrets.TEMPLATE_TOKEN }}
+          # The minted App token (empty when the mint was skipped or failed;
+          # the script then runs tokenless, which works for a public template
+          # and fails closed for a private one).
+          TEMPLATE_TOKEN: ${{ steps.tpl-token.outputs.token }}
         run: |
           # Let git authenticate to GitHub with the token, if one is set.
           if [ -n "${TEMPLATE_TOKEN:-}" ]; then

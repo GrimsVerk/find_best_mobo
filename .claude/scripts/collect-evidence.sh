@@ -44,6 +44,13 @@
 #   --limit <n>        default: 100, the runs to consider
 # Env:
 #   GH                 the GitHub CLI (tests substitute a stub)
+#   RUN_BASE           the run's base branch. Review runs are listed
+#                      repo-wide, so on a twin-run repository this is what
+#                      keeps the OTHER lane's payloads out of this lane's
+#                      evidence (ESC-54): a non-default base keeps only
+#                      branches carrying its `--<base>` suffix, the default
+#                      base skips branches carrying any such suffix. Unset,
+#                      it defaults to the default branch.
 #
 # Exits 0 even when it collects nothing. This is a RECORDER, and a recorder that
 # fails a run because there was nothing to record has inverted its own job.
@@ -152,9 +159,28 @@ INDEX="$REVIEWS/index.md"
   echo "| --- | --- | --- | --- |"
 } > "$INDEX"
 
+# Lane scoping (ESC-54). Review runs are listed REPO-WIDE, but a run
+# directory belongs to ONE run: on a twin-run repository, collecting without
+# a filter imports the other lane's review payloads into this lane's
+# evidence — observed live, from the machinery rather than a roaming worker.
+# The driver's convention is the filter: branches pushed for a non-default
+# base carry the `--<sanitized base>` suffix, so a lane keeps only its own
+# suffix, and the default lane skips anything carrying one.
+DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+LANE_SUFFIX=""
+if [[ -n "${RUN_BASE:-}" && "$RUN_BASE" != "$DEFAULT_BRANCH" ]]; then
+  LANE_SUFFIX="--$(printf '%s' "$RUN_BASE" | tr -c 'A-Za-z0-9._-' '-')"
+fi
+
 while IFS=$'\t' read -r id created sha branch conclusion status; do
   [[ -z "$id" ]] && continue
   [[ "$status" == "completed" ]] || { SKIPPED=$((SKIPPED + 1)); continue; }
+  if [[ -n "$LANE_SUFFIX" ]]; then
+    [[ "$branch" == *"$LANE_SUFFIX" ]] || { SKIPPED=$((SKIPPED + 1)); continue; }
+  elif [[ "$branch" =~ --[A-Za-z0-9._-]+$ ]]; then
+    # Carries some lane's suffix, and this run is the default lane's.
+    SKIPPED=$((SKIPPED + 1)); continue
+  fi
   # String comparison on RFC3339 timestamps is a real ordering as long as both
   # are UTC with the same shape, which is what the GitHub API returns and what
   # the driver passes. No date arithmetic, so nothing depends on GNU date.
