@@ -764,6 +764,78 @@ an impression.
 - Severity: bug
 
 
+### F21 — the detector's HIGH-uncertainty branch has never fired, because it requires `HIGH` on the entry's first line
+- Where: `.claude/scripts/deliver-phase.sh`, section 2, "HIGH uncertainties with no ruling yet?"
+- What happened: the branch reads one line at a time and demands the id and the
+  word `HIGH` **on the same line**:
+  ```sh
+  id="$(grep -oE 'BL-[0-9]+' <<<"$line" | head -1 || true)"
+  [[ -n "$id" ]] || continue
+  grep -qE '\bHIGH\b' <<<"$line" || continue
+  ```
+  Its own comment states the assumption: "an id plus the word HIGH on the item's
+  **first line**". Checked every uncertainty this lane has filed — `BL-15`,
+  `BL-17`, `BL-19`, `BL-20`, `BL-21`, `BL-22` — and **not one carries `HIGH` on
+  its first line**. Every entry opens with the question and puts `**HIGH**:` in
+  the middle of the body, where the reasoning for the classification belongs.
+  So `PHASE=ORACLE REASON=uncertainties` has **never been emitted on this lane**.
+- Why nothing broke: section 3 ("evidence nobody has read") catches the same
+  entries a moment later, because an uncited `BL-<n>` anywhere in the backlog
+  qualifies. All five earlier uncertainties reached the oracle by that path —
+  every routed detection on this lane reads `REASON=evidence`, never
+  `REASON=uncertainties`.
+- Why it still matters: the two paths are not equivalent. Section 2 exists to
+  express "a HIGH uncertainty **blocks planning by design** — it is the one guess
+  the planner was not allowed to proceed on", and it fires **before** the
+  evidence sweep. Section 3 is a catch-all that treats a blocking question and an
+  unread escape identically. The distinction the design draws is real; the
+  mechanism that draws it is unreachable with the entry format every worker on
+  this lane actually produces. It is a check that silently does nothing — the
+  shape the anvil plan calls out as ESC-45's class, here in the detector rather
+  than in CI.
+- Suggested ratchet: match `HIGH` anywhere within the entry (up to the next
+  `- **BL-` or blank-line boundary) rather than on the first line, or have the
+  worker prompts require the classification in the opening line. Either fixes it;
+  the present pairing means the stricter gate is decorative.
+- Severity: bug
+
+### F22 — SELF-RECORDED OPERATOR ERROR: a stale checkout produced a wrong phase reading, reported to the owner before it was checked
+- Where: this driver, 2026-08-20T16:15Z, answering the owner's question "did the
+  pipeline route them?"
+- What happened: two mistakes in one reply, both mine, neither the template's.
+  1. Queried `#141`'s merge state through the **list** endpoint
+     (`pulls?state=all`), which does not populate `.merged`, and read the
+     resulting `null` as "closed without merging". `#141` had in fact **merged at
+     15:46:33Z**, with its head branch deleted a second later.
+  2. Ran `deliver-phase.sh` **without syncing the base branch first**. The
+     working tree was three commits behind `origin/run/web`, so the detector read
+     a `docs/BACKLOG.md` that did not yet contain `BL-20`, `BL-21` or `BL-22`, and
+     honestly reported `PHASE=PLAN` for the state it could see. I reported that
+     output as though it described the real base.
+- The correct answer, computed by hand against `origin/run/web`:
+  ```
+  BL ids in BACKLOG:      BL-1 ... BL-19 BL-20 BL-21 BL-22
+  BL ids cited in ORACLE: BL-1 ... BL-19
+  -> uncited:             BL-20 BL-21 BL-22
+  ```
+  and section 3 precedes the PLAN branch, so a detect on a synced tree reports
+  `PHASE=ORACLE REASON=evidence UNCITED=BL-20 BL-21 BL-22`. **The routing works;
+  the reading was stale.**
+- Root cause worth keeping: the `/deliver-loop` command file's step 3 is "Sync
+  and steer-check: **pull the base branch**", and every previous iteration on this
+  lane did pull before detecting. This one skipped it because the owner asked for
+  a read-only investigation, and a read-only investigation of a *remote* state
+  through a *local* tree is exactly where a stale answer hides. The detector is
+  only ever as current as the checkout it runs in, and nothing in its output says
+  which commit it read.
+- Suggested ratchet, applying to the template rather than to me: have
+  `deliver-phase.sh` print the base commit it evaluated (`BASE_SHA=<sha>`) beside
+  its `BASE=` line, and say when the local branch is behind its remote. A phase
+  reading nobody can date is a reading nobody can check.
+- Severity: friction (against the template); the error itself was the operator's,
+  and is recorded here because a ledger that only records the machinery's faults
+  is not a record of the run.
+
 ---
 
 ## ROUND 4 — update to v0.4.42, and a stop pending on the owner
@@ -1219,4 +1291,5 @@ unattended run there is no human to apply it by hand.**
 Recorded as the strongest single piece of evidence in this run that the HIGH
 route earns its cost. Three questions, none of them cosmetic, all of them found
 before a line of code was written.
-
+| 15:46:33Z | 9 | WAIT | **PR #141 MERGED** by `autogrims[bot]`; head branch deleted 15:46:34Z — **1 second after. ESC-21 confirmed a fifteenth time.** `BL-20`, `BL-21` and `BL-22` are on the lane base. Counters: **15 of 30 pull requests, all merged**; 23 of 60 iterations. |
+| 16:15-16:30Z | - | (investigation only) | Owner asked whether the pipeline had routed the three filings, and asked that nothing be started. Nothing was: no worker dispatched, no branch pushed, no base-branch pull. The investigation produced **F21** (the detector's HIGH branch is unreachable) and **F22** (a self-recorded operator error). The run is **paused at the owner's instruction**, not stopped — no stop was declared, no evidence has been landed, and the counters above stand. |
