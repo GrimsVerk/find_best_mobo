@@ -713,3 +713,46 @@ Measurement: no new mechanism. `coverage.sh`'s own report is the observable —
 re-runnable by anyone at any commit — and the run reports under `docs/runs/`
 record the driver's phase decisions that branch on it; the pairing rule is
 checkable by reading this ledger.
+
+## OD-21 — A steward dispatch for a decision whose every added requirement is superseded is false: the steward writes no plan, cites this decision, and stops
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-22, BL-21
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V3 — "Cost is about not being *stupid* — not spending budget I could have used on other projects — rather than a hard constraint." — this is what the conduct half of the ruling turns on: BL-22 measures each false dispatch costing a full unattended session that re-derives the supersession from the ledger before stopping, and the ruling converts that recurring spend into one citation. The dispatch mechanics themselves are process below the vision's altitude, and **Alternatives considered** carries that weighing.
+- **Vision statements against:** V12 — "Silence has to read as silence." — the nearest, as OD-20 read it one level down: a steward instructed to write nothing and stop could make a stuck loop read as a quiet, healthy one — absence of artifacts reading as absence of trouble. It does not forbid this because every dispatch is already durably recorded (the run reports under `docs/runs/` log the driver's phase decisions, which is precisely the mechanism that measured BL-22), and the ruling requires the stopping steward to name this decision in its report, so each recurrence lands in the committed record as a symptom of the known livelock, never as silence.
+- **Alternatives considered:** (1) Let some plan clear the gap by naming R1001 in its `covers:` — rejected by name in OD-20 and again here: the behaviour R1001 describes (the cap, the excerpt-fallback above it) is deliberately not being built, so the claim is false the day it is written, and the pressure to make it is exactly the harm BL-21 warned the false gap would create. (2) Fix the scripts from here — `coverage.sh` (subtract superseded ids; BL-22's own preferred direction, since the dispatch reads that script's gap list and nothing else, so one parser learns supersession rather than two) or `deliver-phase.sh` step 4 (skip a decision whose every added requirement is superseded) — rejected: `.github/scripts/` and `.claude/scripts/` are owner-owned gate paths, the same ground OD-1 and OD-20 declined to touch; the recommended shapes are recorded below for the owner and belong upstream in the template as both filings say. (3) Game the dispatch's mapping — a new ledger entry whose `**Requirements added:**` line repeats R1001 so the driver's grep resolves the gap to a different decision — rejected outright: it is parser-gaming, it merely renames the livelock (the driver dispatches a steward for the new decision instead), and an added-requirements line asserting an addition that is not one is a false record. (4) A halt — no tenet is at stake and a decision exists. (5) Record the steward's conduct in the design layer, as OD-19 did for the orchestrator's false dispatch — chosen: this ledger is the one durable, oracle-writable text every steward reads at dispatch and the review gate reads at every pull request's base commit.
+- **Rationale:** BL-22 is verified against the tree, and it is measured rather than predicted — PR #129, opened mechanically as "Plan for OD-5", contains no plan and only the BL-22 filing itself. The mechanism: `deliver-phase.sh` step 4 takes `coverage.sh`'s gap list, maps each R≥1000 gap back to the decision whose `**Requirements added:**` line names it, and emits `PHASE=STEWARD` before the plan walk and before `PHASE=PLAN`; `coverage.sh` reads no `**Requirements superseded:**` line, so R1001 is a permanent gap, the map permanently yields OD-5, and the driver can never again reach orchestration, milestone planning or acceptance. No agent-writable path can break the loop: this ledger is append-only, both scripts are owner-owned, and the one write that would green the report is the over-claim OD-20 forbids. What this ledger can do is what OD-19 did for BL-20's inevitable dispatch — make it harmless, and now also cheap. The ruling is stated generally because the mechanism is general: a `PHASE=STEWARD` dispatch naming a decision all of whose added requirements are superseded is a false dispatch, and the dispatched steward has nothing lawful to cut. The correct motion is to write no plan, report this decision, and stop — without re-deriving the supersession from the ledger, which is the session-sized spend V3 rules out paying on every cycle. A plan written on such a dispatch implements behaviour the owner reversed and contradicts the surviving design at its base commit (in OD-5's case: R5 and R28 as amended, R1000, R1008); the review gate should block it citing this decision, exactly as OD-19 binds the orchestrator's case. This does not unstick the driver — nothing an oracle may write can — so the unlock is named for the owner below with its priority raised: what OD-20 recorded as the recommended script fix, BL-22 turns into the single edit standing between the driver and any further unattended progress.
+
+**The standing rule:** a steward dispatched for an `OD-<n>` whose every id on
+its `**Requirements added:**` line is named on some later decision's
+`**Requirements superseded:**` line writes no plan and stops, citing this
+decision. Today that set is exactly OD-5 — R1001, retired by R1008 (OD-13) —
+and the rule is stated generally so the next supersession does not need a
+BL-22 of its own.
+
+**For the owner, in priority order:**
+
+1. **The `coverage.sh` supersession fix OD-20 records** — subtract ids named
+   by column-anchored `**Requirements superseded:**` lines and report them as
+   their own excused class, never silently — is now the unlock for the whole
+   delivery loop, not hygiene: the steward dispatch reads that script's gap
+   list and nothing else, so this one edit closes BL-21 and BL-22 together.
+   It is owner-owned and the hole is the template's, so it belongs upstream.
+2. **The gate-side backstop BL-22 proposes** is worth taking in the same
+   motion: `oracle-decisions.sh` fails a plan under `docs/plans/oracle/` whose
+   cited decisions' added requirements are all superseded, so a steward that
+   misses a supersession is stopped by a check rather than by its own reading.
+3. **Fixing this re-arms BL-20's hazard.** The moment the driver passes step 4
+   again it resumes the plan walk, and the first thing the unstuck loop may do
+   is emit `PHASE=ORCHESTRATE SLUG=whole-transcript-threshold`. OD-19's
+   standing prohibition governs that dispatch until the owner's closing edit
+   on that plan lands.
+
+Measurement: no new mechanism. The run reports under `docs/runs/` already
+record every dispatch and phase decision — they are how BL-22 was measured —
+and a stopping steward's citation of this decision lands in that same record;
+`coverage.sh`'s report stays re-runnable at any commit, so the moment the
+owner's fix lands, the same observable shows the superseded class excused and
+the loop advancing.
