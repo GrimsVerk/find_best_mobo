@@ -1010,4 +1010,60 @@ things happens:
 Whichever occurs is recorded verbatim. This lane has now spent five rounds unable
 to reach this test, so the negative outcomes are worth reporting as carefully as
 the positive one.
+### ESC-17 / ESC-71 — the window opened and shut without the test firing. Fourth miss, measured to the second.
+
+The watcher's verdict, verbatim:
+
+```
+WINDOW CLOSED: mine (#136) went closed first, at head
+ba65b3028f563ed091bd980d42bca6bf653580eb; other (#133) still open
+```
+
+The timings, which are the actual finding:
+
+| Event | Time |
+| --- | --- |
+| Other lane's last merge before my window (`#135` -> `run/local`) | 13:18:50Z |
+| **My `#136` opened** | **13:21:09Z** |
+| **My `#136` merged**, head unchanged at `ba65b302` | **13:22:59Z** |
+| Other lane's `#133` | still open throughout, never merged in the window |
+
+The other lane's most recent merge landed **2 minutes 19 seconds before** my
+pull request existed. Nothing merged into `run/local` during the 110 seconds mine
+was open, so **ESC-71 had nothing to act on and remains unobserved** — the fourth
+consecutive miss, and the first one where both lanes genuinely held an open pull
+request at the same time.
+
+**One weaker thing IS now observed, and is worth stating exactly:** my head SHA
+was `ba65b302` when the pull request opened and `ba65b302` when it merged, with
+the other lane holding an open pull request for that entire window. That rules
+out one interference mode — another lane's *open* pull request perturbing mine —
+but **not** the mode ESC-71 actually governs, which is a *merge* on the other
+lane. Recorded as a partial observation so it cannot be read as the full one.
+
+### Why this test cannot fire on this rig, with numbers
+
+Every pull request this lane has opened, from open to merge:
+
+| PR | #108 | #110 | #112 | #113 | #115 | #120 | #127 | #130 | #134 | #136 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Seconds open | 96 | 80 | 101 | 169 | 102 | 109 | 91 | 113 | 76 | 110 |
+
+**Median 101 seconds; the longest ever was 169.** The other lane runs at the
+same speed. For a cross-lane merge to land inside one of these windows, the two
+lanes' merges would have to fall within roughly ninety seconds of each other, and
+across five rounds and ten pull requests they never have — they alternate rather
+than overlap, because each lane is serialized on its own single-pull-request rule.
+
+This is a **test-rig limitation, not a template defect**, and the distinction
+matters for the owner's report: ESC-71's fix may be perfectly correct and this
+round provides no evidence either way. Observing it needs one lane deliberately
+held open — a pull request parked with a failing or pending check while the other
+lane merges — which no lane can arrange for itself without violating its own
+instructions. **It is the owner's to arrange, or it stays unobserved.**
+
+| Time | Iteration | PHASE | Detail |
+| --- | --- | --- | --- |
+| 13:22:59Z | 5 | WAIT | **PR #136 MERGED** by `autogrims[bot]`, head unchanged. ESC-21: branch deleted, thirteenth confirmation. |
+| 13:23Z | 6 | STEWARD | Detector: `PHASE=STEWARD ODS=OD-10 OD-11`. **OD-9 cleared** — fourth decision retired this round. Steward dispatched for OD-10. Counters: **11 of 30 pull requests** (all merged), **19 of 60 iterations**, ~116 minutes of 12 hours. |
 
