@@ -572,7 +572,7 @@ loop that re-raises the **same** question would be the failure mode
 `record_dismissed_evidence` exists to prevent. Watching for the second across the
 remaining iterations, and it will be called out by name if it appears.
 | 11:03:57Z | 5 | ORACLE | Worker returned `exit=0 commits=1`; ESC-69 line present. Ruling **OD-15**: `R1002`'s 52-variant fixture **is the declared reconstruction**, and the reconstruction is the reference set — ratifying the default the steward proceeded on, so the merged plan stands as written. No requirement added or superseded. Contamination probe: clean. |
-| 11:05Z | 5 | WAIT | **PR #115 opened by `autogrius[bot]`** — correction: `autogrims[bot]`. Base `run/web`. Seventh App-authored pipeline pull request. Detector: `PHASE=WAIT PR=115`. Counters: **5 of 30 pull requests, 8 of 60 iterations**, ~38 minutes of 12 hours. |
+| 11:05Z | 5 | WAIT | **PR #115 opened by `autogrims[bot]`**. Base `run/web`. Seventh App-authored pipeline pull request. Detector: `PHASE=WAIT PR=115`. Counters: **5 of 30 pull requests, 8 of 60 iterations**, ~38 minutes of 12 hours. |
 
 ### The LOW-uncertainty route completed end to end
 
