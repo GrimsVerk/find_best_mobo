@@ -656,6 +656,41 @@ an impression.
   than "a previous run died".
 - Severity: bug
 
+### F19 — readiness is a START check being used as a per-wake health check, and two of its refusals fire on a perfectly healthy running lane
+- Where: `.github/scripts/unattended-ready.sh` (v0.4.42); the ESC-72 and ESC-76 refusals
+- What happened: with the run in a normal `WAIT` on its own pull request,
+  readiness refuses:
+  ```
+  MISSING  a pull request is already open against 'run/web'
+           (#120 docs/oracle-plan-od-7--run-web) — the run's first act would be
+           to wait on it, and a template update waits for YOUR review, which no
+           unattended actor can give. Merge or close it first
+  ```
+  `#120` is this run's **own** pull request, opened by this driver one minute
+  earlier, App-authored, with its checks running. It is not a template update
+  and needs nobody's review. "Merge or close it first" is advice that, followed,
+  would have the driver destroy its own in-flight work — and merging it by hand
+  is precisely what AGENTS.md forbids ("the pipeline merges, not you").
+- The pattern, which is the actual finding: **both new refusals are start-time
+  preconditions, and the fallback check-in instructs the driver to re-run
+  readiness on every wake.** F18 is the same shape with a live worktree; this is
+  it with a live pull request. Together they mean a healthy mid-run lane fails
+  readiness in two independent ways, at almost every wake, and a driver
+  following the check-in literally would stop a run that is working — or worse,
+  act on the remedy text and delete a worker's plan or close its own pull
+  request.
+- Note the message is also **wrong in its detail here**: it explains the refusal
+  as "a template update waits for YOUR review", which was true for #118 but is
+  simply not true of #120. The sentence is hard-coded for the template-update
+  case and is misreported for every other open pull request.
+- Suggested ratchet: split the script — a `--start` mode that keeps these two
+  refusals, and a `--health` mode for per-wake use that reports "waiting on
+  #<n>" and "worker running" as **normal states** rather than refusals. Failing
+  that, the check-in instruction to re-verify readiness every wake should be
+  narrowed to configuration checks only.
+- Severity: bug
+
+
 ---
 
 ## ROUND 4 — update to v0.4.42, and a stop pending on the owner
@@ -820,3 +855,4 @@ still running and was stopped first; it had committed nothing.
 | 11:34:46Z | 1 | STEWARD | Fallback check-in fired with stale bookkeeping (it still named v0.4.41 and PR #108). Re-entered the loop on **current** state rather than the check-in's numbers. Readiness **REFUSED** on a live worker's worktree — **F18**, a real defect in one of the five fixes this round was sent to exercise. |
 | 11:35Z | 1 | STEWARD | Worker finished: **ESC-68 fired a third time** — work relocated to `docs/plan-itx-chipset-variant`, reported honestly. Plan `docs/plans/oracle/itx-chipset-variant.md`, slug `itx-chipset-variant`, `covers: [R1003]`, +290 lines, plus a `BL-<n>` filing in `docs/BACKLOG.md`. Evidence quoted: a real 33-minute review of the MSI MPG B850I Edge TI matched `B850` **zero times**, because the matcher's right boundary refuses `b850` inside `b850i`. Contamination probe: clean. No slug collision (`itx-chipset-variant` against the seven existing slugs). |
 | 11:35:38Z | 1 | STEWARD | Pushed as `docs/oracle-plan-od-7--run-web`. Worktree removed only **after** the work was pushed. Counters: **7 of 30 pull requests, 11 of 60 iterations**. |
+| 11:36Z | 1 | WAIT | **PR #120 opened by `autogrims[bot]`**, base `run/web`. Eighth App-authored pipeline pull request. Detector: `PHASE=WAIT PR=120` — correct. Readiness, re-run per the check-in's instruction, **refuses on this very pull request** — **F19**. The detector and the readiness check disagree about whether the same state is healthy; the detector is right. Subscribed to #120; check-in re-armed with corrected bookkeeping. |
