@@ -1,0 +1,19 @@
+Preparing worktree (new branch 'worker/steward-od-7')
+HEAD is now at 01c6f3c Oracle: rulings and handoff (#111)
+=== spawn-worker[steward-od-7] engine=claude branch=worker/steward-od-7 base=run/local (01c6f3ccd12b1620e41a7810a58cffe12c47867f) bypass=0 ===
+=== 2026-08-20T10:48:05Z ===
+Permission allow rule (--allowed-tools): Write(docs/plans/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/plans/oracle/**) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/BACKLOG.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/BACKLOG.md) instead (Edit rules cover all file-editing tools).
+Committed on `worker/steward-od-7`.
+
+**Plan:** `docs/plans/oracle/itx-chipset-variant.md`, slug `itx-chipset-variant` (unique, and not a substring of any existing plan slug), `covers: [R1003]`, citing **OD-7**.
+
+**What it builds.** R1003's ITX rule as a *derived surface form*, not a boundary relaxation: for every `kind = "chipset"` alias, each normalized surface form also enters the compiled pattern with a trailing `i`. Explicit forms are enumerated before derived ones so the existing first-declared-wins de-duplication makes a hand-written `b850i` beat the inferred one; a form already ending in `i` derives nothing; non-chipset kinds derive nothing; the right boundary is untouched, so `b850ix`, `theb850i` and `asrocki` still match nothing. Two sequential slices, ~300 lines — slice 1 the rule in `aliases.py` (plus the table's header comment and `docs/architecture.md`), slice 2 the corpus-level regression: the title auto-include, the threshold still gating body matches, and the `aliases --check` report naming the ITX spelling that fired.
+
+**What I had to guess at.** One thing, filed as **BL-18** (LOW, proceeded on the default): R1003 asks for a regression on *the real B850I review's title*, and that string is in no commit, journal entry or run record — BL-9 records the board name, the duration and the measured zero matches, and `data/index.jsonl` is gitignored. Default: BL-9's board name verbatim inside a plainly-labelled reconstructed title, with nothing asserted on the invented wording, following the provenance rule OD-16 already set for R1002's fixture. Everything else is recorded as a derivation with the clause that delegates it — OD-7 hands the mechanism to the plan in terms, so choosing form-derivation over a suffix-aware pattern, suffixing every declared form rather than the canonical alone, and the explicit-before-derived precedence are derivations, not uncertainties.
+
+**Existing plans this affects.** None is made *wrong* by OD-7. Two go stale in stated ways: `docs/plans/corpus-and-checkpoint.md`'s slice 3 Signatures block will not name the new `itx_forms` (the OD-12 revision behind `CODEOWNERS` can carry it, alongside `caption-split-aliases`'s addition), and `docs/plans/oracle/caption-split-aliases.md` shares `compile_matcher` and `data/aliases.toml` with this plan — its out-of-scope note on OD-7 remains accurate, and the merge-order constraint (not built in parallel; whichever lands second rebases) is restated in this plan's summary. Deriving at the form-string level is deliberately what keeps that rebase to one call site.
+
+I could not run the local gate — `uv run ruff`/`pytest` are outside this session's tool grant — but the diff is documentation only and touches no code; pre-commit's hooks reported no files to check.
+
+WORK_ON_BRANCH worker/steward-od-7

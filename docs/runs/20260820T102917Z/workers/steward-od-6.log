@@ -1,0 +1,28 @@
+Preparing worktree (new branch 'worker/steward-od-6')
+HEAD is now at d718955 Update from template v0.4.41 (#107)
+=== spawn-worker[steward-od-6] engine=claude branch=worker/steward-od-6 base=run/local (d71895553e0f4facaef96b4ac5f69f9936c6e2dd) bypass=0 ===
+=== 2026-08-20T10:29:28Z ===
+Permission allow rule (--allowed-tools): Write(docs/plans/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/plans/oracle/**) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/BACKLOG.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/BACKLOG.md) instead (Edit rules cover all file-editing tools).
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+**Plan written and committed.**
+
+**Path / slug:** `docs/plans/oracle/caption-split-aliases.md`, slug `caption-split-aliases` (unique across every plan in the tree; not a substring of, and does not contain, any other slug).
+
+**Decision implemented:** **OD-6** (R1002 — an alias split across caption tokens still matches), together with **OD-15** (R1010 — the join rule applies within one cue, and the cross-cue case is counted rather than matched). `covers: [R1002, R1010]`; the body cites both decision ids. Re-cut from the preserved draft at `docs/oracle/od-6-plan-draft.md`, used as raw material per that file's header.
+
+Four sequential slices, ~670 lines: hyphen folds to a space in `normalize`; the token-join rule as a per-form pattern (`alias_pattern`) with the fused-token negatives pinned; BL-8's variant fixture, the `airus elite` table addition and the R4 selection effect; and the cue-boundary counter carried on `Selection` into the threshold report and printed on every run, zero included.
+
+**What I had to guess at:** one thing, LOW, filed as **BL-17** in the same commit under "Uncertainties awaiting oracle ruling" — R1002 asks for "BL-8's measured 52-variant set" as a fixture, and that list exists in no commit, journal entry or run record. I proceeded on the default (reconstruct 52 from the shipped table across BL-8's damage classes, with the named failures verbatim, marked in the fixture as a reconstruction) and recorded the two facts that make the number shaky: BL-8's own arithmetic leaves no room for the `steel-legend` failure it also reports, and the draft's reconstruction failed five variants rather than three.
+
+The HIGH question that blocked the earlier attempt (cross-cue splits, BL-16) is recorded in the plan as ruled by OD-15/R1010, not re-argued. Everything else is written up as a derivation with its citation — including the two choices R1010 hands to the plan: what text the counter joins (per-cue normalized texts joined by one space, so the boundary offset is exact) and where the count is carried (`Selection`, because `select_all` releases each transcript inside the loop).
+
+**One deliberate departure from the draft:** the table gains `airus elite` only. The draft would also have added `airus master`; R1002 says the table gains *the observed spoken forms*, and that one was never heard. It is in the summary's rule-on list so the owner can put it back with one line of data.
+
+**Existing plans this makes partly wrong:** `docs/plans/corpus-and-checkpoint.md` — its slice 3 Signatures block no longer describes `aliases.py` once `alias_pattern` and `count_cross_cue_candidates` land, its slice 3 normalization behaviour (hyphen kept) is retired, and its slice 4 `Selection`/`ThresholdReport` blocks each gain a field. That plan is `CODEOWNERS`-owned and revised on its own pull request; OD-12 already commissions such a revision and these additions can ride it. No other plan is affected — OD-6 supersedes no requirement, and the OD-13 and OD-4 plans are untouched.
+
+**Verification honesty:** this session could not execute code (bash approvals denied), so nothing about current matcher behaviour was re-measured here; the "fails today" markers are carried as the draft's claim and labelled unverified in the plan, for the slice's test author to confirm red before the fix.
+
+The branch is `docs/`-prefixed deliberately: `plan-resolve.sh` exempts only `chore/`/`docs/` branches, and a plan branch cannot resolve to a plan that does not yet exist at its base.
+
+WORK_ON_BRANCH docs/oracle-plan-caption-split-aliases

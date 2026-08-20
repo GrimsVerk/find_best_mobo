@@ -1,0 +1,15 @@
+I reviewed this PR against AGENTS.md's rules for `docs/DESIGN.oracle.md`, the plan-exemption rules, and `docs/VISION.md`, plus the mechanical facts.
+
+**Scope and exemption.** Branch `docs/oracle-20260820104007--run-local` is `docs/`-prefixed, exempting it from the `plan` check. Its entire diff sits inside `docs/DESIGN.oracle.md` and `docs/oracle/` — both on AGENTS.md's list of paths exempt from the ~50-line cap ("documents this process itself demands"). At 97 added lines, that exemption is what makes the size acceptable; without it this would fail the cap. Correctly exempt.
+
+**Criterion 5 (gate tampering / owned docs).** The diff touches only `docs/DESIGN.oracle.md` and adds a file under `docs/oracle/` — neither is `docs/DESIGN.md` nor `docs/VISION.md`. `docs/DESIGN.oracle.md` is explicitly the unowned, agent-writable ledger by design ("deliberately not owned... an agent may write here unattended"), and handoffs under `docs/oracle/` are likewise agent-written and agent-opened. A bot-opened PR touching this pair is expected, not a violation. No gate-tampering paths (`.github/`, `.claude/`, `CODEOWNERS`, pre-commit config) are touched.
+
+**Schema conformance for OD-16.** All seven required fields are present and non-empty. The V1 and V12 quotes match `docs/VISION.md` verbatim as substrings. Evidence cites BL-17 and BL-8 by id (base-commit existence is `oracle-decisions.sh`'s job, not independently verifiable here). Ids are unique, increasing, and no prior entry is edited — pure append. No requirement ids added, so no R1000+ check applies.
+
+**Content soundness.** The decision correctly declines to assert the reconstructed 52-variant fixture as BL-8's actual measured data, since that data is recorded as unrecoverable — this directly upholds AGENTS.md's honesty rule ("Never claim something is verified... that a reading has actually observed") and V12 ("if he did not say it, the answer must say he did not say it," applied one level down to the fixture's own provenance). The `Vision statements against` field genuinely engages the strongest counter-reading rather than picking an easy one to dismiss.
+
+**Minor, non-blocking observation:** OD-16 marks "Requirements superseded: (none)," but it materially reinterprets R1002's closing clause ("BL-8's measured 52-variant set lands as a fixture") from a claim of measured provenance to a labelled reconstruction with no evidentiary weight on the count. That's arguably more than the "planning-document correction" precedent set by OD-12 (which only reassigned a module, not a testable claim's meaning). It's a defensible call — the core matching *behavior* in R1002 is untouched — but worth the owner's eyes rather than something to block on.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS
