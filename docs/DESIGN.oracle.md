@@ -461,3 +461,40 @@ Signatures block) states, per shared type and exception, the module it lives
 in. That revision ratifies `FetchFailure` in `ledger.py` and retires the
 `transcripts.py` re-export shim. BL-2, outside this run's scope, is the same
 class of correction and can ride in the same revision when it is ruled.
+
+## OD-13 — OD-5's cap is superseded by the owner's ruling; the capped plan is not built as merged
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-14
+- **Requirements added:** R1008
+- **Requirements superseded:** R1001
+- **Vision statement relied on:** V4 — "Given a choice between a cheaper run and a better-sourced answer, take the better answer." — the sentence the owner's amended R28 itself leans on for the uncapped path; and, for the measurement R1008 keeps, the durable-evidence ruling: "A change nothing can observe is a change nobody can evaluate."
+- **Vision statements against:** V13 — "Burning the weekly limit sifting through completely irrelevant transcripts." — the nearest statement to forbidding an uncapped whole-transcript path, and it does not: a video at or above R28's 80% ratio is information-dense *by measurement* — the opposite of completely irrelevant material — while a sparse long stream now clusters small under amended R5 and never reaches the ratio; and R26's 10%-of-weekly cap still bounds the total spend regardless of routing.
+- **Alternatives considered:** (1) Keep OD-5/R1001 standing — not available: the 2026-08-19 ruling in `docs/DECISIONS.md` is the owner's, the amended R28 in the owner's own document says "The whole-transcript path is not capped — this supersedes R1001", and leaving R1001 unsuperseded here leaves the two design documents — which `coverage.sh` unions — asserting a cap and its absence at once. (2) Supersede R1001 with no replacement requirement — rejected: the per-path projection reporting lived only in R1001's text, and amended R28 does not carry it; dropping it would make the reversed routing a behaviour change nothing at the checkpoint measures, which the durable-evidence section forbids. (3) Let the merged plan `capped-whole-transcript-path` stand and patch it during build — rejected: all three of its slices implement the reversed decision (slice 1 routes `EXCERPTS_OVER_CAP`, slice 2 asserts a no-whole-block-over-the-cap invariant, slice 3 reports `videos_over_cap`), so this is BL-14's HIGH case — changed slice boundaries and a changed external routing behaviour — and a patch mid-build would be an agent silently rewriting a merged plan. (4) Supersede, and have the steward re-cut the plan to the clustering design before anything builds it — chosen, as BL-14's proposed default.
+- **Rationale:** BL-14 asks whether the merged plan `docs/plans/oracle/capped-whole-transcript-path.md` still stands. It does not. The owner's 2026-08-19 ruling overrules OD-5 on the cap and instructs this ledger to supersede OD-5/R1001 citing that entry and the amended `docs/DESIGN.md`; this decision is that supersession, so the design layer reads one way again. OD-4/R1000 is untouched — the owner's ruling explicitly keeps it, and R5's clustering language is its formalization, not its reversal. Building the plan as merged would put a decision the owner has reversed into the tree, which is exactly what BL-14 was filed to prevent.
+
+**R1008** — The projection reports, per routing path — whole transcript or
+clustered excerpts — how many videos took it and the characters and projected
+tokens each path accounts for, and for every whole-transcript video delivered
+across sequential bundles (amended R28), how many bundles carry it. This
+replaces the reporting half of R1001 so the routing the owner amended into R28
+stays observable at the checkpoint, before anything is spent; the routing and
+its bound are otherwise R28's own text, deliberately not restated here.
+
+What this changes downstream. The merged plan
+`docs/plans/oracle/capped-whole-transcript-path.md` is superseded and **must
+not be built as merged**: its cap, its third routing path, and its
+over-cap-fallback behaviour implement R1001, which this decision retires. The
+steward re-cuts it as a new plan under `docs/plans/oracle/` citing OD-13,
+covering R28 and R1008: two routing paths, not three; a transcript larger than
+one bundle's token cap is delivered across sequential bundles rather than
+falling back to excerpts, with the mechanics the plan's to specify; the
+bundle-XML `form` attribute and the per-path projection figures survive from
+the superseded plan. Sequencing is unchanged — R1000's re-cut
+(`docs/plans/oracle/recut-merged-excerpts.md`) still lands first, because the
+ratio routes honestly only once each transcript character is counted once.
+`docs/plans/whole-transcript-threshold.md` remains superseded and
+not-to-build; its revision stays the owner's, exactly as the superseded plan's
+Summary already asked. Measurement: R1008 is the measurement — the checkpoint
+projection and the bundle files make the routing countable per run; no new
+collection mechanism is needed beyond it.
