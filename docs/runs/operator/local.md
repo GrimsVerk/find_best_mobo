@@ -20,6 +20,7 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T08:53:17Z | PRE-DRIVER | gauge reachable: session=41 week=78 week_model=88; allowance 20 points |
 | 2026-08-20T08:51:57Z | RIG/GATED-BOTH | ruleset include = default + run/local + run/web; 7 checks; both lanes gated |
 | 2026-08-20T08:51:57Z | PR MERGED | #98 auto-merged by app/autogrims in 74s; head branch deleted in 4s by delete-merged-branch |
 | 2026-08-20T08:49:38Z | PRE-DRIVER PR | #98 docs/bl-15-zero-duration-warning -> run/local (project backlog filing) |
@@ -249,4 +250,61 @@ binds. No finding.
 - **Severity:** none — these are positive confirmations, and items 1, 2 and 3
   are first-ever live observations of claims the template had only reasoned
   about.
+
+### F10 — `setup-github.sh` leaves untracked evidence that then blocks the driver
+- **Where:** Part 1 step 6a -> step 7, `scripts/setup-github.sh --app`
+- **What happened:** after the two setup runs, the lane tree was no longer clean:
+
+  ```
+  $ git status --short
+  ?? docs/runs/setup/
+  $ find docs/runs/setup -type f
+  docs/runs/setup/setup-github-20260820T084514Z.log
+  docs/runs/setup/setup-github-20260820T084804Z.log
+  ```
+
+- The script writes a timestamped log of each run into `docs/runs/setup/`. That
+  is good behaviour — it is exactly the self-recording the template promises.
+  But nothing commits the file and nothing ignores it, so it is left untracked
+  in the working tree.
+- **Why that matters here:** the very next documented step is starting the
+  driver, and `deliver-loop.sh` refuses to start on a dirty tree. The
+  template's own setup step therefore leaves the repository in the one state
+  its own driver step rejects. On this machine the previous run's driver
+  refusal was recorded for the same class of reason
+  (`run2-refused-dirty-tree`).
+- **Expected:** one of three, any of which closes it — the script commits its
+  own log, or `.gitignore` covers `docs/runs/setup/`, or the script prints what
+  the operator must now do with the file before starting the driver. It does
+  none of the three.
+- **Checked:** neither log contains any identity-register value, so committing
+  them is safe under rule 13. Verified by comparing every register value, and
+  the home directory path, against both files.
+- **Severity:** bug — a documented two-step sequence where step one blocks step
+  two, with no message saying so.
+- **Action taken:** committed the logs to the lane as run evidence, which is
+  where the template plainly meant them to live.
+
+### F11 — the budget gauge is reachable, and reads high before the run starts
+- **Where:** Part 2 rule 8, `.claude/scripts/budget-probe.sh`
+- **What happened:** the probe returns a real reading with **no** environment
+  configuration at all — `BUDGET_PROBE_CMD` was unset in the driver's shell:
+
+  ```
+  $ .claude/scripts/budget-probe.sh
+  session=41 week=78 week_model=88 reset=Aug 20, 11am (Europe/Amsterdam)
+  rc=0
+  ```
+
+- **Against rule 8:** the gauge is reachable, so there is no blocker finding
+  here, and no silent fallback to pull-request-per-hour limits. Positive
+  observation: the probe finds the subscription reader on its own, which the
+  earlier run needed an explicit `BUDGET_PROBE_CMD` export to do.
+- **Recorded for the owner, not as a defect:** the weekly gauge is already at
+  **78%** and the model-specific gauge at **88%** before the driver has spent
+  anything, against a `--budget-points 20` allowance. If the allowance is read
+  as a delta, the run can reach 98% weekly. The run may therefore stop on the
+  allowance well before `--max-prs 30` or `--max-hours 12`. Flagged so an early
+  budget stop is read as expected arithmetic rather than as a fault.
+- **Severity:** none
 
