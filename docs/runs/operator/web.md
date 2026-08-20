@@ -352,3 +352,48 @@ Steering SHAs at run start: `docs/DESIGN.md` 00a8a21f, `docs/VISION.md` 89ef09ec
 | 10:12:54Z | - | - | The other lane merged its own PR #105 (base `run/local`) — but **after** mine had already merged, so the two were never open at the same time. **ESC-17 remains unexercised**: my pull request's commit list was never rewritten by a cross-lane merge, because there was no overlap to test. Recorded as still-unobserved, not as a pass. |
 | 10:24:09Z | - | RESTART | Owner restarts both lanes at template **v0.4.41**. Round 2 ended cleanly with its pull request merged; it was not blocked. |
 
+---
+
+## RESTART — round 3, template v0.4.41
+
+| Time | Event |
+| --- | --- |
+| 2026-08-20T10:24Z | Restart at **v0.4.41**. Round 2 was not blocked — its pull request merged cleanly. |
+| 10:25Z | Lane reset to `origin/main`; `copier update` v0.4.27 -> **v0.4.41**. **Zero conflicts, third time running.** 22 files modified, `open-pr.yml` added, and mechanically verified that no path outside template machinery changed. |
+| 10:26Z | `uv sync`, `uv run pre-commit install`, full gate green — ruff, format, mypy (33 files), **474 tests**. |
+| 10:26Z | Force-pushed `run/web`. **F9 reproduced verbatim**: the push again reported `Bypassed rule violations ... Changes must be made through a pull request ... 7 of 7 required status checks are expected.` Third round, same waiver. |
+| 10:26:23Z | `unattended-ready.sh --runtime` **passes immediately** — the gate on `run/web` survived this restart too, all seven checks binding. No bounded wait needed for the third round running. |
+
+### F10 — the web frontend never spells out the ESC-69 unattended contract it tells the driver to send
+- Where: `.claude/commands/deliver-loop.md` step 5 vs. `.claude/scripts/deliver-loop.sh`
+- What happened: v0.4.41 adds ESC-69 — "every unattended dispatch carries a
+  written contract". The contract exists, as `UNATTENDED_ADDENDUM` in
+  `.claude/scripts/deliver-loop.sh`: four clauses telling a headless worker
+  that nobody is watching, never to address a human or offer a menu, never to
+  push, and to finish with `WORK_ON_BRANCH <branch>`. The **local** frontend
+  appends it to every worker prompt automatically. The **web** frontend — the
+  file a web driver actually follows — only says to send "the matching command
+  file as its prompt plus the UNATTENDED addendum", and never defines what the
+  addendum is or where to find it.
+- Consequence, observed on this lane: rounds 1 and 2 dispatched their oracle
+  workers with the one-line marker the web file's own examples imply
+  (`UNATTENDED RUN. The delivery driver commissioned this session. <scope>`) and
+  **not** the four-clause contract, because the web file gave nothing else to
+  send. Those workers happened to behave, so nothing broke — which is precisely
+  how this stays invisible. A fix that lands in only one of two frontends
+  protects only one of them.
+- Expected: the addendum belongs in the web command file verbatim, or in a file
+  both frontends read. Round 3 sends the full contract, lifted out of
+  `deliver-loop.sh` by hand.
+- Severity: bug
+
+### F11 — F5 is still open at v0.4.41
+- Where: `.claude/commands/deliver-loop.md` lines 32 and 104
+- What happened: the credential rule still says "Probe with `gh api user`,
+  **NEVER** `gh auth status`", and step 2 still opens "**Preflight, first turn
+  only:** `gh auth status`". Unchanged across v0.4.37, v0.4.39 and v0.4.41.
+- Expected: F2 and F4 were fixed within one release of being reported (F7), so
+  the channel works. This one has simply not been picked up yet. Re-raised here
+  so it is not lost between rounds.
+- Severity: bug (duplicate of F5, still open)
+
