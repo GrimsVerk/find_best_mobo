@@ -20,6 +20,8 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T08:51:57Z | RIG/GATED-BOTH | ruleset include = default + run/local + run/web; 7 checks; both lanes gated |
+| 2026-08-20T08:51:57Z | PR MERGED | #98 auto-merged by app/autogrims in 74s; head branch deleted in 4s by delete-merged-branch |
 | 2026-08-20T08:49:38Z | PRE-DRIVER PR | #98 docs/bl-15-zero-duration-warning -> run/local (project backlog filing) |
 | 2026-08-20T08:46:41Z | RIG/GATED | run/local gated, 7 checks, strict; unattended-ready exit 0, all ready |
 | 2026-08-20T08:46:41Z | RIG/WAIT | run/web present at v0.4.37, ungated, awaiting owner gating call |
@@ -196,4 +198,55 @@ Register values are never written here. They appear as `<repos_root>`,
   29 landed items intact, `plan-resolve.sh` grants the `docs/BACKLOG.md`
   exemption at any size (81 lines added).
 - **Severity:** none, as a template finding.
+
+### F9 — observation checklist: four never-observed claims confirmed live on PR #98
+- **Where:** Part 2 rule 9, on the pre-driver backlog filing (PR #98 into `run/local`)
+- PR #98 was a real pipeline pull request through the full seven-check gate, so
+  it answers several checklist items outright. Times are UTC, read from the API.
+
+**1. Auto-merge completes without a human (ESC-36).** Confirmed.
+`autoMergeRequest.enabledBy = app/autogrims`, `enabledAt 08:49:33`;
+`mergedBy = app/autogrims`, `mergedAt 08:50:47`. **74 seconds**, no human
+action, merge method MERGE. The `arm-auto-merge` job shows `skipped` on the
+post-merge workflow run, which is correct — it had already armed the pull
+request on the earlier pull_request run.
+
+**2. The head branch disappears — and by which path (ESC-21).** Confirmed, and
+this is the item with four wrong theories on record and no observation.
+`git ls-remote --heads origin 'docs/bl-15*'` returns nothing: **GONE**.
+The path is now known: the `delete-merged-branch` job, started `08:50:53`,
+completed `08:50:57` — **4 seconds, immediately after the merge**. The
+`sweep-merged-branches` job in the same run is `skipped`. So it is the
+immediate path, not the nightly sweep. First live observation.
+
+**3. Every pipeline pull request is authored by the App (ESC-26, ESC-35).**
+Confirmed. `author = app/autogrims`, a bot login, never the owner's.
+
+**4. `update-open-prs` runs after a merge (ESC-17).** Ran, `success`,
+`08:50:53 -> 08:50:58`, 5 seconds. **Partial observation only** — no other pull
+request was open at the time, so it succeeded with nothing to update. The real
+claim (an open PR auto-updated with its checks re-running) is still unobserved
+and stays on the checklist for the driver's run.
+
+**5. Required check durations (ESC-45 — a ~1s "pass" is a skip).** All seven,
+on the pull_request run:
+
+| check | duration |
+| --- | --- |
+| `review` | 1m14s |
+| `checks` | 16s |
+| `acceptance-criteria` | 13s |
+| `template-sync` | 12s |
+| `secrets` | 11s |
+| `test-the-tests` | 11s |
+| `plan` | 6s |
+
+Nothing near the ~1s skip signature. The `0`-duration `skipping` entries that
+also appear in `gh pr checks` belong to the push-triggered workflow's duplicate
+jobs, which are meant to skip; the pull_request run is the one the ruleset
+binds. No finding.
+
+- **Severity:** none — these are positive confirmations, and items 1, 2 and 3
+  are first-ever live observations of claims the template had only reasoned
+  about.
 
