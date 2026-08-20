@@ -859,4 +859,32 @@ still running and was stopped first; it had committed nothing.
 | 11:37:36Z | 1 | WAIT | **PR #120 MERGED** by `autogrims[bot]`; head branch deleted 11:37:38Z — **2 seconds after. ESC-21 confirmed a ninth time.** |
 | 12:40:16Z | 2 | ORACLE | Fallback check-in fired. Readiness deliberately **not** re-run, per F18/F19 — the detector is the authority mid-run. Credential ESC-50 as always. Detector: `PHASE=ORACLE REASON=evidence UNCITED=BL-17`. The OD-7 plan's own filing comes straight back to the oracle, the same route BL-15 and BL-16 took. Oracle dispatched. Counters: **7 of 30 pull requests** (all merged), **12 of 60 iterations**, ~73 minutes of 12 hours. |
 | 12:40Z | 2 | ORACLE | **ESC-17 / ESC-71 watch is finally live.** For the first time in five rounds the other lane has a pull request open — `#126 base=run/local head=docs/oracle-plan-od-13--run-local` — while this lane is about to open one. The next window in which both lanes hold an open pull request is the first chance to observe what a cross-lane merge does to my pull request. Under **ESC-71** the correct outcome is that it does **nothing**: my head must not be rewritten by a merge into `run/local`. Watching for it explicitly. |
+| 12:44:58Z | 2 | ORACLE | Worker returned `exit=0 commits=1`; ESC-69 line present. Ruling **OD-16**: `R1003`'s regression title is **the declared reconstruction, asserted by canonical and never by string** — ratifying the steward's LOW default so the OD-7 plan stands. The "never by string" half is the careful part: it stops the test pinning a reconstructed title's exact wording, so the real measurement can replace the fixture later without rewriting the assertion. No requirement added or superseded. Contamination probe: clean. |
+| 12:45:16Z | 2 | WAIT | **PR #127 opened by `autogrims[bot]`**, base `run/web`, head `8fb9f463`. Ninth App-authored pipeline pull request. Detector: `PHASE=WAIT PR=127`. Counters: **8 of 30 pull requests, 13 of 60 iterations**, ~78 minutes of 12 hours. |
+
+### ESC-17 / ESC-71 — a near miss measured to the minute, and still UNOBSERVED
+
+The window opened and shut before this lane could use it:
+
+| Event | Time |
+| --- | --- |
+| Other lane's `#126` (base `run/local`) merged | 12:42:20Z |
+| This lane's `#127` (base `run/web`) opened | 12:45:16Z |
+
+**Two minutes and 56 seconds apart, in the wrong order.** For the fifth round
+running, the two lanes have never held an open pull request at the same moment,
+so a cross-lane merge has never had one of mine to act on. The behaviour under
+test — ESC-71's promise that a merge into `run/local` leaves a `run/web` pull
+request's head untouched — has had **no opportunity to be right or wrong** here.
+
+`#127`'s head SHA is recorded as **`8fb9f463`** precisely so the next window can
+be judged mechanically rather than by impression: if the other lane merges while
+`#127` is still open, the head must still read `8fb9f463` afterwards.
+
+This is now the single longest-standing unobserved item on the checklist, and it
+is unobserved for a scheduling reason rather than a technical one — the lanes are
+simply too fast. Both merge inside two minutes of opening, so overlap needs the
+two to be dispatched within roughly ninety seconds of each other. Worth saying to
+the owner as a **test-rig** limitation rather than a template one: if ESC-17 and
+ESC-71 are to be observed at all, one lane has to be deliberately held open.
 
