@@ -329,3 +329,17 @@ continues from F7.
   checks — which the bypass does not touch, and which round 1 observed working
   correctly on PR #100.
 - Severity: blocker
+
+### Driver run, round 2
+
+Run timestamp `20260820T093300Z`. Run start 2026-08-20T09:33:36Z.
+Limits unchanged: **30 pull requests, 12 wall-clock hours** (deadline
+2026-08-20T21:33Z), **60 iterations**.
+Steering SHAs at run start: `docs/DESIGN.md` 00a8a21f, `docs/VISION.md` 89ef09ec
+— identical to round 1, so the owner has not steered between rounds.
+
+| Time | Iteration | PHASE | Detail |
+| --- | --- | --- | --- |
+| 09:32:54Z | wait | - | `unattended-ready.sh --runtime` **PASSES immediately** — the round-1 gate on `run/web` survived the restart, all seven checks still binding. No bounded wait was needed this round. Re-verified rather than assumed, because the local lane's setup step can reset the ruleset; `run/local` is at `v0.4.37` and 13 commits ahead of `main`, and a `template/v0.4.39--run-local` branch exists, so that lane is taking the update through the pipeline rather than resetting. |
+| 09:33:36Z | preflight | - | Credential unchanged: App mint fails rc 3, `gh api user` returns `GrimsVerk (User)` — ESC-50 again. `coverage.sh` rc 1, 18 requirements unplanned. `main` still at `88400b8`, untouched by either lane (TESTPLAN Part 3 closing action 3, first half: clean). |
+| 09:33:36Z | 1 | ORACLE | `PHASE=ORACLE BASE=run/web REASON=evidence UNCITED=BL-14`. Same starting phase as round 1, as expected from an identical base. Oracle worker dispatched. |
