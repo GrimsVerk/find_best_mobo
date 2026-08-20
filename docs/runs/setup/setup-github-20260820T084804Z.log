@@ -1,0 +1,45 @@
+setup-github: origin exists; not creating a repository.
+setup-github: configuring GrimsVerk/find_best_mobo
+setup-github: merge settings: auto-merge on, merge commits on, delete-on-merge on.
+setup-github: secret CLAUDE_CODE_OAUTH_TOKEN: already set, leaving it alone.
+
+  GitHub App identity — the login the unattended driver opens pull requests
+  as. Without it the driver opens them as YOU, and owner-authored.sh then
+  compares your login to your login and passes, so docs/DESIGN.md and
+  docs/VISION.md are unprotected overnight. See docs/DECISIONS.md.
+
+  Create the App ONCE per account at
+
+      https://github.com/settings/apps/new
+
+    - GitHub App name .... anything unique
+    - Homepage URL ....... this repository's URL is fine; nothing reads it
+    - Webhook -> Active .. UNCHECK
+    - Repository permissions:
+        Contents ......... Read and write
+        Pull requests .... Read and write
+        Checks ........... Read-only   (a web-session driver reads CI results
+                                        through the App; harmless everywhere else)
+    - Where installed .... Only on this account
+
+  Keep it at exactly those three permissions. The App is the identity the
+  UNATTENDED driver acts as — never give it Administration or Secrets, or the
+  driver could edit its own gates.
+
+  Then, on the App's page: note the App ID (a number, NOT the Client ID),
+  press "Generate a private key" (a .pem downloads), and press
+  "Install App" -> install it on this repository AND on the template
+  repository (template-sync reads the template through a token minted from
+  this App — there is no PAT path). Then continue here.
+setup-github: App secrets already set, leaving them alone.
+setup-github: ruleset 'grimsverk-gates': updated in place (id 21010014).
+setup-github: ruleset bypass: repository admins, always — direct admin pushes are WAIVED, not blocked; the App and every non-admin stay fully gated.
+setup-github: required checks: checks secrets plan template-sync test-the-tests acceptance-criteria review
+setup-github: gated branches: the default branch, plus run/local run/web
+
+setup-github: done. Read it back before trusting it:
+setup-github:   .github/scripts/unattended-ready.sh
+setup-github: 
+setup-github: transcript: docs/runs/setup/setup-github-20260820T084804Z.log — setup friction is evidence.
+setup-github: Commit it: directly on main before the gates exist, or on a docs/ branch
+setup-github: after (docs/runs/ is exempt from the plan-check size cap at any size).
