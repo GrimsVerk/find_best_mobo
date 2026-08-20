@@ -629,3 +629,24 @@ re-cut, no covers change, and the constraints above bind slice 2's fixture
 author. Measurement: the regression test itself, observed red against the
 pre-fix matcher and green after, alongside the recall report and selection
 counts R1003 already names — no new collection mechanism.
+
+## OD-18 — `--help` after a subcommand is forwarded: the subcommand's help prints
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-19, BL-5
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** (none — no statement in docs/VISION.md tells against this; which help screen a CLI prints is below the vision's altitude, exactly as OD-10 recorded for the dispatch mechanics this elaborates)
+- **Alternatives considered:** (1) Keep today's behaviour — the top-level parser owns `-h/--help` everywhere, so `find-best-mobo aliases --help` prints the dispatcher's help — rejected: R1006's first sentence is that every flag a subcommand *documents* is reachable from the CLI, and a help screen nobody can reach documents nothing — `--check` would stay documented only in source, which is BL-19's own statement of the problem. Worse than the omission, the output is affirmatively wrong: a question asked about `aliases` is answered with a screen that never mentions `aliases` or any flag it takes. And it makes `-h/--help` the one token permanently exempt from R1006's forwarding rule — a special case the dispatcher contract would carry forever, for a screen still reachable as `find-best-mobo --help`. (2) Print both helps, the dispatcher's then the subcommand's — rejected: two usage lines under two prog names read as an error, and no widely-used multi-command CLI answers one question with two screens. (3) Split the pair — keep `-h` top-level, forward `--help` — rejected: the two spellings are one flag everywhere argparse appears, and splitting them turns a convention into a trap. (4) Forward it — the steward's default — chosen.
+- **Rationale:** BL-19 is right that R1006 and the shipped CLI disagree on exactly this token: argparse auto-registers `-h/--help` on the top-level parser and consumes it before dispatch, so the one flag R1006 could not reach was the one that documents all the others. Forwarding is also the convention of every multi-command CLI the owner already uses — `git`, `pip`, `uv` all print the subcommand's help after its name — so the chosen behaviour is the one a user will guess first. Nothing reachable is lost: `find-best-mobo --help` and a bare `find-best-mobo` keep today's output and exit codes (0 and 2), as the merged plan pins. The risk class is as filed: one console output, reversible by deleting one branch in `cli.py`, and a wrong ruling here is superseded at the cost of one entry. This is the next-cycle review `AGENTS.md` promises a LOW default, ratifying it.
+
+Downstream: `docs/plans/oracle/subcommand-flag-forwarding.md` builds as merged
+— no re-cut, no covers change. Its sequencing note stands: it shares every
+command module with `docs/plans/oracle/refuse-on-missing-artifact.md`, and the
+two are never built in parallel. Measurement: the plan's own tests pin both
+sides — `main(["aliases", "--help"])` exits 0 and the output names `--check`,
+`main(["--help"])` prints the top-level help, `main([])` still returns 2 —
+and slice 2's package-walking guard test extends the property to every future
+stage, so the behaviour this ruling changes is observed by the suite on every
+pull request. No new collection mechanism is needed.
