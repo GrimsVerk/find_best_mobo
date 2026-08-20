@@ -20,6 +20,8 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T08:56:53Z | DRIVER START | base run/local; gauge weekly 79% model 90%; allowance 20 points; max-prs 30; max-hours 12 |
+| 2026-08-20T08:56:53Z | ORACLE | iteration 1, worker oracle-20260820085541 |
 | 2026-08-20T08:53:17Z | PRE-DRIVER | gauge reachable: session=41 week=78 week_model=88; allowance 20 points |
 | 2026-08-20T08:51:57Z | RIG/GATED-BOTH | ruleset include = default + run/local + run/web; 7 checks; both lanes gated |
 | 2026-08-20T08:51:57Z | PR MERGED | #98 auto-merged by app/autogrims in 74s; head branch deleted in 4s by delete-merged-branch |
@@ -307,4 +309,60 @@ binds. No finding.
   allowance well before `--max-prs 30` or `--max-hours 12`. Flagged so an early
   budget stop is read as expected arithmetic rather than as a fault.
 - **Severity:** none
+
+### F12 — driver started; both rule-8 requirements met
+- **Where:** Part 1 step 7 / driver start
+- **Command:**
+
+  ```
+  nohup .claude/scripts/deliver-loop.sh --base run/local \
+    --budget-points 20 --max-prs 30 --max-hours 12 \
+    > /tmp/mobo-local-driver.log 2>&1 &
+  ```
+
+- **It announces this run's base branch**, in a banner, before anything else:
+
+  ```
+  THIS RUN'S BASE BRANCH: run/local
+  Every pull request this run opens will merge into 'run/local',
+  and this run waits only on pull requests targeting 'run/local'.
+  Non-default base: every branch this run pushes is suffixed '--run-local'.
+  ```
+
+  The branch-suffix line is the v0.4.37 lane isolation stating itself, and is
+  what keeps this lane's branches distinguishable from `run/web`'s.
+- **It shows a real gauge reading**, not a fallback:
+
+  ```
+  deliver-loop: budget: weekly at 79% (model 90%), allowance 20 points, ...
+  ```
+
+  Rule 8 is satisfied: a live gauge, no silent fall back to pull-request-per-hour
+  limits. Re-verified: the readiness check ran again inside the driver and
+  returned every line `ready`, including all seven checks binding at
+  `run/local`.
+- **First dispatch:** `iteration 1: phase ORACLE`, worker
+  `oracle-20260820085541`.
+- **Severity:** none — positive confirmation.
+
+### F13 — the budget line's reset value is truncated mid-word
+- **Where:** driver start banner, `deliver-loop.sh`
+- **What happened:** the line ends on a bare month name:
+
+  ```
+  deliver-loop: budget: weekly at 79% (model 90%), allowance 20 points, window resets Aug
+  ```
+
+  Confirmed against the raw log with `cat -A` — the line genuinely ends there;
+  nothing was cut by a terminal or a pager.
+- **What the probe actually returns:** the full value is present one layer down —
+  `.claude/scripts/budget-probe.sh` prints
+  `reset=Aug 20, 11am (Europe/Amsterdam)`. The reset field contains spaces and
+  commas, and the driver's formatting takes only the first whitespace-separated
+  token of it.
+- **Expected:** the whole reset time. It is the one field that tells an operator
+  reading a stopped run's log whether the window had already turned over, and
+  it is exactly the field that gets dropped.
+- **Severity:** friction — cosmetic in isolation, but it removes the only
+  timestamp that makes a budget stop interpretable after the fact.
 
