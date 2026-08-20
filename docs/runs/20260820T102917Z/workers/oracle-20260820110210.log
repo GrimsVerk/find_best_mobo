@@ -1,0 +1,22 @@
+Preparing worktree (new branch 'worker/oracle-20260820110210')
+HEAD is now at 3a8283b Plan for OD-7 (#114)
+=== spawn-worker[oracle-20260820110210] engine=claude branch=worker/oracle-20260820110210 base=run/local (3a8283b41bf64e1d6ecf6dc2dd7f29912db5fe4b) bypass=0 ===
+=== 2026-08-20T11:02:10Z ===
+Permission allow rule (--allowed-tools): Write(docs/DESIGN.oracle.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/DESIGN.oracle.md) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/oracle/**) instead (Edit rules cover all file-editing tools).
+Done. The run is complete and committed on the branch.
+
+**Decision written:** OD-17, appended to `docs/DESIGN.oracle.md`, resolving BL-18 (with BL-9 as the underlying measurement). It ratifies the plan's LOW default — the R1003 regression's title is a labelled reconstruction carrying BL-9's board name `MSI MPG B850I Edge TI` verbatim, with the docstring declaring the measured title absent from the record and nothing asserting on the invented wording. No new requirement, no re-cut of `docs/plans/oracle/itx-chipset-variant.md`, no halt, no waiver.
+
+Two things the ruling adds beyond ratifying the default, both derived from evidence already in the tree:
+
+- **BL-9's measurement constrains the reconstruction in both directions.** Zero `B850` title matches pre-fix means the real title cannot have spelled the chipset with a separator (`b850-i` would have matched), so the verbatim board name is faithful in the one dimension the regression turns on. But `msi` is a vendor form in the shipped alias table, so the reconstructed title title-hits MSI before and after the fix — the reconstruction reproduces exactly one measured property, not the real video's recorded title-invisibility, and the plan's "excluded before this plan" selection demonstration is only true against the test's own table. That trap is the most useful thing this run found; the plan's text is silent on it and the natural move (reusing the reconstructed title against a vendor-carrying table) makes the claim false.
+- **Fetching the real title from YouTube was weighed and rejected**: a title fetched today is not the title BL-9 measured, and the offline suite cannot repeat the fetch. Recovering the *measured* string later is a supersession with logged evidence, never a silent swap.
+
+**Not decided:** BL-1 and BL-2 — outside the commissioned scope, unchanged from previous handoffs.
+
+**Handoff:** `docs/oracle/handoff-2026-08-20-4.md`. Nothing needs planning; it carries the two binding constraints for slice 2's fixture author and answers the plan's three open questions.
+
+**For the vision:** BL-18 is BL-17's shape repeated one run later — a measurement's conclusion was recorded and its input string was not, because `data/index.jsonl` is gitignored. The durable-evidence section covers runs and reviews but not the data an agent measures against while investigating; one sentence there ("a measurement cited as evidence commits its inputs alongside its conclusions") would have prevented both filings. The log has now pointed at this twice.
+
+WORK_ON_BRANCH worker/oracle-20260820110210

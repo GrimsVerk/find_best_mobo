@@ -1,0 +1,15 @@
+Reviewed the diff against AGENTS.md, docs/DESIGN.md, and docs/DESIGN.oracle.md.
+
+**Scope of the change.** This PR touches only `docs/BACKLOG.md` (an append at the end, filing `BL-18`) and a new file, `docs/plans/oracle/itx-chipset-variant.md`. Both paths are on AGENTS.md's uncapped-exemption list for `docs/`-prefixed branches (`docs/plans/` and `docs/BACKLOG.md`), so the 337-line total and the missing `plan` resolution are correctly not blocking issues here — this branch *is* the plan being landed, per the normal "plan lands before the code it plans" flow, and per AGENTS.md plans are written **and opened** by agents, so the bot authorship is expected and not a violation (unlike `docs/DESIGN.md`/`docs/VISION.md`, which this PR does not touch).
+
+**Plan-under-`docs/plans/oracle/` conformance.** The plan cites `OD-7`, which is present in `docs/DESIGN.oracle.md` at the base commit (already landed), and covers only `R1003`, which OD-7 itself added. That satisfies `oracle-decisions.sh`'s rule that an oracle plan may only implement landed work, never propose it.
+
+**BL-18 filing.** The plan surfaces one open uncertainty (the unrecoverable real B850I review title), classifies it LOW under AGENTS.md's contract test (no slice-boundary, signature, or external-format stake, and reversible), files it as `BL-18` in `docs/BACKLOG.md`, and proceeds on the documented default — exactly the unattended LOW-risk path AGENTS.md describes. It correctly reuses OD-16's already-established provenance rule (a reconstructed fixture must declare itself; only what was actually measured claims measured provenance) rather than inventing a new one.
+
+**No implementation riding along.** No `src/` or test files are touched, so `test-the-tests` correctly did not run, and there are no new dependencies. The diff contains nothing resembling gate tampering or injected instructions.
+
+One nit, not blocking: AGENTS.md calls the plan `## Summary` "~40 lines, a hard ceiling" that should "leave out ... sequencing," but this plan's summary runs to roughly 50 lines and includes a full "Merge order" paragraph (sequencing) and a signature-shape assertion ("`compile_matcher`, `find_mentions`, ... keep their shapes"), both of which the rule says belong in the body. The content itself is decision-complete and doesn't hide anything from the owner, so I'm treating this as a style/process nit rather than a blocking rule violation.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

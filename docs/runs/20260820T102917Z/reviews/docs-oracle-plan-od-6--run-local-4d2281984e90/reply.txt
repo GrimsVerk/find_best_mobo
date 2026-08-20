@@ -1,0 +1,17 @@
+Reviewed the diff: it adds one oracle plan (`docs/plans/oracle/caption-split-aliases.md`) implementing already-landed decisions OD-6 (R1002) and OD-15 (R1010), plus one backlog entry (BL-17) documenting a genuine evidence gap (BL-8's 52 variants were never actually recorded) and the LOW-risk reconstruction default the plan proceeds on.
+
+Checks performed:
+
+- **Branch/size exemption (criterion 1):** Branch is `docs/oracle-plan-od-6--run-local`. The entire diff sits inside `docs/plans/` and `docs/BACKLOG.md`, both explicitly on AGENTS.md's uncapped-exemption list ("documents this process itself demands"). 514 added lines is fine at any size for these paths — this isn't a plan check trying to sneak real work past the cap, it *is* the plan-landing step AGENTS.md describes ("a plan lands before the code it plans... commit it on its own `docs/` branch").
+- **Oracle-plan validity:** `covers: [R1002, R1010]` — both requirements were added by already-landed decisions (OD-6, OD-15), satisfying `docs/DESIGN.oracle.md`'s rule that `docs/plans/oracle/` plans may only implement landed decisions, never propose new ones.
+- **Blind-test authorship (criterion 2):** No test/impl files touched, no trailer expected — matches a `docs/` branch.
+- **Gate tampering (criterion 5):** No `.github/`, `.claude/`, `CODEOWNERS`, `docs/DESIGN.md`, or `docs/VISION.md` touched. Bot-authorship is fine here since plans are agent-written-and-opened per AGENTS.md; the owner-authored restriction only binds DESIGN.md/VISION.md.
+- **Soundness:** Slice 4's cross-cue counter is carefully scoped to never synthesize a mention across a cue boundary (matches OD-15's ruling exactly), defaults new fields to 0 for backward-compatible reads of old `selected.jsonl` records, and is explicitly described as a floor not a certified total. The plan is transparent about a deviation from the earlier draft (`airus master` not added) and flags a real arithmetic inconsistency in BL-8's own numbers rather than quietly papering over it.
+- **Injection/forged delimiters:** None found in the diff.
+- **Ratchet/escapes.md:** Not touched, N/A.
+
+One minor, non-blocking nit: AGENTS.md caps a plan's `## Summary` at "~40 lines, a hard ceiling," and this one runs closer to ~50 including its bullet list and the "what I need you to rule on" section. Given the qualifier "~" and no mechanical check reported against it in the facts block, I don't treat this as blocking, but it's worth the reviewer's eye — the plan is doing a lot (four sequential slices, two requirements, a reconstructed fixture) and the summary reflects that scope.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

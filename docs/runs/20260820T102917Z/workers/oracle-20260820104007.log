@@ -1,0 +1,19 @@
+Preparing worktree (new branch 'worker/oracle-20260820104007')
+HEAD is now at 25dd1b7 Plan for OD-6 (#109)
+=== spawn-worker[oracle-20260820104007] engine=claude branch=worker/oracle-20260820104007 base=run/local (25dd1b770a28613c42ed2adb441e679127a2d7a7) bypass=0 ===
+=== 2026-08-20T10:40:07Z ===
+Permission allow rule (--allowed-tools): Write(docs/DESIGN.oracle.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/DESIGN.oracle.md) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/oracle/**) instead (Edit rules cover all file-editing tools).
+The work is complete and verified. Report:
+
+**Decision written.** OD-16, appended to `docs/DESIGN.oracle.md`, resolves BL-17 (with BL-8 as its root evidence). It ratifies the steward's LOW default — the 52-variant set lands as a **labelled reconstruction** — and makes the provenance honest: BL-8's original list is recorded as unrecoverable, so nothing may claim the reconstruction is the measurement; the three named failures land verbatim (that clause of R1002 stands unchanged) with `steel-legend` beside them under its parenthetical provenance; failing-today `†` marks must be observed red against the pre-fix matcher before being recorded as failures; the reject set is required; and the size floor pins the fixture's own landed count, with the number 52 carrying no evidentiary weight. Both of BL-17's "facts worth a ruling" dissolved on a careful read of BL-8: `steel-legend` was a parenthetical side-test outside the 52, so 49+3=52 is consistent, and the draft's five failures are a property of its reconstruction, not of the lost original. No requirement added, no supersession — `caption-split-aliases` builds as merged, no re-cut. The failures-only alternative was rejected because it would discard the majority of what BL-8 measured: the 49 already-matching variants, which are exactly what slice 2's pattern rewrite could silently break.
+
+**Not decided:** BL-1 and BL-2 — outside the commissioned scope (BL-17 only); they remain the only unruled backlog items and are named in the handoff for the next cycle. No halts, no waivers.
+
+**Handoff:** `docs/oracle/handoff-2026-08-20-3.md` — nothing needs planning; the one binding constraint for slice 3's builder (demonstrate-or-label the `†` marks) is called out, and sequencing is unchanged from run 2's handoff.
+
+**Vision gap worth the owner's eye:** the durable-evidence section covers runs and reviews but says nothing about offline measurements an agent takes while investigating — which is where BL-8's list evaporated and why BL-17 had to exist. One sentence requiring a measurement cited as evidence to commit its data alongside its conclusions would prevent the next one. This is in the handoff's owner section.
+
+Verified locally: BL-17 exists at the fork point `25dd1b7`, both vision quotes are verbatim in `docs/VISION.md`, no landed decision or handoff was touched. Committed on a `docs/` branch (both files are in the plan check's process-document exemption); not pushed, per contract.
+
+WORK_ON_BRANCH docs/oracle-2026-08-20-bl17
