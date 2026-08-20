@@ -545,3 +545,43 @@ Measurement: the selection report already lands in the run records under
 `docs/runs/`, so the counter rides the existing mechanism; the first real
 corpus run quantifies what this ruling scoped out, and a material count is
 logged evidence for superseding this decision rather than a silent loss.
+
+## OD-16 — R1002's variant fixture is a labelled reconstruction; the lost original is recorded as unrecoverable
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-17, BL-8
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V1 — "**Real, sourced information about which boards Buildzoid considers safe** for a 7950X3D or 9950X3D — and which he does not."
+- **Vision statements against:** V12 — "If he did not say it, the answer must say he did not say it. Silence has to read as silence." — the nearest, because a fixture presenting invented variants as "BL-8's measured set" would be exactly that shape one level down: reconstruction wearing measured provenance. It does not forbid this ruling because the ruling forbids that presentation — the fixture declares itself a reconstruction, only the failures BL-8 actually names carry measured provenance, and any failing-today mark must be observed red before it is recorded as such.
+- **Alternatives considered:** (1) Pin the observed failures alone (BL-17's stated alternative and the merged plan's own open question): a small fixture of `toma hawk`, `aor us master`, `air us elite`, the `steel-legend` hyphen case and the reject set — rejected: it pins only the fix and discards the larger half of what BL-8 measured, which is that 49 of 52 variants *already matched*. The R1002 slice recompiles every form's pattern, so the class most exposed to silent regression is precisely that already-matching majority, and a failures-only fixture would never notice a pattern rewrite that broke `giga byte` or `x 870 e` — a recall loss V1 cannot see arriving. (2) Recover the original list — rejected: BL-17 already established it is in no commit, no journal entry and no run record; the honest state is *lost*, and this decision records that so no future agent burns a cycle searching again. (3) Reconstruct and assert the count 52 as BL-8's measurement — rejected: the number is not quite supported (BL-8's 49 + 3 = 52 arithmetic, the draft reconstruction's five failing variants), and a suite asserting measured provenance it lacks is the false record `AGENTS.md`'s honesty rule forbids. (4) A labelled reconstruction — breadth across BL-8's damage classes, the named failures verbatim, a `never_match` reject set, and a size floor pinned to the fixture's own landed count — chosen; it is BL-17's proposed default with the provenance claims made honest.
+- **Rationale:** BL-17's two "facts worth a ruling" both resolve on a careful read of BL-8. The hyphenated `steel-legend` failure is a parenthetical, related observation — BL-8's own text sets it apart from the 52 tested variants — so 49 matched + 3 failed = 52 is internally consistent and the count needs no room for it. And the draft reconstruction's five failing variants are a property of that reconstruction (it placed hyphen-class cases inside its 52), not evidence that the original had five; nothing obliges a reconstruction to reproduce a failure count, only never to claim one it did not observe. So the number 52 describes a lost list: it may size the reconstruction, and it may never be asserted as measurement. What remains is what the fixture is *for*: pinning R1002's measured wins and protecting the already-matching majority through the pattern rewrite. Both point at breadth with honest labelling, which is what the merged plan's slice 3 already cuts.
+
+What discharges R1002's sentence "BL-8's measured 52-variant set lands as a
+fixture; the named failures must match", given that the measured set cannot
+land because it no longer exists:
+
+- The fixture **declares itself a reconstruction** and states that BL-8's
+  original list is unrecoverable. BL-8's count survives as history in the
+  backlog entry, never as a claim of measured provenance in the suite.
+- The **three failures BL-8 names** — `toma hawk`, `aor us master`,
+  `air us elite` — land verbatim and must match; that clause of R1002 stands
+  unchanged. The `steel-legend` hyphen case lands verbatim beside them,
+  labelled with its parenthetical provenance.
+- A **failing-today mark is demonstrated, or it is labelled unverified**: the
+  draft's five `†` marks are recorded as failures only after being observed
+  red against the pre-fix matcher and green after — the same
+  demonstrated-or-labelled rule the ratchet applies to checks.
+- The **`never_match` reject set is part of the fixture**: R1002's
+  never-a-proper-substring sentence is only pinned by negative cases.
+- The **size assertion is a floor on the fixture's own landed count**, so a
+  later tidy-up cannot silently shrink it; its docstring states the count's
+  provenance is the reconstruction. The number 52 carries no evidentiary
+  weight anywhere in the suite.
+
+Downstream: `docs/plans/oracle/caption-split-aliases.md` builds as merged —
+its slice 3 already satisfies every point above, so this ruling is the
+next-cycle review `AGENTS.md` promises a LOW default, ratifying it; no re-cut
+and no new requirement. Measurement: the fixture is itself the measurement,
+alongside the `aliases --check` recall report OD-6 already names — no new
+collection mechanism.
