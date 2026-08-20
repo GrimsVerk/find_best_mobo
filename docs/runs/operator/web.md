@@ -352,6 +352,38 @@ Steering SHAs at run start: `docs/DESIGN.md` 00a8a21f, `docs/VISION.md` 89ef09ec
 | 10:12:54Z | - | - | The other lane merged its own PR #105 (base `run/local`) — but **after** mine had already merged, so the two were never open at the same time. **ESC-17 remains unexercised**: my pull request's commit list was never rewritten by a cross-lane merge, because there was no overlap to test. Recorded as still-unobserved, not as a pass. |
 | 10:24:09Z | - | RESTART | Owner restarts both lanes at template **v0.4.41**. Round 2 ended cleanly with its pull request merged; it was not blocked. |
 
+### F12 — the merged `.pr-request.json` marker persists on the base branch, so the next branch inherits a stale pull-request request
+- Where: `.github/workflows/open-pr.yml` + the marker's deliberate ride-along in the pull request diff
+- What happened: the marker is committed as the branch's last commit and merges
+  with it, by design ("deleting it would take another App push and another round
+  of CI for no gain"). After PR #108 merged, `run/web` carries:
+  ```
+  $ git show origin/run/web:.pr-request.json
+  {"base": "run/web", "title": "Oracle: OD-13 supersedes OD-5/R1001 (BL-14)", "body": "..."}
+  ```
+  Every branch cut from `run/web` now starts life carrying a complete, valid
+  request for the **previous** pull request. `open-pr.yml`'s only guard is
+  idempotence on the same head->base pair:
+  ```
+  existing="$(gh api "repos/$REPO/pulls?state=open&base=$BASE&per_page=100" \
+    --jq ".[] | select(.head.ref == \"$HEAD\") | .number" ...)"
+  ```
+  It never asks whether the marker is fresh, whether this push changed it, or
+  whether anyone asked for a pull request at all. A new `docs/**` branch is a new
+  head, so the guard does not fire.
+- Consequence: any push of a `docs/**` or `feat/**` branch that does not
+  deliberately overwrite the marker opens a pull request titled and described as
+  the previous one. The content would be this branch's; the description would
+  describe something else entirely — and a reviewer reads the description.
+- Why it did not bite this lane: the driver's rule is to write the marker as the
+  final commit before every push, so it is always overwritten. The exposure is any
+  other push to a matching branch prefix — an evidence branch, a fix branch pushed
+  before its marker is written, a re-push.
+- Suggested ratchet: have `open-pr.yml` open a pull request only when the pushed
+  commit actually **modifies** `.pr-request.json`, which is precisely the signal
+  "somebody asked, on this push".
+- Severity: bug
+
 ---
 
 ## RESTART — round 3, template v0.4.41
@@ -460,4 +492,23 @@ is a reader.
 
 Nothing green-in-one-second while claiming work. ESC-45's failure shape has not
 appeared on this lane in three rounds.
+| 10:39Z | 2 | STEWARD | Worker returned, and **ESC-68 fired live** — see the block below. Work landed on `docs/od-6-cross-cue-splits`, a branch the worker made for itself. |
+| 10:39Z | 2 | STEWARD | **The steward wrote no plan — it filed `BL-15` and stopped.** OD-6/R1002 does not say whether caption-split matching must recover a split straddling two cues, so it filed a HIGH uncertainty with a proposed default (no cross-cue joining) and named why it is HIGH (the other answer changes `find_mentions`'s shape, the Signatures block, and a slice boundary). It cited the precedent: the first OD-6 plan, PR #85, was **blocked by the review gate for ruling on this same question itself**. This is the bait-map behaviour working exactly as the plan predicts — planner files HIGH and stops rather than self-ruling. Contamination probe: clean. |
+| 10:40:03Z | 2 | STEWARD | Marker rewritten (see F12) and branch pushed as `docs/oracle-plan-od-6--run-web`. |
+
+### ESC-68 observed live — a worker that relocates its own work
+
+```
+spawn-worker[steward-od-6]: the worker moved its work to 'docs/od-6-cross-cue-splits'
+  (this script created 'worker/steward-od-6'); reporting the branch that carries the commits
+WORKER_RESULT id=steward-od-6 branch=docs/od-6-cross-cue-splits ... exit=0 commits=1
+```
+
+The worker committed to a branch of its own choosing rather than the one
+`spawn-worker.sh` created for it. v0.4.41's ESC-68 fix is exactly this: report the
+branch that actually carries the commits, instead of handing the driver the empty
+`worker/steward-od-6` ref it made. Before the fix the driver would have pushed an
+empty ref and the App would have opened a **contentless pull request**. Recorded
+as a **positive observation of a fix working on its first live opportunity** —
+the driver pushed the right branch because the script told it the truth.
 
