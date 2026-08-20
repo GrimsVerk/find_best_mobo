@@ -20,6 +20,8 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T09:28:11Z | RUN STOPPED | v0.4.37 run 20260820T085531Z: 6 clean iterations, PRs #100-#103 merged, then steward livelock |
+| 2026-08-20T09:28:11Z | EVIDENCE LANDED | docs/run-20260820T085531Z--run-local: run.md + 3 reviews (0 MISSING) + 3 worker logs, by the trap |
 | 2026-08-20T08:56:53Z | DRIVER START | base run/local; gauge weekly 79% model 90%; allowance 20 points; max-prs 30; max-hours 12 |
 | 2026-08-20T08:56:53Z | ORACLE | iteration 1, worker oracle-20260820085541 |
 | 2026-08-20T08:53:17Z | PRE-DRIVER | gauge reachable: session=41 week=78 week_model=88; allowance 20 points |
@@ -365,4 +367,84 @@ binds. No finding.
   it is exactly the field that gets dropped.
 - **Severity:** friction — cosmetic in isolation, but it removes the only
   timestamp that makes a budget stop interpretable after the fact.
+
+### F14 — the steward/oracle livelock reproduced here (confirms the anvil's ESC-66/67)
+- **Where:** driver run `20260820T085531Z`, iterations 7 and 8, phase STEWARD
+- **What happened:** the run advanced properly for six iterations —
+  ORACLE -> WAIT -> STEWARD -> WAIT -> ORACLE -> WAIT — merging PRs #100 through
+  #103. Then the steward on OD-6 did exactly what the planning rule tells it to:
+  it hit a HIGH-risk question it may not rule on, filed it as `BL-16` in
+  `docs/BACKLOG.md`, committed that alone, and stopped. Its own log says so:
+
+  > That makes it HIGH-risk under the planning rule, which means I may not rule
+  > on it. So I filed it as **BL-16** in `docs/BACKLOG.md`, with my proposed
+  > default (no cross-cue joining), committed that alone, and stopped. **The
+  > driver should now run the oracle on BL-16 and re-dispatch me.**
+
+- **The driver did not run the oracle.** It read the steward's deliberate stop
+  as a worker failure and re-dispatched the same steward:
+
+  ```
+  iteration 7: phase STEWARD
+  dispatch steward worker (steward-od-6)
+  steward worker failed — see .claude/orchestration-logs/steward-od-6.log
+  iteration 8: phase STEWARD
+  dispatch steward worker (steward-od-6)
+  ```
+
+  Three dispatches of the identical worker, no phase change, no oracle. Left
+  alone it would have spent the whole allowance re-asking a question it had
+  already filed.
+- **Significance:** this is the livelock the anvil lane found (ESC-66/67),
+  reproduced independently on a different repository with a genuinely different
+  question. It is not anvil-specific and not bait-specific — a correct steward
+  stop is indistinguishable, to this driver, from a crash.
+- **Severity:** blocker — already fixed upstream in v0.4.39; recorded as
+  independent confirmation from a second lane.
+
+### F15 — worker tool grants use `Write(path)`, which binds nothing
+- **Where:** `.claude/scripts/spawn-worker.sh` role grants, seen in
+  `steward-od-6.log`
+- **What happened:** every steward dispatch opened with the engine rejecting two
+  of its own grants:
+
+  ```
+  Permission allow rule (--allowed-tools): Write(docs/plans/oracle/**) is not
+  matched by file permission checks — only Edit(path) rules are.
+  Use Edit(docs/plans/oracle/**) instead (Edit rules cover all file-editing tools).
+  Permission allow rule (--allowed-tools): Write(docs/BACKLOG.md) is not
+  matched by file permission checks — only Edit(path) rules are.
+  ```
+
+- **Expected:** the steward is granted write access to the two paths its role
+  exists to write. `Write(path)` rules match nothing; only `Edit(path)` rules
+  bind, and `Edit` rules already cover every file-editing tool.
+- **Consequence:** the steward's two most important write targets — the oracle
+  plan directory and the backlog it must file uncertainties into — are
+  ungranted. It worked here only because the fallback path allowed it; the
+  grant itself is inert.
+- **Severity:** bug — needs checking against v0.4.39; if still present it is
+  live.
+
+### F16 — the template landed its own evidence, complete, with no failsafe (positive)
+- **Where:** driver stop, `deliver-loop.sh` EXIT trap
+- **What happened:** on SIGTERM the trap ran unprompted:
+
+  ```
+  deliver-loop: landing this run's evidence in docs/runs/20260820T085531Z ...
+  collect-evidence: 3 worker log(s) into docs/runs/20260820T085531Z/workers.
+  collect-evidence: 3 review(s) into docs/runs/20260820T085531Z/reviews (97 skipped).
+  ```
+
+  and pushed `docs/run-20260820T085531Z--run-local` — correctly lane-suffixed.
+- **Contents, checked against rule 9:** `run.md` present, 2186 bytes, not empty.
+  `reviews/` holds all three pull requests with full `meta/payload/reply/verdict`
+  and an `index.md`. **Zero `MISSING.md` files** — ESC-43 observed fixed.
+  `workers/` holds all three worker logs — ESC-42 observed fixed.
+- **This is explicitly NOT a `TEMPLATE SELF-RECORDING FAILURE` row.** No failsafe
+  was used, nothing was secured by hand, and nothing had to be recovered. The
+  template's own promise held at the stop. Recorded because the failure mode
+  this whole test exists to catch did not occur, which is only meaningful if the
+  success is written down too.
+- **Severity:** none — positive confirmation.
 
