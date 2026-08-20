@@ -126,6 +126,19 @@ Times are UTC.
   that opens pull requests as whoever happens to be logged in. The script needs
   the `.pr-request.json` path, or a flag that selects it.
 - Severity: bug
+### F5 — the deliver-loop command file tells the driver both to use and never to use `gh auth status`
+- Where: `.claude/commands/deliver-loop.md`, credential paragraph vs. step 2
+- What happened: the credential paragraph says, emphatically, "Probe with
+  `gh api user`, **NEVER** `gh auth status` — auth status inspects local
+  configuration and reports failure on exactly this platform, while real
+  requests succeed at the proxy (ESC-52)." Eleven lines later, step 2 opens:
+  "**Preflight, first turn only:** `gh auth status` (on the credential
+  established above)". A driver that follows step 2 literally runs the one
+  command the file just forbade, on the one platform where it lies.
+- Expected: one instruction. Step 2's preflight should say `gh api user`, the
+  same probe the rule above it mandates. Followed the rule, not step 2; the
+  probe returned `GrimsVerk (type: User)`.
+- Severity: bug
 
 ---
 
