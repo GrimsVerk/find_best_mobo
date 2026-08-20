@@ -10,7 +10,7 @@ pull in template updates with `scripts/update-from-template.sh`.
 ```sh
 uv sync                # install dependencies (creates .venv)
 uv run pytest          # run tests
-pre-commit install     # enable git-level checks (ruff, mypy, gitleaks)
+uv run pre-commit install   # enable git-level checks (ruff, mypy, gitleaks)
 ```
 
 ## Talking to agents here
@@ -175,14 +175,15 @@ them on the default branch (`main`):
 2. **Require review from Code Owners** (branch protection), so changes to the
    gate paths in `CODEOWNERS` need @GrimsVerk's approval even under
    auto-merge.
-3. **Template read token** (`TEMPLATE_TOKEN`): a fine-grained PAT with
-   **Contents: Read-only** on the template repository, added under *Settings →
-   Secrets and variables → Actions*. This repository's built-in CI token is
-   scoped to this repository and cannot read another one, so `template-sync`
-   cannot fetch the template without it — and it fails closed, meaning no
-   template update can merge. Fine-grained tokens expire (a year at most); when
-   this one does, the check starts failing here and in every other project at
-   once, so renew it deliberately rather than discovering it.
+3. **Template read access, through the App**: this repository's built-in CI
+   token is scoped to this repository and cannot read another one, so
+   `template-sync` mints a short-lived token from the GitHub App (the same
+   `APP_ID` / `APP_PRIVATE_KEY` secrets the driver uses), down-scoped to
+   **Contents: Read-only on the template repository alone**. The one thing
+   this needs from you: the App must be **installed on the template
+   repository** as well as on this one (App settings → Install App). There is
+   deliberately no PAT — a PAT expires, a year at most, and when it did the
+   check would start failing here and in every other project at once.
 4. **Review engine credential** (a *subscription*, not a metered API key): the
    review runs on your Claude Code subscription. Generate a token once with
    `claude setup-token` and add it as the `CLAUDE_CODE_OAUTH_TOKEN` secret under
@@ -246,13 +247,13 @@ working as intended: a change to your own gates is exactly what a human should
 look at. `template-sync` being green is what makes that a quick read of the
 template's release notes rather than a line-by-line audit of 40 files.
 
-> **This repository needs a `TEMPLATE_TOKEN` secret**, because the template is
-> private. A project's built-in CI token is scoped to the project and cannot read
-> another repository, so without it `template-sync` fails closed and no template
-> update can merge. Add a fine-grained PAT with **Contents: Read-only** on the
-> template repo under *Settings → Secrets and variables → Actions*. It expires —
-> a year at most — and when it does, this check starts failing here and in every
-> other project at the same time.
+> **The GitHub App must be installed on the template repository**, because the
+> template is private. A project's built-in CI token is scoped to the project
+> and cannot read another repository, so `template-sync` mints a read-only
+> token from the App (`APP_ID` / `APP_PRIVATE_KEY`) scoped to the template
+> repo. If the App is not installed there, the mint fails and `template-sync`
+> fails closed — no template update can merge, and the failure message says
+> exactly this. There is deliberately no PAT to fall back to.
 
 ## The ratchet
 

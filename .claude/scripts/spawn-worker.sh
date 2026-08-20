@@ -209,8 +209,12 @@ PERM_MODE="acceptEdits"
 # never as the thing standing between an agent and a document.
 ORACLE_TOOLS=(
   "Read" "Grep" "Glob"
+  # Every Write() carries an Edit() twin, and the twin is the half that
+  # BINDS: the engine matches file grants against Edit(path) rules only and
+  # rejects Write(path) with a warning (anvil F7 — docs/oracle/** had no
+  # twin, so the oracle held NO effective grant for its own handoff path).
   "Write(docs/DESIGN.oracle.md)" "Edit(docs/DESIGN.oracle.md)"
-  "Write(docs/oracle/**)"
+  "Write(docs/oracle/**)" "Edit(docs/oracle/**)"
   "${GIT_TOOLS[@]}"
 )
 STEWARD_TOOLS=(
@@ -470,7 +474,21 @@ set -e
 COMMITS="$(git -C "$WORKTREE" rev-list --count "${BASE_SHA}..HEAD" 2>/dev/null || echo 0)"
 DIRTY="$(git -C "$WORKTREE" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 
-echo "WORKER_RESULT id=${ID} branch=${BRANCH} worktree=${WORKTREE} engine=${ENGINE} exit=${RC} commits=${COMMITS}"
+# THE RESULT LINE NAMES THE BRANCH THE WORK IS ACTUALLY ON (ESC-68). The count
+# above is taken from the worktree's HEAD, and a worker is free to create and
+# switch to a branch of its own inside that worktree — observed live, a plan
+# worker did exactly that. Reporting the branch this script INTENDED while
+# counting the commits on HEAD produces a line whose two halves describe
+# different branches, and the driver, believing it, pushes an empty ref: a
+# pull request with no content, reported as a successful iteration. A result
+# line whose branch and count disagree is worse than no result line.
+ACTUAL_BRANCH="$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+[[ -n "$ACTUAL_BRANCH" && "$ACTUAL_BRANCH" != "HEAD" ]] || ACTUAL_BRANCH="$BRANCH"
+if [[ "$ACTUAL_BRANCH" != "$BRANCH" ]]; then
+  echo "spawn-worker[$ID]: the worker moved its work to '$ACTUAL_BRANCH' (this script created '$BRANCH'); reporting the branch that carries the commits" >&2
+fi
+
+echo "WORKER_RESULT id=${ID} branch=${ACTUAL_BRANCH} worktree=${WORKTREE} engine=${ENGINE} exit=${RC} commits=${COMMITS}"
 
 if [[ "$RC" -ne 0 ]]; then
   echo "spawn-worker[$ID]: engine exited $RC (see $LOG_FILE)" >&2

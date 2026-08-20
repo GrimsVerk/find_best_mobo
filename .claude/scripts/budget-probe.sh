@@ -75,7 +75,9 @@ if [[ -n "${BUDGET_PROBE_CMD:-}" ]]; then
     s="$(sed -n 's/.*\bsession=\([0-9.]*\).*/\1/p' <<<"$out" | head -1)"
     w="$(sed -n 's/.*\bweek=\([0-9.]*\).*/\1/p' <<<"$out" | head -1)"
     m="$(sed -n 's/.*\bweek_model=\([0-9.]*\).*/\1/p' <<<"$out" | head -1)"
-    r="$(sed -n 's/.*\breset=\([^[:space:]]*\).*/\1/p' <<<"$out" | head -1)"
+    # reset= is the contract's LAST field and its value carries spaces —
+    # capture to end of line, or "Aug 20, 11am" truncates to "Aug" (mobo F13).
+    r="$(sed -n 's/.*\breset=\(.*\)$/\1/p' <<<"$out" | head -1)"
     emit "${s:-0}" "$w" "${m:-$w}" "${r:-unknown}"
   fi
   if grep -q '"percent"' <<<"$out"; then

@@ -32,7 +32,10 @@
 #   HEAD_REF             the PR head branch name (decides whether this applies)
 # Optional env:
 #   SYNC_PREFIX          branch prefix this check governs (default: template/)
-#   TEMPLATE_TOKEN       token with read access to the template repository,
+#   TEMPLATE_TOKEN       read token for the template repository — in CI this
+#                        is minted per run from the GitHub App, down-scoped to
+#                        Contents: read on the template repo alone (no PAT;
+#                        PATs expire and fail every project at once) —
 #                        required when the template repo is private
 #
 # Exits 0 for any branch outside SYNC_PREFIX — those are the plan check's job.
@@ -145,30 +148,46 @@ _src_path in ${ANSWERS} is:
 That is an SSH URL. If it names a host alias from a personal ~/.ssh/config, no
 CI runner can resolve it — the failure above will say \"Could not resolve
 hostname\", which looks like a credentials problem and is not one. The workflow
-rewrites the alias through TEMPLATE_TOKEN, so this should have been handled; if
-you are seeing it anyway, check that TEMPLATE_TOKEN is set, then change
+rewrites the alias through the read token it mints from the GitHub App, so this
+should have been handled; if you are seeing it anyway, check that the App is
+installed on the TEMPLATE repository (its id is the APP_ID secret), then change
 _src_path to https://github.com/<owner>/<repo>.git, which is what CI can fetch
 without any rewriting at all." ;;
     *)
       die "\`copier update\` failed when replayed from the base commit.
 
-_src_path is '$SRC'. If the template repository is private, CI needs a token
-that can read it — see TEMPLATE_TOKEN in .github/workflows/ci.yml. Otherwise
-the target version '$TARGET_REF' may not exist, or the update may not apply
-cleanly on top of this project's base commit." ;;
+_src_path is '$SRC'. If the template repository is private, CI reads it with a
+token minted from the GitHub App (APP_ID / APP_PRIVATE_KEY secrets) — the App
+must be INSTALLED on the template repository, not only on this one: App
+settings -> Install App -> add the template repo. There is deliberately no PAT
+path. Otherwise the target version '$TARGET_REF' may not exist, or the update
+may not apply cleanly on top of this project's base commit." ;;
   esac
 fi
 
 # Compare content, not diffs: `git write-tree` hashes the whole tree, so equal
 # hashes mean every tracked path matches exactly. Anything the author added,
 # removed, or edited by hand alongside the sync changes this hash.
+#
+# ONE path is dropped from both sides first: `.pr-request.json`, the opener's
+# request marker (ESC-63). A driver that cannot author pull requests as the
+# App commits it as the branch's last commit — it is pull-request machinery
+# riding with the update, not a hand edit to the update, and it can never be
+# copier output. Removing it from both trees keeps the comparison exact for
+# every other byte.
 git -C "$WORKTREE" add -A
+git -C "$WORKTREE" rm -q --cached --ignore-unmatch .pr-request.json
 REPLAYED_TREE="$(git -C "$WORKTREE" write-tree)"
-HEAD_TREE="$(git -C "$ROOT" rev-parse "${HEAD_SHA}^{tree}")"
+HEAD_INDEX="$(mktemp)"
+GIT_INDEX_FILE="$HEAD_INDEX" git -C "$ROOT" read-tree "${HEAD_SHA}^{tree}"
+GIT_INDEX_FILE="$HEAD_INDEX" git -C "$ROOT" rm -q --cached --ignore-unmatch .pr-request.json
+HEAD_TREE="$(GIT_INDEX_FILE="$HEAD_INDEX" git -C "$ROOT" write-tree)"
+rm -f "$HEAD_INDEX"
 
 if [[ "$REPLAYED_TREE" == "$HEAD_TREE" ]]; then
   echo "template-sync: PASS — the diff is exactly \`copier update\` to ${TARGET_REF}."
-  echo "template-sync: nothing hand-written rode along with it."
+  echo "template-sync: nothing hand-written rode along with it (the opener's"
+  echo "template-sync: .pr-request.json marker, if present, is machinery and exempt)."
   exit 0
 fi
 

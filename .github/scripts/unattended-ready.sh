@@ -27,11 +27,34 @@
 # Exit codes: 0 ready, 1 refused (missing items listed), 2 cannot even ask
 # (no gh, no auth, not a repository).
 #
+# --runtime: the checks a RUNTIME identity can honestly answer. The full check
+# reads repository administration — secrets, rulesets — which only the owner's
+# own login can; a driver running as the App (a web session, where gh holds an
+# App token) cannot ask those questions, and refusing over a READ permission
+# would block a run whose configuration the owner already verified at setup
+# with the full check. Runtime mode verifies what that identity can and must:
+# the answers file and auto-merge workflow, the vision, the App identity
+# actually MINTING a token (a stronger claim than a secret's name existing),
+# and the effective rules on the run's base branch. Everything else is the
+# full check's job, run by the owner, from their machine, at setup. This is
+# not an override of a refusal — it is a different question set for a
+# different identity, and both sets still refuse loudly on what they check.
+#
 # Optional env, for tests and odd layouts:
+#   READY_APP_TOKEN_CMD  --runtime only: the command that mints the App token
+#                        (default .claude/scripts/app-token.sh; tests stub it)
 #   GH               default: gh
 #   ANSWERS          default: .copier-answers.yml
 #   VISION           default: docs/VISION.md
 #   CODEOWNERS_FILE  default: .github/CODEOWNERS
+#   RUN_BASE         the base branch the asking run merges into (the driver
+#                    exports it). When it is set and is NOT the repository's
+#                    default branch, this check also reads the EFFECTIVE rules
+#                    on that branch: a ruleset that binds only the default
+#                    branch leaves a lane run's pull requests entirely ungated
+#                    — auto-merge on an unprotected base waits for nothing —
+#                    and that is a refusal, not a note. Fix:
+#                    scripts/setup-github.sh --gate-branch <branch>.
 
 set -uo pipefail
 
@@ -39,6 +62,15 @@ GH="${GH:-gh}"
 ANSWERS="${ANSWERS:-.copier-answers.yml}"
 VISION="${VISION:-docs/VISION.md}"
 CODEOWNERS_FILE="${CODEOWNERS_FILE:-.github/CODEOWNERS}"
+READY_APP_TOKEN_CMD="${READY_APP_TOKEN_CMD:-.claude/scripts/app-token.sh}"
+
+RUNTIME=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --runtime) RUNTIME=1; shift ;;
+    *) echo "unattended-ready: unknown argument: $1 (only --runtime)" >&2; exit 2 ;;
+  esac
+done
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
   || { echo "unattended-ready: not inside a git repository" >&2; exit 2; }
@@ -47,9 +79,12 @@ cd "$ROOT" || exit 2
 command -v "$GH" >/dev/null 2>&1 \
   || { echo "unattended-ready: '$GH' is not on PATH — install the GitHub CLI" >&2; exit 2; }
 
-REPO="$("$GH" repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)"
+# The remote URL, not `gh repo view`: repo view is GraphQL, which a hosted
+# session's proxy refuses outright — only REST is served there (ESC-51).
+REPO="${REPO:-$(git remote get-url origin 2>/dev/null \
+  | sed -E 's#^(git@[^:/]+:|https?://[^/]+/|ssh://git@[^/]+/)##; s#\.git$##')}"
 [[ -n "$REPO" ]] \
-  || { echo "unattended-ready: cannot resolve this repository — run: gh auth login" >&2; exit 2; }
+  || { echo "unattended-ready: cannot resolve owner/repo from the origin remote" >&2; exit 2; }
 
 declare -a MISSING=()
 ok()      { echo "  ready    $1"; }
@@ -79,8 +114,14 @@ else
 fi
 
 # ------------------------------------------------------- repository settings
+# Fetched in both modes — the base-branch section below needs default_branch —
+# but the two admin-visible settings are judged only by the full check: the
+# fields are simply absent from a non-admin identity's view of the repository,
+# and absent must not read as off.
 SETTINGS="$("$GH" api "repos/$REPO" 2>/dev/null)"
-if [[ -z "$SETTINGS" ]]; then
+if [[ "$RUNTIME" -eq 1 ]]; then
+  note "repository settings (auto-merge, branch deletion): the full check's job — a runtime identity cannot see them"
+elif [[ -z "$SETTINGS" ]]; then
   refuse "cannot read repository settings (gh api repos/$REPO failed) — check gh auth status"
 else
   if grep -q '"allow_auto_merge"[[:space:]]*:[[:space:]]*true' <<<"$SETTINGS"; then
@@ -92,6 +133,18 @@ else
     ok "repository deletes head branches on merge"
   else
     note "'Automatically delete head branches' is off — the workflow and sweep still clean up; scripts/setup-github.sh sets it"
+  fi
+  # DO THE GATES ACTUALLY BIND? (ESC-73.) Rulesets are enforced on public
+  # repositories and on private ones under a paid plan; on a private repository
+  # without one they can be CREATED and read back exactly as configured while
+  # enforcing nothing. Every check above reads configuration, so all of them
+  # pass — and pull requests merge with no review, no required check, and no
+  # sign anything is wrong. Observed: a real project's template updates
+  # auto-merged for weeks with zero approvals against a ruleset demanding code
+  # owner review, and the first merge ever refused was the day the repository
+  # went public and the gates began to bind.
+  if grep -q '"private"[[:space:]]*:[[:space:]]*true' <<<"$SETTINGS"; then
+    note "this repository is PRIVATE — rulesets enforce only under a paid plan there. If yours is not paid, every gate above is configured and NOT binding: pull requests merge unreviewed and unchecked. Make it public, or confirm the plan covers rulesets"
   fi
 fi
 
@@ -107,8 +160,13 @@ case "$LANGUAGE" in
   *)         note "language '$LANGUAGE' unrecognised — cannot derive the build job's check name" ;;
 esac
 
-RULESET_IDS="$("$GH" api "repos/$REPO/rulesets" --jq '.[].id' 2>/dev/null)"
-if [[ -z "$RULESET_IDS" ]]; then
+if [[ "$RUNTIME" -eq 1 ]]; then
+  # Listing rulesets is an admin read. A runtime identity judges their EFFECT
+  # instead — the effective-rules check on its base branch, below.
+  note "the rulesets themselves: the full check's job — a runtime identity reads only their effect on its base branch, below"
+  RULESET_IDS=""
+elif ! RULESET_IDS="$("$GH" api "repos/$REPO/rulesets" --jq '.[].id' 2>/dev/null)" \
+     || [[ -z "$RULESET_IDS" ]]; then
   refuse "no rulesets on the repository — nothing requires the gates before merge; create them: scripts/setup-github.sh"
 else
   CONTEXTS=""
@@ -136,14 +194,86 @@ else
   fi
 fi
 
+# ------------------------------------------------- the run's base branch
+# The union check above says the checks exist SOMEWHERE. A run on a non-default
+# base branch needs them to bind on THAT branch, and a ruleset targeting only
+# the default branch does not — its pull requests would merge with no gate at
+# all. So when the driver names its base, read the branch's EFFECTIVE rules
+# (the API resolves every active ruleset against the one branch) and refuse
+# unless a pull_request rule and every required check bind there.
+DEFAULT_BRANCH="$(grep -oE '"default_branch"[[:space:]]*:[[:space:]]*"[^"]+"' <<<"${SETTINGS:-}" \
+                  | sed 's/.*:[[:space:]]*"//; s/"$//' | head -1)"
+# Runtime mode has no rulesets union above, so the effective-rules read is its
+# ONLY gate verification — it therefore runs for the default branch too, and a
+# missing RUN_BASE falls back to the default branch rather than skipping.
+if [[ "$RUNTIME" -eq 1 && -z "${RUN_BASE:-}" ]]; then
+  RUN_BASE="$DEFAULT_BRANCH"
+fi
+# The base this run will actually use, for the checks below that need a name
+# whether or not the caller supplied one.
+RUN_BASE_EFF="${RUN_BASE:-$DEFAULT_BRANCH}"
+if [[ -n "${RUN_BASE:-}" ]]; then
+  if [[ "$RUNTIME" -eq 1 ]] \
+     || [[ -n "$DEFAULT_BRANCH" && "$RUN_BASE" != "$DEFAULT_BRANCH" ]]; then
+    BR_RULES="$("$GH" api "repos/$REPO/rules/branches/$RUN_BASE" 2>/dev/null)"
+    if [[ -z "$BR_RULES" || "$BR_RULES" == "[]" ]]; then
+      refuse "no rules bind the run's base branch '$RUN_BASE' — every pull request this run opens would merge ungated; add the branch to the gates ruleset: scripts/setup-github.sh --gate-branch '$RUN_BASE'"
+    else
+      if grep -q '"type"[[:space:]]*:[[:space:]]*"pull_request"' <<<"$BR_RULES"; then
+        ok "base branch '$RUN_BASE': pull-request rule binds"
+      else
+        refuse "base branch '$RUN_BASE' has no pull_request rule — pushes could land on it directly; fix: scripts/setup-github.sh --gate-branch '$RUN_BASE'"
+      fi
+      BR_CONTEXTS="$(grep -oE '"context"[[:space:]]*:[[:space:]]*"[^"]+"' <<<"$BR_RULES" \
+                     | sed 's/.*:[[:space:]]*"//; s/"$//')"
+      for want in "${EXPECTED[@]}"; do
+        if grep -qxF "$want" <<<"$BR_CONTEXTS"; then
+          ok "base branch '$RUN_BASE': required check '$want' binds"
+        else
+          refuse "check '$want' is not required on the run's base branch '$RUN_BASE' — a PR into it merges without that gate; fix: scripts/setup-github.sh --gate-branch '$RUN_BASE'"
+        fi
+      done
+    fi
+  fi
+fi
+
 # ------------------------------------------------------------------- secrets
 # The review gate is a required check that FAILS CLOSED without its credential:
 # with the secret missing, every pull request is permanently red and nothing
 # the run builds can ever merge. That is the one secret worth refusing over.
 # Plain-column parsing, not --json: `gh secret list --json` arrived late enough
 # in gh's history that depending on it turns a version skew into a refusal.
-SECRETS="$("$GH" secret list 2>/dev/null | awk '{print $1}')"
-if [[ -z "$SECRETS" ]]; then
+if [[ "$RUNTIME" -eq 1 ]]; then
+  # Listing secrets is an admin read a runtime identity does not have. What it
+  # CAN prove is stronger than a secret's name existing anyway: that the App
+  # identity actually mints an installation token, here, now.
+  #
+  # EXCEPT on a hosted platform (ESC-50): its egress proxy replaces every
+  # Authorization header with the platform's own credential and blocks the
+  # /app endpoints outright, so the mint fails there BY DESIGN, with a
+  # perfectly good key. The signature of that platform is a gh login that
+  # works anyway (the proxy injects it). Such a session drives with the
+  # ambient login and opens pull requests through the open-pr workflow, which
+  # mints server-side where minting works — so what THIS check must prove
+  # shifts: not "the mint works here" but "the opener exists here".
+  # `gh api user`, NEVER `gh auth status`: auth status inspects the LOCAL
+  # configuration and reports failure on exactly the platform this branch
+  # exists for, while real requests succeed at the proxy (ESC-52). The probe
+  # must ask the network, not the config.
+  if "$READY_APP_TOKEN_CMD" >/dev/null 2>&1; then
+    ok "App identity mints a token (the merge identity is live, not just named)"
+  elif "$GH" api user >/dev/null 2>&1; then
+    if [[ -f ".github/workflows/open-pr.yml" ]]; then
+      note "App mint impossible here (a hosted platform's proxy owns the credential — ESC-50); the ambient login drives, and pull requests open as the App via the open-pr workflow"
+    else
+      refuse "App mint impossible here (ESC-50) and this scaffold carries no .github/workflows/open-pr.yml — every pull request this run opened would be owner-authored; update to a template release that ships the open-pr workflow"
+    fi
+  else
+    refuse "no GitHub identity works here: the App cannot mint ($READY_APP_TOKEN_CMD failed) and gh api user answers nothing — fix the App id and key this environment carries, or run where the platform injects a credential"
+  fi
+  note "secret names (CLAUDE_CODE_OAUTH_TOKEN): the full check's job — a runtime identity cannot list secrets"
+  SECRETS=""
+elif SECRETS="$("$GH" secret list 2>/dev/null | awk '{print $1}')" && [[ -z "$SECRETS" ]]; then
   refuse "cannot list actions secrets — admin access is required to verify CLAUDE_CODE_OAUTH_TOKEN exists; check gh auth status"
 else
   if grep -qxF "CLAUDE_CODE_OAUTH_TOKEN" <<<"$SECRETS"; then
@@ -160,26 +290,51 @@ else
   # it. A PAT has the same defect, because a PAT also acts as the owner.
   if grep -qxF "APP_ID" <<<"$SECRETS" && grep -qxF "APP_PRIVATE_KEY" <<<"$SECRETS"; then
     ok "merge identity: GitHub App configured (a login that is not the owner's)"
-  elif grep -qxF "AUTO_MERGE_TOKEN" <<<"$SECRETS"; then
-    refuse "merge identity is AUTO_MERGE_TOKEN (a PAT), which acts as YOU — so owner-authored.sh cannot tell an agent's edit to docs/DESIGN.md from one you wrote, and every driver-opened PR satisfies it by accident; set up the App: scripts/setup-github.sh --app"
+    # There is deliberately no PAT alternative — a PAT acts as the owner
+    # (hollowing owner-authored.sh) and expires, and the owner's ruling is
+    # that the App and the review credential are the ONLY secrets a project
+    # carries. What cannot be verified from here: that the App is also
+    # INSTALLED on the template repository, which template-sync needs to read
+    # a private template. Said rather than skipped:
+    note "template reads are minted from this App — it must be installed on the TEMPLATE repository too, or template/ branches fail template-sync closed"
   else
-    refuse "no merge identity configured — the driver would open pull requests as you, which makes owner-authored.sh a formality and leaves docs/DESIGN.md and docs/VISION.md unprotected overnight; set up the App: scripts/setup-github.sh --app"
-  fi
-  if ! grep -qxF "TEMPLATE_TOKEN" <<<"$SECRETS"; then
-    note "TEMPLATE_TOKEN is not set — template/ update branches will fail template-sync if the template repository is private"
+    refuse "no merge identity configured — the driver would open pull requests as you, which makes owner-authored.sh a formality and leaves docs/DESIGN.md and docs/VISION.md unprotected overnight; set up the App: scripts/setup-github.sh --app (there is deliberately no PAT alternative)"
   fi
 fi
 
 # ---------------------------------------------------------------- CODEOWNERS
 # An unresolvable owner makes every gated-path PR unmergeable in the worst way:
 # the review requirement can never be satisfied, and nothing says so.
-CO_ERRORS="$("$GH" api "repos/$REPO/codeowners/errors" --jq '.errors | length' 2>/dev/null)"
-if [[ -z "$CO_ERRORS" ]]; then
+if [[ "$RUNTIME" -eq 1 ]]; then
+  note "CODEOWNERS validation: the full check's job"
+  CO_ERRORS="skipped"
+  CO_REF=""
+else
+  # ESC-48, two defects in one line. The query carried no ?ref=, so it always
+  # validated the DEFAULT branch's CODEOWNERS — every other branch-sensitive
+  # check here is RUN_BASE-aware, and this one was missed, which turned a bare
+  # default branch into a refusal against a lane whose CODEOWNERS was clean.
+  # And the API's failure status was ignored: gh prints the error body on
+  # stdout, so a 404 flowed INTO the count and was printed as raw JSON inside
+  # a refusal, while the designed cannot-read note never fired. The ref
+  # follows the run's base branch; the count must be a number or it is not a
+  # count.
+  CO_REF="${RUN_BASE:-$DEFAULT_BRANCH}"
+  CO_PATH="repos/$REPO/codeowners/errors"
+  [[ -n "$CO_REF" ]] && CO_PATH="$CO_PATH?ref=$CO_REF"
+  if ! CO_ERRORS="$("$GH" api "$CO_PATH" --jq '.errors | length' 2>/dev/null)" \
+     || ! [[ "$CO_ERRORS" =~ ^[0-9]+$ ]]; then
+    CO_ERRORS=""
+  fi
+fi
+if [[ "$CO_ERRORS" == "skipped" ]]; then
+  :
+elif [[ -z "$CO_ERRORS" ]]; then
   note "cannot read CODEOWNERS validation from the API"
 elif [[ "$CO_ERRORS" == "0" ]]; then
-  ok "CODEOWNERS resolves cleanly"
+  ok "CODEOWNERS resolves cleanly (at ${CO_REF:-the default branch})"
 else
-  refuse "$CODEOWNERS_FILE has $CO_ERRORS unresolvable line(s) — gated-path PRs can never satisfy their review requirement; see Settings → Code owners errors, or the file itself"
+  refuse "$CODEOWNERS_FILE (at ${CO_REF:-the default branch}) has $CO_ERRORS unresolvable line(s) — gated-path PRs can never satisfy their review requirement; see Settings → Code owners errors, or the file itself"
 fi
 
 # -------------------------------------------------------------------- vision
@@ -208,6 +363,27 @@ else
   else
     refuse "$VISION has unfilled section(s): $(tr '\n' ',' <<<"$EMPTY_SECTIONS" | sed 's/,$//; s/,/, /g') — the oracle quotes this file on every ruling; fill them or delete them"
   fi
+fi
+
+# ---------------------------------------------- an open pull request on the base
+# A run cannot start into a base that already has a pull request open: the
+# one-PR-per-base rule means the driver's first act is to WAIT on somebody
+# else's change, and if that change needs the owner's review — a template
+# update does, always, because it edits the gates themselves — the run stalls
+# on a condition no unattended actor can clear, then stops at exit 4 having
+# built nothing. Observed live on a real project: an update pull request left
+# open at setup derailed the run that followed it.
+#
+# Caught HERE rather than mid-flight, because that is this check's whole job:
+# a refusal costs a click, a mid-run stall costs the run. Merge it (a template
+# update is yours to approve — template-sync proves the diff is exactly copier
+# output, so the reading is quick) or close it, then start the run.
+OPEN_ON_BASE="$("$GH" api "repos/$REPO/pulls?state=open&base=$RUN_BASE_EFF&per_page=10" \
+  --jq '.[] | "#\(.number) \(.head.ref)"' 2>/dev/null || true)"
+if [[ -n "$OPEN_ON_BASE" ]]; then
+  refuse "a pull request is already open against '$RUN_BASE_EFF' ($(printf '%s' "$OPEN_ON_BASE" | tr '\n' ' ')) — the run's first act would be to wait on it, and a template update waits for YOUR review, which no unattended actor can give. Merge or close it first"
+else
+  ok "no pull request is open against '$RUN_BASE_EFF' — the run starts on a clear base"
 fi
 
 # ------------------------------------------------------------------- verdict

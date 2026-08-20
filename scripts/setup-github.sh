@@ -21,15 +21,17 @@
 #      required with 0 approvals plus Code Owners review, and the required
 #      status checks for this project's language. Deliberately NOT "require
 #      linear history" — it blocks merge commits, which breaks the one-line
-#      `git revert -m 1` rollback the whole auto-merge design leans on.
+#      `git revert -m 1` rollback the whole auto-merge design leans on;
+#   5. records its own transcript under docs/runs/setup/ — setup friction is
+#      evidence, and the terminal scrollback was its only record until now.
 #
 # WHAT STAYS MANUAL, and each for a security reason rather than a missing
 # feature:
 #
 #   - typing the secret VALUES. This script never fetches or stores a
-#     credential; `claude setup-token` is an interactive OAuth flow, and the
-#     two PATs are minted by a human in the GitHub UI because token minting is
-#     a credential decision no script should make;
+#     credential; `claude setup-token` is an interactive OAuth flow. (There
+#     are deliberately no PATs to mint any more — the App is the only GitHub
+#     credential a project configures);
 #   - creating the GitHub App (--app prints the exact URL and permission list;
 #     the creation form itself is a click-through GitHub offers no API for);
 #   - `gh auth login`'s browser grant;
@@ -55,10 +57,20 @@
 #   --verify           open (and then close) a throwaway pull request so every
 #                      PR-only check reports once and is registered in the UI
 #   --skip-create      never create or push; only configure the existing repo
+#   --gate-branch <b>  ALSO apply the gates ruleset to this branch (repeatable).
+#                      For a delivery run whose base is not the default branch
+#                      (deliver-loop.sh --base): without this the run's pull
+#                      requests merge ungated, and unattended-ready.sh refuses
+#                      the run. The default branch stays targeted either way.
 
 set -euo pipefail
 
 APP=0; SSH_HOST=""; VISIBILITY="--private"; VERIFY=0; SKIP_CREATE=0
+GATE_BRANCHES=()
+# The parse loop consumes $@, and the transcript wrapper below re-execs this
+# script — with the consumed argv, every flag would be silently dropped on the
+# inner run. Keep the original.
+ORIG_ARGS=("$@")
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --app)         APP=1; shift ;;
@@ -66,8 +78,10 @@ while [[ $# -gt 0 ]]; do
     --public)      VISIBILITY="--public"; shift ;;
     --verify)      VERIFY=1; shift ;;
     --skip-create) SKIP_CREATE=1; shift ;;
+    --gate-branch) [[ -n "${2:-}" ]] || { echo "setup-github: --gate-branch needs a branch name" >&2; exit 2; }
+                   GATE_BRANCHES+=("$2"); shift 2 ;;
     -h|--help)
-      sed -n '2,60p' "$0" | sed -n 's/^# \{0,1\}//p'
+      sed -n '2,68p' "$0" | sed -n 's/^# \{0,1\}//p'
       exit 0 ;;
     *) echo "setup-github: unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -79,6 +93,44 @@ say() { echo "setup-github: $*"; }
 GH="${GH:-gh}"
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not inside a git repository"
 cd "$ROOT"
+
+# ------------------------------------------------------------- the transcript
+# Setup friction is evidence, and until now it had no record: what happened
+# before the pipeline existed lived only in a terminal scrollback. So this
+# script records its own transcript — everything it printed, prompts and
+# refusals included, never a secret VALUE (those are read silently and travel
+# to `gh secret set` over stdin, touching no output stream).
+#
+# Under docs/runs/ deliberately: that path is exempt from the plan check's
+# size cap at any size, so the transcript can always land — on whatever
+# branch you are setting up from: the default branch before the gates exist,
+# a docs/ branch after, the working branch itself where the default branch is
+# off-limits (a lane-based test bed). A re-exec through `tee`
+# rather than process substitution, because bash does not wait for a process
+# substitution on exit and a transcript that races the assertions reading it
+# is worse than none.
+if [[ -z "${SETUP_GITHUB_LOG_ACTIVE:-}" ]]; then
+  SETUP_LOG="docs/runs/setup/setup-github-$(date -u +%Y%m%dT%H%M%SZ).log"
+  mkdir -p "$(dirname "$SETUP_LOG")"
+  say "recording a transcript to $SETUP_LOG"
+  SETUP_GITHUB_LOG_ACTIVE=1 SETUP_LOG_PATH="$SETUP_LOG" \
+    bash "$0" ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"} 2>&1 | tee -a "$SETUP_LOG"
+  RC="${PIPESTATUS[0]}"
+  # The transcript COMMITS ITSELF (mobo F10). Left untracked, the very next
+  # documented step — starting the driver — refuses over the dirty tree this
+  # script just created, with nothing saying why. A local commit is safe on
+  # any branch (pushing stays the operator's move, and the transcript never
+  # carries a secret VALUE — those travel over stdin, untouched by output).
+  # Only this one file is staged, so a dirty tree the operator already had is
+  # neither swept in nor touched.
+  if git add -- "$SETUP_LOG" 2>/dev/null \
+     && git commit -q -m "Record the setup-github transcript" -- "$SETUP_LOG" 2>/dev/null; then
+    say "transcript committed — push it with your branch when ready."
+  else
+    say "transcript left at $SETUP_LOG (could not commit it here) — commit it before starting the driver, which refuses a dirty tree."
+  fi
+  exit "$RC"
+fi
 
 command -v "$GH" >/dev/null 2>&1 || die "the GitHub CLI is not installed (https://cli.github.com)"
 "$GH" auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
@@ -148,10 +200,13 @@ prompt_secret() { # prompt_secret <name> <how to get the value>
   say "secret $name: set."
 }
 
+# Deliberately the ONLY secret prompted for besides the App pair. There used
+# to be two PATs here (TEMPLATE_TOKEN for template-sync, AUTO_MERGE_TOKEN for
+# merge attribution) and both are gone by the owner's ruling: the App covers
+# both jobs, PATs expire and fail every project at once, and a fallback that
+# must be set up defeats the point of having less to set up.
 prompt_secret CLAUDE_CODE_OAUTH_TOKEN \
   "It drives the review gate, which FAILS CLOSED without it. Get it by running: claude setup-token"
-prompt_secret TEMPLATE_TOKEN \
-  "A fine-grained PAT with Contents: Read-only on the TEMPLATE repository; template-sync fails closed without it when the template is private."
 
 if [[ "$APP" -eq 1 ]]; then
   echo
@@ -171,11 +226,19 @@ if [[ "$APP" -eq 1 ]]; then
     - Repository permissions:
         Contents ......... Read and write
         Pull requests .... Read and write
+        Checks ........... Read-only   (a web-session driver reads CI results
+                                        through the App; harmless everywhere else)
     - Where installed .... Only on this account
+
+  Keep it at exactly those three permissions. The App is the identity the
+  UNATTENDED driver acts as — never give it Administration or Secrets, or the
+  driver could edit its own gates.
 
   Then, on the App's page: note the App ID (a number, NOT the Client ID),
   press "Generate a private key" (a .pem downloads), and press
-  "Install App" -> install it on this repository. Then continue here.
+  "Install App" -> install it on this repository AND on the template
+  repository (template-sync reads the template through a token minted from
+  this App — there is no PAT path). Then continue here.
 APPHOWTO
   if have_secret APP_ID && have_secret APP_PRIVATE_KEY; then
     say "App secrets already set, leaving them alone."
@@ -226,23 +289,50 @@ IDENTITY
     fi
   fi
 else
-  prompt_secret AUTO_MERGE_TOKEN \
-    "(optional) A fine-grained PAT scoped to THIS repository with pull-requests:write and contents:write; without any merge identity, branch cleanup waits for the nightly sweep. Prefer --app."
+  say "no --app: the App identity was not configured. There is no PAT"
+  say "alternative — unattended runs refuse without the App, and template"
+  say "updates cannot read a private template. Re-run with --app."
 fi
 
 # ---------------------------------------------------------------- 4. ruleset
 # One ruleset, targeting the default branch by pointer (~DEFAULT_BRANCH) so it
-# survives a rename. The REST API accepts contexts that have not reported yet
-# (see the header's UNVERIFIED note). Update-in-place if it already exists:
+# survives a rename — plus any --gate-branch, so a delivery run based on a
+# non-default branch gets the same gates there. The REST API accepts contexts
+# that have not reported yet (see the header's UNVERIFIED note).
+# Update-in-place if it already exists:
 # POSTing a duplicate name creates a second ruleset, and two rulesets' rules
 # UNION, which is how a stale one quietly keeps an old check required forever.
+#
+# NOTE the update-in-place consequence for --gate-branch: the include list is
+# REPLACED, not merged. Re-running with a different --gate-branch set installs
+# exactly that set, and running with none returns the ruleset to the default
+# branch only — which is also how a finished lane's protection is removed.
 RULESET_NAME="grimsverk-gates"
+INCLUDE_REFS='"~DEFAULT_BRANCH"'
+for b in ${GATE_BRANCHES[@]+"${GATE_BRANCHES[@]}"}; do
+  INCLUDE_REFS+=", \"refs/heads/$b\""
+done
+# bypass_actors is EXPLICIT, and saying so is the fix for a live finding
+# (anvil F5/F16): a PUT that omits the field PRESERVES whatever bypass the
+# ruleset already carries, so the script's own header described gates the
+# live ruleset was quietly waiving. Repository admins hold an always-on
+# bypass, deliberately — without it the owner cannot maintain the default
+# branch or recover a wedged repository without editing the ruleset first.
+# THE CONSEQUENCE, stated where it can be read: these gates bind the App and
+# every non-admin credential; they do NOT bind an admin's direct push (GitHub
+# prints "Bypassed rule violations" and accepts it), and any session holding
+# an owner-grade injected credential is such an admin. The unattended
+# pipeline stays fully gated because the driver acts as the App, which holds
+# no repository role.
 RULESET_JSON="$(cat <<JSON
 {
   "name": "$RULESET_NAME",
   "target": "branch",
   "enforcement": "active",
-  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ],
+  "conditions": { "ref_name": { "include": [$INCLUDE_REFS], "exclude": [] } },
   "rules": [
     { "type": "deletion" },
     { "type": "non_fast_forward" },
@@ -277,11 +367,16 @@ EXISTING_ID="$("$GH" api "repos/$REPO/rulesets" \
 if [[ -n "$EXISTING_ID" ]]; then
   printf '%s' "$RULESET_JSON" | "$GH" api -X PUT "repos/$REPO/rulesets/$EXISTING_ID" --input - >/dev/null
   say "ruleset '$RULESET_NAME': updated in place (id $EXISTING_ID)."
+  say "ruleset bypass: repository admins, always — direct admin pushes are WAIVED, not blocked; the App and every non-admin stay fully gated."
 else
   printf '%s' "$RULESET_JSON" | "$GH" api -X POST "repos/$REPO/rulesets" --input - >/dev/null
   say "ruleset '$RULESET_NAME': created."
+  say "ruleset bypass: repository admins, always — direct admin pushes are WAIVED, not blocked; the App and every non-admin stay fully gated."
 fi
 say "required checks: $BUILD_CHECK secrets plan template-sync test-the-tests acceptance-criteria review"
+if [[ ${#GATE_BRANCHES[@]} -gt 0 ]]; then
+  say "gated branches: the default branch, plus ${GATE_BRANCHES[*]}"
+fi
 
 # ----------------------------------------------------------------- 5. verify
 if [[ "$VERIFY" -eq 1 ]]; then
@@ -305,3 +400,7 @@ fi
 echo
 say "done. Read it back before trusting it:"
 say "  .github/scripts/unattended-ready.sh"
+say ""
+say "transcript: ${SETUP_LOG_PATH:-<not recorded>} — setup friction is evidence."
+say "Commit it: directly on main before the gates exist, or on a docs/ branch"
+say "after (docs/runs/ is exempt from the plan-check size cap at any size)."

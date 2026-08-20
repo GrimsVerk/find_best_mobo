@@ -360,9 +360,24 @@ is reported and left for a human, not turned into a red check on a pull request
 that did nothing wrong — and it **will not run on the built-in Actions token**,
 because a push made with that token creates no workflow runs, so the branch
 would come up to date with its required checks permanently missing. That is
-worse than being behind. Configure the App (`scripts/setup-github.sh --app`) or
-`AUTO_MERGE_TOKEN`; with neither, the run summary says so and nothing is
-touched.
+worse than being behind. Configure the App (`scripts/setup-github.sh --app`);
+without it, the run summary says so and nothing is touched.
+
+## 2026-08-19 — Two credentials, total: the App, and the review token. No PATs.
+
+The owner's ruling, taken to reduce setup: a project configures exactly one
+GitHub credential — the App (`APP_ID` + `APP_PRIVATE_KEY`) — and one Anthropic
+credential — `CLAUDE_CODE_OAUTH_TOKEN` for the review gate. Everything GitHub
+needs beyond the built-in Actions token is minted from the App at use time:
+`template-sync` mints a read-only token scoped to the template repository
+(which is why the App must be installed there too), the driver mints its
+pull-request identity per request, and a web session mints `gh`'s token per
+turn. `TEMPLATE_TOKEN` and `AUTO_MERGE_TOKEN` are gone, deliberately without
+fallbacks — a fallback that must be set up defeats the point of having less to
+set up, PATs expire and fail every project at once, and a PAT acts as the
+owner, which hollows out `owner-authored.sh`. The App stays at exactly
+Contents RW, Pull requests RW, Checks RO: never Administration or Secrets, or
+the unattended driver could edit its own gates.
 
 <!-- Append project decisions below, newest at the bottom. -->
 
