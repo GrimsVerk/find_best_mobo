@@ -172,7 +172,9 @@ WAIT_TIMEOUT="${WAIT_TIMEOUT:-5400}"
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
   || { echo "deliver-loop: not inside a git repository" >&2; exit 2; }
 cd "$ROOT" || exit 2
-SPAWN=".claude/scripts/spawn-worker.sh"
+# Overridable so the fixtures can substitute a worker without editing a
+# tracked file (which the dirty-tree preflight would then refuse).
+SPAWN="${DELIVER_SPAWN:-.claude/scripts/spawn-worker.sh}"
 PHASE_SH=".claude/scripts/deliver-phase.sh"
 STATE_DIR=".claude/deliver-loop"
 DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
@@ -617,9 +619,15 @@ PR_COUNT=0
 BUDGET_START=""; BUDGET_START_MODEL=""; BUDGET_RESET=""
 if BUDGET_LINE="$(.claude/scripts/budget-probe.sh 2>/dev/null)"; then
   read_field() { sed -n "s/.*\\b$1=\\([^ ]*\\).*/\\1/p" <<<"$BUDGET_LINE" | head -1; }
+  # reset= is the probe's LAST field by contract and its value contains
+  # spaces ("Aug 20, 11am (Europe/Amsterdam)"), so it is captured to end of
+  # line — the word-parse truncated it to a bare month (anvil mobo F13), and
+  # since BOTH sides of the rollover comparison truncated identically, the
+  # mid-run re-baseline could never fire.
+  read_reset() { sed -n "s/.*\\breset=\\(.*\\)$/\\1/p" <<<"$BUDGET_LINE" | head -1; }
   BUDGET_START="$(read_field week)"
   BUDGET_START_MODEL="$(read_field week_model)"
-  BUDGET_RESET="$(read_field reset)"
+  BUDGET_RESET="$(read_reset)"
 fi
 
 ask() { # ask <prompt> — one line from the owner, or empty when not a terminal
@@ -708,6 +716,18 @@ mechanical_pr() { # mechanical_pr <source-branch> <head-ref> <title>
   # would turn that race into a stopped run. What covers the case where a
   # session opens one it should not is the tool grant above, which no longer
   # contains `gh pr create`, and the fixture that asserts so.
+  # NOTHING TO OPEN is its own answer, not a failure (ESC-66). A worker can
+  # exit 0 having committed on ITS branch and still leave the LANE unchanged —
+  # an oracle re-deriving rulings that already merged is the ordinary case —
+  # and GitHub then refuses the pull request with "No commits between". Those
+  # are different facts and only this one predicts it, so it is checked here,
+  # before a pointless push, and reported with a code the caller can count.
+  local base_ref="$RUN_BASE"
+  git rev-parse -q --verify "origin/$RUN_BASE" >/dev/null 2>&1 && base_ref="origin/$RUN_BASE"
+  if [[ "$(git rev-list --count "$base_ref..$1" 2>/dev/null || echo 0)" == "0" ]]; then
+    log "$1 adds nothing to $RUN_BASE — no pull request to open"
+    return 2
+  fi
   git push -q origin "$1:$2" || { log "push $2 failed"; return 1; }
   if [[ -n "$("$GH" pr list --head "$2" --state open --limit 1 \
                 --json number --jq '.[].number' 2>/dev/null)" ]]; then
@@ -734,7 +754,7 @@ mechanical_pr() { # mechanical_pr <source-branch> <head-ref> <title>
   GH_TOKEN="$token" "$GH" pr create --head "${2}" --base "$RUN_BASE" \
     --title "$3" \
     --body "Opened mechanically by deliver-loop.sh, as the GitHub App. The content is the branch; the gates are the review." \
-    >/dev/null || { log "gh pr create for $2 failed"; return 1; }
+    >/dev/null || { log "gh pr create for $2 failed"; return 3; }
   PR_COUNT=$((PR_COUNT + 1))
 }
 
@@ -748,6 +768,37 @@ run_worker() { # run_worker <id> <role> <prompt> <docs-ref> <pr-title>
     return 1
   fi
   mechanical_pr "worker/$id" "$ref" "$title"
+}
+
+# Consecutive dispatches that produced no pull request. A run whose worker
+# keeps succeeding while the lane never moves is a livelock the three-strike
+# rule cannot see: that rule keys on the same CHECKS failing on one branch,
+# and here no checks ever run and every branch has a fresh name, so the
+# signature never repeats and the counter never accumulates (ESC-66).
+NO_PROGRESS=0
+note_dispatch_outcome() { # note_dispatch_outcome <rc-from-run_worker> [scope ids...]
+  local rc="$1"; shift
+  if [[ "$rc" -eq 0 ]]; then NO_PROGRESS=0; return 0; fi
+  NO_PROGRESS=$((NO_PROGRESS + 1))
+  # The ids this dispatch was commissioned to work are now PROCESSED whatever
+  # the worker thought: the phase detector re-derives its scope from the tree,
+  # so without this it re-summons the same worker over the same evidence for
+  # ever. Recording them is what lets the run walk on to the next phase.
+  local id
+  for id in "$@"; do
+    [[ -n "$id" ]] || continue
+    printf '%s\n' "$id" >> "$PROCESSED_FILE"
+  done
+  sort -u "$PROCESSED_FILE" -o "$PROCESSED_FILE"
+  if [[ "$NO_PROGRESS" -ge 2 ]]; then
+    log "STOPPED: $NO_PROGRESS dispatches in a row produced no pull request. The"
+    log "workers ran and the lane did not move, so nothing here will change on its"
+    log "own — every further iteration would spend a model worker to learn the same"
+    log "thing. Evidence is being landed; read it before restarting."
+    exit 5
+  fi
+  log "that dispatch produced no pull request ($NO_PROGRESS in a row) — recording its scope as processed and re-detecting"
+  return 0
 }
 
 run_session() { # run_session <label> <prompt>
@@ -864,7 +915,8 @@ while :; do
   fi
   if [[ -n "$BUDGET_START" ]] && out="$(.claude/scripts/budget-probe.sh 2>/dev/null)"; then
     f() { sed -n "s/.*\\b$1=\\([^ ]*\\).*/\\1/p" <<<"$out" | head -1; }
-    now_reset="$(f reset)"
+    # Same end-of-line capture as the start-of-run parse (mobo F13).
+    now_reset="$(sed -n "s/.*\\breset=\\(.*\\)$/\\1/p" <<<"$out" | head -1)"
     if [[ -n "$BUDGET_RESET" && "$BUDGET_RESET" != "unknown" && "$now_reset" != "$BUDGET_RESET" ]]; then
       # The weekly window rolled over mid-run. Every delta against the old
       # baseline is now meaningless — and negative — so re-baseline rather than
@@ -885,12 +937,19 @@ while :; do
         log "allowance spent: ${spent} of ${BUDGET_POINTS} points on the ${which} limit"
         exit 6
       fi
+      # SAY IT EVERY ITERATION (ESC-67). The reading was taken every time
+      # already, but only ever logged at the start and at the stop — so a run
+      # whose budget check had quietly stopped working looked exactly like a
+      # run comfortably inside its allowance, and the only way to tell them
+      # apart was to read the gauge by hand. A limit nobody can see working is
+      # a limit nobody can see break.
+      log "budget: weekly at $(f week)% (model $(f week_model)%), spent ${spent} of ${BUDGET_POINTS} points on the ${which} limit"
     fi
   fi
 
   # What next? Recomputed from the world, never remembered.
   PHASE=""; PR=""; HEADREF=""; UNRULED=""; UNCITED=""; ODS=""; REQS=""; SLUG=""; REASON=""
-  CRITERIA=""
+  CRITERIA=""; rc=0
   while IFS='=' read -r k v; do
     case "$k" in
       PHASE) PHASE="$v" ;; PR) PR="$v" ;; HEADREF) HEADREF="$v" ;;
@@ -925,8 +984,9 @@ while :; do
 
 UNATTENDED RUN. The delivery driver commissioned this session. $scope" \
         "docs/oracle-$(date -u +%Y%m%d%H%M%S)$LANE" \
-        "Oracle: rulings and handoff" || true
-      record_dismissed_evidence ;;
+        "Oracle: rulings and handoff" && rc=0 || rc=$?
+      record_dismissed_evidence
+      note_dispatch_outcome "$rc" $UNRULED $UNCITED ;;
     STEWARD)
       od="${ODS%% *}"
       run_worker "steward-${od,,}" steward \
@@ -934,7 +994,8 @@ UNATTENDED RUN. The delivery driver commissioned this session. $scope" \
 
 UNATTENDED RUN. The decision to plan: $od" \
         "docs/oracle-plan-${od,,}$LANE" \
-        "Plan for $od" || true ;;
+        "Plan for $od" && rc=0 || rc=$?
+      note_dispatch_outcome "$rc" ;;
     PLAN)
       run_worker "plan-$(date -u +%Y%m%d%H%M%S)" steward \
         "$(command_prompt .claude/commands/plan.md)
@@ -944,7 +1005,8 @@ unattended branches of the gate above. Requirements still unplanned: $REQS.
 Plan the next milestone of docs/DESIGN.md that delivers them (or file the
 uncertainties that block it)." \
         "docs/plan-$(date -u +%Y%m%d%H%M%S)$LANE" \
-        "Plan: next milestone ($REQS)" || true ;;
+        "Plan: next milestone ($REQS)" && rc=0 || rc=$?
+      note_dispatch_outcome "$rc" ;;
     ORCHESTRATE)
       # UNATTENDED RUN is the marker the worker prompts have always carried and
       # this dispatch did not — which is exactly how it kept opening its own
@@ -961,10 +1023,17 @@ PUSH $FEAT_REF — then stop. Do NOT open the pull request: you have no grant
 to, and the driver opens it as the GitHub App so it is not authored by the
 owner."; then
         if git rev-parse -q --verify "refs/heads/$FEAT_REF" >/dev/null 2>&1; then
-          mechanical_pr "$FEAT_REF" "$FEAT_REF" "Build: $SLUG" || true
+          mechanical_pr "$FEAT_REF" "$FEAT_REF" "Build: $SLUG" && rc=0 || rc=$?
         else
           log "orchestrate session finished but $FEAT_REF does not exist — nothing to open"
+          rc=2
         fi
+        # Counted like every other dispatch (ESC-66): a session that keeps
+        # finishing without leaving a branch is the same livelock as a worker
+        # whose branch adds nothing, and it looped just as invisibly.
+        note_dispatch_outcome "$rc"
+      else
+        note_dispatch_outcome 1
       fi ;;
     ACCEPTANCE)
       # The marker used to be written BEFORE the session ran, and the dispatch

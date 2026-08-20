@@ -115,7 +115,21 @@ if [[ -z "${SETUP_GITHUB_LOG_ACTIVE:-}" ]]; then
   say "recording a transcript to $SETUP_LOG"
   SETUP_GITHUB_LOG_ACTIVE=1 SETUP_LOG_PATH="$SETUP_LOG" \
     bash "$0" ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"} 2>&1 | tee -a "$SETUP_LOG"
-  exit "${PIPESTATUS[0]}"
+  RC="${PIPESTATUS[0]}"
+  # The transcript COMMITS ITSELF (mobo F10). Left untracked, the very next
+  # documented step — starting the driver — refuses over the dirty tree this
+  # script just created, with nothing saying why. A local commit is safe on
+  # any branch (pushing stays the operator's move, and the transcript never
+  # carries a secret VALUE — those travel over stdin, untouched by output).
+  # Only this one file is staged, so a dirty tree the operator already had is
+  # neither swept in nor touched.
+  if git add -- "$SETUP_LOG" 2>/dev/null \
+     && git commit -q -m "Record the setup-github transcript" -- "$SETUP_LOG" 2>/dev/null; then
+    say "transcript committed — push it with your branch when ready."
+  else
+    say "transcript left at $SETUP_LOG (could not commit it here) — commit it before starting the driver, which refuses a dirty tree."
+  fi
+  exit "$RC"
 fi
 
 command -v "$GH" >/dev/null 2>&1 || die "the GitHub CLI is not installed (https://cli.github.com)"

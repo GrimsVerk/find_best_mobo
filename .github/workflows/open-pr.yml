@@ -43,6 +43,12 @@ on:
     branches:
       - "feat/**"
       - "docs/**"
+      # Template updates too (ESC-63): update-from-template.sh commits the
+      # request marker when it cannot mint as the App, and an update pull
+      # request NEEDS App authorship more than most — it touches
+      # CODEOWNERS-owned gate paths, and only a pull request the owner did
+      # not author is one the owner can approve.
+      - "template/**"
 
 # These scope GITHUB_TOKEN only; the App token's reach comes from the App's
 # own permissions. Nothing here needs the built-in token at all.
