@@ -20,6 +20,9 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T11:26:39Z | RESTART/UPDATE | v0.4.41 -> v0.4.42, 4 files, 0 conflicts; PR #119 approved and merged |
+| 2026-08-20T11:26:39Z | DRIVER START | v0.4.42, base run/local, 20 points; readiness reports clear base AND no worktrees |
+| 2026-08-20T11:26:39Z | STEWARD | iteration 1, worker steward-od-8 |
 | 2026-08-20T11:12:08Z | RUN STOPPED | v0.4.41 run 20260820T102917Z: 8 iterations, PRs #109-#117 merged; stopped for the v0.4.42 update |
 | 2026-08-20T11:12:08Z | LANE CLEAR | all 4 worktrees read: 0 unmerged, 0 uncommitted; no stale WORK pull requests open |
 | 2026-08-20T10:29:05Z | RESTART/CLEANUP | driver refused on 3 leftover worktrees; 1 stranded commit salvaged; cleaned |
@@ -725,5 +728,43 @@ before being stopped for this update; three of its findings are below.
   **#117**, and **merged** — `run.md`, 3 review payloads with **zero
   `MISSING.md`**, and **4** worker logs. ESC-40 and ESC-43 confirmed again, on a
   second run. Second consecutive clean self-recording; no failsafe used.
+- **Severity:** none
+
+### F29 — F24 closed: readiness now refuses on leftover worktrees, and says to read them first
+- **Where:** restart step 3, `.github/scripts/unattended-ready.sh`
+- **The gap F24 named is closed.** Readiness now carries the check, and both
+  new lines report green on a clear lane:
+
+  ```
+  ready    no pull request is open against 'run/local' — the run starts on a clear base
+  ready    no leftover worktrees — no dead run's debris in the way
+  ```
+
+- **The refusal path does more than refuse.** It names the worktrees it found
+  and tells the reader to READ them before removing them, with the two commands
+  to do it. The source comment gives the reason, and it is this lane's own
+  incident: *"a leftover worktree can hold a worker's finished, unpushed
+  commits — a real plan was salvaged from one as a 562-line patch — so read it
+  before removing it."* That is F24's salvage, upstream.
+- **Severity:** none — closure, and the strongest form of one: the fix carries
+  the reasoning, not just the check.
+
+### F30 — driver restarted at v0.4.42
+- **Command:** unchanged — `--base run/local --budget-points 20 --max-prs 30
+  --max-hours 12`.
+- **Start state:** base `78a8ae3` (v0.4.42), tree clean, zero worktrees, zero
+  open pull requests, readiness exit 0.
+- **Banner:** `THIS RUN'S BASE BRANCH: run/local`.
+- **Budget, with the full reset value (F13's fix holding):**
+
+  ```
+  budget: weekly at 10% (model 9%), allowance 20 points, window resets Aug 27, 11am (Europe/Amsterdam)
+  budget: weekly at 10% (model 9%), spent 0 of 20 points on the per-model weekly limit
+  ```
+
+- **First dispatch:** `iteration 1: phase STEWARD`, worker `steward-od-8`.
+- **Watching, per the owner's instruction:** the per-iteration budget line; the
+  stop line against the landed report's exit code and reason (F26's fix); and
+  any refusal readiness did NOT catch — that class is now the finding.
 - **Severity:** none
 
