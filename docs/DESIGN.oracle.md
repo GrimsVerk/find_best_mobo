@@ -461,3 +461,59 @@ Signatures block) states, per shared type and exception, the module it lives
 in. That revision ratifies `FetchFailure` in `ledger.py` and retires the
 `transcripts.py` re-export shim. BL-2, outside this run's scope, is the same
 class of correction and can ride in the same revision when it is ruled.
+
+## OD-13 — OD-5 is superseded: the whole-transcript path is uncapped, and an over-cap transcript spans sequential bundles
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-14, BL-13
+- **Requirements added:** R1008
+- **Requirements superseded:** R1001
+- **Vision statement relied on:** V4 — "Given a choice between a cheaper run and a better-sourced answer, take the better answer."
+- **Vision statements against:** V10 — "Where some other goal can only be met by processing content with no AMD or AM5 signal, that goal loses and a cheaper design is chosen." — the statement OD-5 capped the path with, and it does not forbid uncapping it: a video at or above R28's 80% ratio is dense in AM5 signal by measurement, the opposite of no-chance-of-relevance material, and the sparse long stream that would have produced the lumpy request never reaches the ratio once overlapping windows merge into clusters and are re-cut (R5, R1000) — so removing the cap spends nothing on no-signal material.
+- **Alternatives considered:** Leave R1001 standing and let the owner's amended R28 override it informally — rejected: the two design documents are read together and `coverage.sh` unions them, so a landed requirement the design's own text now contradicts ("The whole-transcript path is not capped — this supersedes R1001") is exactly the incoherence this ledger's supersession lifecycle exists to close. Keep a softer cap (a higher ceiling, or excerpt-fallback only above some multiple of the bundle cap) — rejected: the owner's 2026-08-19 ruling (`docs/DECISIONS.md`) names the mechanism directly — a transcript larger than one bundle's token cap is delivered across sequential bundles, never bounced back to excerpts — and the lumpy-spend concern R1001 answered is handled at its source by clustering. Supersede R1001 with nothing — rejected: R1001's second sentence carried the routing's observability, and dropping it silently would land a behaviour change at the checkpoint that no requirement obliges anything to report; R1008 keeps the measurement and sheds the cap.
+- **Rationale:** OD-5's two grounds are both gone. Its reading of BL-13 as an unapproved proposal it could not adopt against an earlier owner ruling was corrected by the owner themselves — all backlog items through BL-13 are approved as of 2026-08-19 (`docs/BACKLOG.approved.md`), and the owner says so in the ruling's own postmortem clause. And the design it deferred to has been amended by its owner: R5 now specifies transitive clustering with R1000's re-cut, and R28 now states the whole-transcript path is not capped, with over-cap transcripts delivered across sequential bundles. BL-14 filed the residue as HIGH because the merged plan `docs/plans/oracle/capped-whole-transcript-path.md` implements the reversed decision — its slice 1 routes a saturated over-cap video back to excerpts (`EXCERPTS_OVER_CAP`), which is now a rejected behaviour, and its `covers:` names R1001. This decision adopts BL-14's proposed default in full: R1001 is superseded, that plan is partly wrong and must not be built as merged, and the steward re-cuts it to the clustering design before anything builds the routing.
+
+**R1008** — The cost projection reports the routing per path: how many videos
+were sent as whole transcripts and how many as excerpts, and the characters and
+projected tokens each path accounts for. For the whole-transcript path it also
+reports how many videos exceed one bundle's token cap and the number of
+sequential bundles each such transcript spans, so the uncapped path's largest
+submissions are visible at the checkpoint before anything is spent. Supersedes
+R1001: the observability is kept, the cap and the excerpt-fallback above it are
+not.
+
+Downstream: `docs/plans/oracle/capped-whole-transcript-path.md` is partly wrong
+— slice 1's cap check and `EXCERPTS_OVER_CAP` path, slice 2's
+no-whole-block-over-the-cap invariant, and slice 3's `videos_over_cap` count
+all implement the superseded R1001 — and it must not be built as merged. Its
+sequencing note survives: R1000's re-cut (`recut-merged-excerpts`, merged and
+not yet built) still lands first, because the ratio the routing reads is only
+honest once each transcript character is counted once.
+`docs/plans/whole-transcript-threshold.md` remains the owner's to revise;
+nothing here changes that.
+
+## OD-14 — The zero-duration warning judges the listing shape, not the count
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-15, ESC-21
+- **Requirements added:** R1009
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V1 — "**Real, sourced information about which boards Buildzoid considers safe** for a 7950X3D or 9950X3D — and which he does not."
+- **Vision statements against:** V12 — "If he did not say it, the answer must say he did not say it." — the nearest, because demoting eight banners to a one-line count could read as making the pipeline quieter about missing data; it does not: every entry is still classified and recorded in the index with its reason (R1), the count still prints on every run, and the banner is restored to firing only when it carries information — silence still reads as silence, and an alarm reads as an alarm again.
+- **Alternatives considered:** Delete the warning — rejected: the case it was written for, a genuine video returned with a real date but no duration and silently classified as a Short, is a real silent-drop shape, and BL-15's second cost argues for sharpening that signal, not removing it. Raise the count threshold — rejected: any fixed count is wrong the day the channel posts one more Short, and the premise the current threshold rests on ("only one video can legitimately lack a duration") was measured false on the first real run. Classify from a listing-provided Shorts marker alone (BL-15's direction 2) — not adopted as the requirement: whether the flat listing carries such a marker is a mechanism question for the plan, and the marker's absence would put the warning right back on inference; the plan may use it where present. Judge each entry on its own evidence — chosen, BL-15's directions 1 and 3 together.
+- **Rationale:** Measured on the first real index run after the `timestamp` fix: eight videos reported no duration, the 72-character banner fired, and all eight were genuine Shorts in the flat listing's distinct Shorts shape — no `duration` field and no date in either field. That shape is how the flat listing returns Shorts, so it recurs on every run: the warning is a permanent false positive, and its real case — a dated entry with no duration — would be a ninth id invisible inside a list of eight expected ones. The check that exists to catch a silent drop currently guarantees one goes unnoticed, which is a loss V1 cannot afford: a genuine board video misclassified as a Short leaves the corpus before anything downstream can see it. ESC-21 already recorded that fixtures agreeing with the code and disagreeing with the real listing shape cost a full run; the same listing is still not fully described by the fixtures, which is why the requirement pins the distinguishing pair as tests.
+
+**R1009** — The index stage distinguishes the flat listing's Shorts shape from
+a real anomaly by the evidence in each entry, never by how many entries lack a
+duration. An entry with no duration and no date in either listing field
+(`upload_date`, `timestamp`) is the expected Shorts shape: it classifies as it
+does today and is reported as a one-line count ("N Shorts reported no duration
+(expected)"), with no banner. The loud warning fires only for an entry carrying
+a real date but no duration — the shape of a genuine video being silently
+dropped — and names each such video id. The suite pins the distinguishing
+pair: a dateless, durationless entry does not trip the warning, and a dated,
+durationless one does.
+
+Measurement: the printed index summary is already captured in the run reports
+under `docs/runs/`, and the test pair pins both sides in the suite — no new
+collection mechanism is needed.
