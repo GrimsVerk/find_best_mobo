@@ -1,0 +1,21 @@
+Preparing worktree (new branch 'worker/oracle-20260820130552')
+HEAD is now at 3253188 Plan for OD-5 (#129)
+=== spawn-worker[oracle-20260820130552] engine=claude branch=worker/oracle-20260820130552 base=run/local (32531888be24f03b579f0276d42a1334e06447ef) bypass=0 ===
+=== 2026-08-20T13:05:52Z ===
+Committed. The work is done — here is the run's report.
+
+**Scope: BL-23 (build Stage B: extraction, owner-approved).** One decision appended to `docs/DESIGN.oracle.md` — **OD-22**, adding **R1011** — plus the handoff at `docs/oracle/handoff-2026-08-20-8.md`. No halts, no waivers.
+
+**A note on where the evidence was:** BL-23 did not exist on this worktree's base (stale local `main`); it landed on `run/local` via PR #131 together with OD-21 (PR #132). I created a fresh branch off `run/local`'s tip so the append lands on the current ledger — the original worker branch would have produced a conflicting, OD-21-less ledger.
+
+**What OD-22 decided.** BL-23 contradicts nothing — everything it names is already design text (§7 Stage B, §9 Claim, R7–R10, R26, R27). It ruled the three things a planner would otherwise guess:
+
+1. **Boundary:** the next plan follows BL-23's scope, not milestone M2's — the minimal report generator (R16, R14's partial) stays out; the plan ends at a calibration batch extracted, validated, stored, factor corrected.
+2. **Cap figure:** read from R26, never from BL-23's restated "10%" — the owner's unmerged branch `docs/r26-fifteen-percent` (15%) confirms the backlog number is already stale; R1011 pins the fraction in one configured place so that edit lands as one line.
+3. **R1011 (the genuine design gap):** §13 calls S3 mechanically checkable, but nothing made the projected-versus-actual comparison durable — the usage reader returns a point-in-time number. R1011 makes the calibration record and the R26 spend readings committed files, with `acceptance/S3.sh` landing beside the first real record.
+
+**Handoff for the orchestrator:** one steward plan to cut for OD-22 (covers R1011 + R8, R9, R10, R26, R27; must build after `recut-merged-excerpts` and `capped-whole-transcript-path`, since a factor calibrated against inflated excerpts is wrong by construction). OD-14's R1009 remains genuinely unplanned. Not to act on: OD-5's false steward dispatch (OD-21 governs), M3+ milestone planning (Stages C–E lack their own approvals, per BL-23's own approval logic), and the owner's unmerged R26 branch. The `coverage.sh` supersession fix remains the owner's unlock for `PHASE=PLAN`; OD-22's steward path lets Stage B proceed meanwhile.
+
+**Vision note (in the handoff):** the durable-evidence section is framed for unattended operation while Stage B batches are deliberately owner-entered; OD-22 read it as covering any evidence future evaluation needs. If the owner means it narrower, that section's third bullet is the sentence to sharpen — nothing downstream would change.
+
+WORK_ON_BRANCH worker/oracle-20260820130552b

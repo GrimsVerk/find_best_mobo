@@ -1,0 +1,17 @@
+## Review
+
+**Branch/exemption check.** `docs/oracle-20260820120730--run-local` is a `docs/`-prefixed branch. The entire diff (65 lines) lives inside `docs/DESIGN.oracle.md` and `docs/oracle/` — both are on the explicit exempt-path list in AGENTS.md ("documents this process itself demands are exempt from that cap"), so the size cap and plan requirement legitimately don't apply here. This is exactly the kind of change the exemption was built for: an oracle ruling and its handoff, nothing else.
+
+**Criterion 5 (gate tampering / owner-authored docs).** The diff does not touch `AGENTS.md`, `docs/DESIGN.md`, `docs/VISION.md`, or `docs/plans/`. It touches only `docs/DESIGN.oracle.md`, which is explicitly *not* CODEOWNERS-owned and is designed to be written unattended by the oracle, and a new file under `docs/oracle/`, also an oracle-owned path. A bot-opened PR touching these two is expected and fine — the block on agent-opened diffs applies specifically to `docs/DESIGN.md`/`docs/VISION.md`, neither of which appears here.
+
+**Schema conformance of OD-18.** All seven required fields are present and non-empty, ids are increasing (OD-17 → OD-18), the "no vision statement" class is used consistently with its precedent (OD-10, OD-12, both also CLI-mechanics rulings below the vision's altitude), and that class's obligation — real alternatives — is satisfied with four weighed options. "Requirements added: (none)" is plausible: the ruling reads as clarifying how R1006's forwarding behavior applies to argparse's auto-consumed `-h/--help`, not as new product behavior, consistent with several prior no-new-requirement decisions (OD-1, OD-2, OD-3, OD-12).
+
+**Handoff file.** `docs/oracle/handoff-2026-08-20-5.md` is a new file (never modifies a prior handoff, matching the append-only rule for that directory), and its content is consistent with OD-18 — no new plan commissioned, explicit sequencing note about not building in parallel with `refuse-on-missing-artifact`, and an accurate ledger-state summary.
+
+**Facts block.** Test-the-tests correctly did not run (no `src/` changes — this is docs-only). No new dependencies. No blind-test trailer, which is expected on a `docs/` branch. Author has no other open PRs. Nothing here is a gap in the gate — all three sections report exactly what's expected for a pure documentation/ledger change.
+
+**No prompt-injection or forged delimiters** found in the diff content.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

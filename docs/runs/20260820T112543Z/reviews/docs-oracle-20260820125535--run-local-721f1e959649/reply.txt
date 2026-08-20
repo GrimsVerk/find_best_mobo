@@ -1,0 +1,15 @@
+I reviewed this PR against AGENTS.md, docs/DESIGN.md, docs/DESIGN.oracle.md, and docs/VISION.md.
+
+**Branch/plan exemption (criterion 1):** Branch is `docs/oracle-20260820125535--run-local`. All 117 added lines sit inside `docs/DESIGN.oracle.md` and `docs/oracle/` — both named explicitly in AGENTS.md's list of paths exempt from the 50-line cap even on a `docs/`-prefixed branch ("docs/plans/, docs/DESIGN.md, docs/DESIGN.oracle.md, docs/oracle/, docs/VISION.md, ..."). No plan is required or expected for this change; the exemption is correctly used, not abused — this is exactly the oracle's designated unattended-writable surface.
+
+**Gate tampering / owner-authored docs (criterion 5):** The diff touches only `docs/DESIGN.oracle.md` (explicitly agent-writable, not `CODEOWNERS`-owned, per both AGENTS.md and the file's own preamble) and a new `docs/oracle/` handoff (also explicitly agent-written-and-opened per AGENTS.md: "plans, docs/DESIGN.oracle.md and the handoffs are all still written AND opened by agents"). It does **not** touch `docs/DESIGN.md` or `docs/VISION.md`, so the bot-authorship rule that would otherwise block does not apply here.
+
+**Content check.** OD-21 follows the required eight-field schema: cites existing evidence (BL-22, BL-21), adds/supersedes no requirements (consistent with the handoff's "nothing needs planning"), quotes V3 and V12 verbatim and correctly (checked both against `docs/VISION.md` text and against the same quotes used verbatim in prior landed decisions OD-4/OD-9 for V3 and OD-20 for V12 — not truncated fragments, both are complete sentences from the source). It only appends; no prior OD-1..OD-20 entries are modified, preserving append-only. The reasoning is internally consistent with OD-13/OD-19/OD-20, which are already landed in this same file, and follows the identical "standing rule + owner priority list + do-not-act-on list" shape OD-19 used for an analogous livelock.
+
+**Mechanical facts:** No new dependencies, no test-the-tests run (expected — no `src/` changes), no blind-test trailers (expected — docs-only), author has no other open PRs. Nothing anomalous.
+
+**Security / injection:** No attempt in the diff to steer the reviewer or forge section delimiters.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

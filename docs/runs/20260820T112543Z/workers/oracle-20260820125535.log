@@ -1,0 +1,21 @@
+Preparing worktree (new branch 'worker/oracle-20260820125535')
+HEAD is now at 3253188 Plan for OD-5 (#129)
+=== spawn-worker[oracle-20260820125535] engine=claude branch=worker/oracle-20260820125535 base=run/local (32531888be24f03b579f0276d42a1334e06447ef) bypass=0 ===
+=== 2026-08-20T12:55:35Z ===
+Committed on the branch. The run is complete.
+
+## Report
+
+**Decision written:** OD-21, resolving BL-22 (with BL-21 as supporting evidence). The livelock is verified against the tree and against PR #129 itself, which the driver opened as "Plan for OD-5" and which contains no plan — only the BL-22 filing. The mechanism: `deliver-phase.sh` step 4 maps `coverage.sh`'s permanent R1001 gap back to OD-5 and emits `PHASE=STEWARD` before the plan walk on every cycle, and no agent-writable path can break that — the ledger is append-only, both scripts are owner-owned gate paths, and the one write that would green the report (a plan covering R1001) is the over-claim OD-20 forbids by name.
+
+So OD-21 does what OD-19 did for the orchestrator's false dispatch, generalized: any steward dispatched for a decision whose every added requirement is superseded writes no plan, cites OD-21, and stops — no re-deriving the supersession, which is the session-sized spend V3 rules out paying each cycle. The decision adds no requirement; it raises the priority of the owner's unlock: OD-20's `coverage.sh` supersession fix is no longer hygiene but the single edit between the driver and any further unattended progress, with BL-22's `oracle-decisions.sh` backstop recommended alongside it, and a note that fixing it re-arms BL-20's hazard (OD-19's prohibition governs that moment).
+
+**Contradictions found and not decided:** none in scope. BL-1 and BL-2 remain the only unruled items, outside the commissioned scope, deferred to the next cycle as before.
+
+**Handoff:** `docs/oracle/handoff-2026-08-20-7.md`.
+
+**Vision notes:** nothing ambiguous. One flag for the owner: OD-21 is the first decision to lean on V3 for *process* cost (livelocked agent sessions) rather than pipeline token spend. If that stretches what V3 means by "budget", that sentence is the one to sharpen — the handoff says exactly what would change (nothing downstream; the decision would rest on the no-vision class instead).
+
+**Mechanical validation:** the sandbox blocked executing `oracle-decisions.sh`, so its constraints were verified by hand — both quoted vision sentences match the base file verbatim under whitespace normalization, all eight fields are present and non-empty, ids increase, evidence resolves at base, and no prior decision or handoff was touched.
+
+WORK_ON_BRANCH worker/oracle-20260820125535

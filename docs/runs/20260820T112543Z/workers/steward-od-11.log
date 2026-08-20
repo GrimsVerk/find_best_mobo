@@ -1,0 +1,19 @@
+Preparing worktree (new branch 'worker/steward-od-11')
+HEAD is now at 117497b Oracle: rulings and handoff (#124)
+=== spawn-worker[steward-od-11] engine=claude branch=worker/steward-od-11 base=run/local (117497b63b6b7ea7c05db471e658563d4d348dbd) bypass=0 ===
+=== 2026-08-20T12:11:45Z ===
+The plan is written and committed.
+
+**Plan:** `docs/plans/oracle/tracked-alias-table.md`, slug `tracked-alias-table` (unique across all twelve plans, and not a substring of any of them in either direction). It implements **OD-11 / R1007**, `covers: [R1007]`, and cites OD-11 (and OD-12 for the module-placement rule). `plan-parse.sh` reads both slices; `plan-lint.sh` passes on all twelve plans.
+
+**What it builds,** in two sequential slices, ~225 lines:
+1. **The lever.** `Config` gains `alias_table_path` (a full path, key named after the field per `config.toml`'s own convention), and `select.py`, `commands/aliases.py` and `commands/select.py`'s `_missing` all read it instead of building `config.data_dir / "aliases.toml"`. Default stays at today's location, so nothing breaks in between.
+2. **The location.** `git mv data/aliases.toml aliases.toml`, the default flips with it in the same commit (R1007 requires those together), and a new `tests/test_alias_table_location.py` proves via `git ls-files` / `git check-ignore` — with `data/` as a negative control — that the table is tracked and unignored, skipping with a stated reason outside a checkout. That guard is the ratchet: nothing in the suite today would notice the table falling back out of git, which is BL-4's defect exactly.
+
+**What I had to guess at: nothing.** The Uncertainties section reads "None: every decision derived from the design," with eleven derivations recorded — the key name (config.toml's stated convention), CWD-relative resolution (`data_dir` and `run.sh`'s `cd` set it), no fallback to the old path (OD-11's "one authoritative way to find it"), the untouched `.gitignore` (the table was force-added, not un-ignored by a negation rule), and the move-plus-default-in-one-slice constraint (R1007's own sentence). Nothing is filed to `docs/BACKLOG.md`.
+
+**Existing plans this decision touches** — none is made wrong, all three already anticipate it: `caption-split-aliases` (slice 3) and `itx-chipset-variant` (slice 1) name `data/aliases.toml` in their file lists and rebase to the new path against a content-free rename; `subcommand-flag-forwarding` records that `commands/aliases.py` keeps reading today's path until this lands. One real conflict: `refuse-on-missing-artifact`'s slice 2 rewrites the same `_missing` function slice 1 here rewrites — never built in parallel. `docs/plans/corpus-and-checkpoint.md` is the plan BL-4 and BL-6 were filed against and still names the old path; it is owner-owned and **OD-12** already commissions its revision, which this correction rides.
+
+**One thing worth the owner's eye,** flagged in the summary rather than buried: the table stops following `data_dir`, so a config pointing `data_dir` at another cache no longer moves the table with it. That is the decoupling R1007 asks for, but it is a live behaviour change and it is the one bullet they could say no to.
+
+WORK_ON_BRANCH worker/steward-od-11
