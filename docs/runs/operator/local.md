@@ -20,6 +20,8 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T08:46:41Z | RIG/GATED | run/local gated, 7 checks, strict; unattended-ready exit 0, all ready |
+| 2026-08-20T08:46:41Z | RIG/WAIT | run/web present at v0.4.37, ungated, awaiting owner gating call |
 | 2026-08-20T08:35:37Z | RIG/BLOCKED | gates ruleset = default branch only; run/local ungated; setup-github.sh refused by sandbox |
 | 2026-08-20T08:31:00Z | SETUP/UPDATE | v0.4.27 -> v0.4.37 · 23 files · 0 conflicts · 0 .rej · run/local pushed |
 
@@ -145,4 +147,33 @@ Register values are never written here. They appear as `<repos_root>`,
   unattended on this machine, and because the fix is the owner's to grant.
 - **Severity:** blocker (rig, not template)
 - **Lane state:** stopped before starting the driver. Nothing dispatched.
+
+### F6 — F5 cleared by the owner; `run/local` gated and readiness fully green
+- **Where:** Part 1 steps 6a and 7
+- **What happened:** the owner ran the refused command themselves. The gates
+  ruleset now reads
+  `include: ["~DEFAULT_BRANCH","refs/heads/run/local"]`, all seven checks,
+  `strict_required_status_checks_policy: true`, enforcement active.
+- `RUN_BASE=run/local .github/scripts/unattended-ready.sh` returns **exit 0**,
+  25 lines, every one `ready` — including all seven checks binding
+  specifically at base branch `run/local`, which is the v0.4.37 per-base
+  isolation being observed working for the first time on this project.
+- One `note` line, not a failure: template reads are minted from the App, so
+  the App must also be installed on the template repository or `template/`
+  branches fail `template-sync` closed.
+- **Severity:** none — closes F5.
+
+### F7 — `run/web` exists and is unblocked-pending; the local operator cannot gate it
+- **Where:** Part 1 step 6a-4
+- **What happened:** `run/web` appeared at `13110cb`, one commit off the same
+  `main` this lane branched from, `_commit: v0.4.37` — the same release, so
+  the twin-run precondition holds.
+- The gating call that must now cover BOTH lanes is the same
+  repository-administration command the operator's sandbox refuses (F5), so it
+  goes back to the owner a second time.
+- **Consequence while it waits:** `run/web` carries no required checks, and the
+  web lane is inside its own bounded 45-minute poll waiting for this exact
+  change. The delay is charged to the local lane's rig duties, not to the web
+  agent.
+- **Severity:** blocker (rig, not template) — the same root cause as F5.
 
