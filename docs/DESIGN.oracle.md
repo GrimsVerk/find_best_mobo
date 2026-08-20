@@ -577,3 +577,32 @@ Measurement: none new. The regression case is itself the instrument — it runs
 in the suite on every pull request — and its docstring's provenance note is
 the durable record that the title is rebuilt, which is what keeps the
 substitution visible instead of silent.
+
+## OD-17 — R1005 binds `aliases --check`: an absent cache refuses, an empty cache is reported as an empty corpus
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-18, BL-7
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** (none — no statement in docs/VISION.md tells against this; the nearest statement in the vicinity, V12's demand that silence read as silence, governs safety verdicts in the answer rather than a CLI diagnostic, and to the extent its principle carries at all it points the same way this decision goes: an empty corpus must read as an empty corpus, never as a setup error)
+- **Alternatives considered:** (1) Exempt the command as a diagnostic — `scripts/run.sh` calls it one and `docs/plans/run-scripts.md` says "the pipeline is four stages, not five" — rejected: that lets a naming inconsistency decide behaviour (`docs/architecture.md` calls the same command "the inspection stage"), and it preserves the one place in the tree where emptiness reads as absence, in the very instrument `docs/acceptance.md` tells the owner to read before trusting anything downstream ("Read the `aliases` output before trusting anything downstream"). (2) Supersede R1005 with wording that replaces "a pipeline stage" with "a command that reads an upstream artifact" — rejected: OD-14, OD-15 and OD-16 set the precedent that a clarifying decision fixes a landed requirement's reading at the cost of one entry, and renumbering a requirement a landed plan covers would move `covers:` lists for a one-noun repair. (3) Bind it, as BL-18's proposed default — chosen.
+- **Rationale:** R1005's noun is not the load-bearing part of the rule; its purpose is — "absence and emptiness are different facts and must read differently" (OD-9). That purpose applies wherever an upstream artifact is read, and `aliases --check` reads three: the index, the alias table, and the transcript cache. Its cache guard, `not any(cache_dir.glob("*.json"))` (`src/find_best_mobo/commands/aliases.py`), is the one condition in the tree that still conflates the two facts: a present-but-empty cache refuses with "Run `find-best-mobo fetch` first" — a false remedy once the refuse-on-missing-artifact plan's slice 2 lands, because `fetch` then creates the directory even when every video fails, so an empty directory means fetch RAN and cached nothing. The honest output for that state is the report itself: every canonical listed as never matched, which reads as alarming because it is, and is true. An absent directory stays a refusal naming `fetch`, through the shared `require` mechanism like every other stage. BL-18's own risk assessment holds: one condition in one command, no slice boundary moves, and reversing it is restoring one `if`.
+
+The ruling, stated for the plan that proceeded on the default
+(`docs/plans/oracle/refuse-on-missing-artifact.md`): slice 3 is confirmed as
+drafted. `aliases --check` guards its inputs through `require` exactly as the
+pipeline stages do — an absent transcript cache directory exits 1 naming
+`fetch`; a present-but-empty one exits 0 and reports every canonical as never
+matched. The `--check` usage error and its exit code 2 are untouched; a
+missing flag is not a missing artifact. Whether `scripts/run.sh` counts the
+command among the pipeline's stages is taxonomy and stays as each document has
+it; after this decision the term decides nothing.
+
+Measurement: none new. The plan already pins both halves as tests that run in
+the suite on every pull request — absent directory refuses naming `fetch`,
+empty directory reports — and its `docs/architecture.md` "Known rough edges"
+entry records that an all-never-matched report over an empty cache is honest
+and looks like a broken table, with the remedy named. Those are existing
+mechanisms carrying the new behaviour, which is what the durable-evidence
+section of `docs/VISION.md` asks for.
