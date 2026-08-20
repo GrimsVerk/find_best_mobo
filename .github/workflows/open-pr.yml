@@ -1,0 +1,122 @@
+name: Open PR
+
+# Opens a pull request AS THE APP, on behalf of a driver that cannot be the
+# App itself (ESC-50), triggered by a PUSH — never by manual dispatch, and
+# that change is ESC-53:
+#
+# The dispatch design died two independent ways on the hosted platform. The
+# session's injected credential is an integration with no `actions: write`,
+# so the dispatch REST call answers "Resource not accessible by integration";
+# and a dispatch-only workflow REGISTERS only from the default
+# branch, so in a repository whose default branch does not carry the scaffold
+# (a lane-based test bed, a project mid-migration) there is nothing to
+# dispatch at all. A push trigger has neither problem: pushing is the one
+# thing every driver can already do, and push-triggered workflows run from
+# the workflow file AT THE PUSHED COMMIT, wherever the default branch points.
+#
+# The contract: a driver that cannot mint (its `gh` is the platform's ambient
+# credential — ESC-50) commits a `.pr-request.json` at the branch root, as the
+# branch's final commit before pushing:
+#
+#   {"base": "<base branch>", "title": "<pr title>", "body": "<pr body>"}
+#
+# This workflow fires on the push, reads the request, mints the App token
+# server-side (Actions is not behind the session proxy), and opens the pull
+# request authored by the App. A branch with NO request file is not this
+# workflow's business — the local driver opens its own pull requests directly
+# with a minted token and never writes the marker, so the two frontends
+# cannot race. The marker rides in the pull request's diff, deliberately: it
+# is the audit record of who asked for the pull request, it lives at the
+# repository root precisely because .github/ is CODEOWNERS-owned and pipeline
+# pull requests must not trip an owner review, and deleting it would take
+# another App push and another round of CI for no gain.
+#
+# Why the mint is REQUIRED and there is no GITHUB_TOKEN fallback: a pull
+# request created with GITHUB_TOKEN dispatches no workflow runs (the guard
+# the auto-merge header documents), so its required checks would be
+# permanently missing and it could never merge. And an owner-authored pull
+# request hollows owner-authored.sh and makes the acceptance pull request
+# unapprovable (ESC-50). A loud failure beats both.
+
+on:
+  push:
+    branches:
+      - "feat/**"
+      - "docs/**"
+      # Template updates too (ESC-63): update-from-template.sh commits the
+      # request marker when it cannot mint as the App, and an update pull
+      # request NEEDS App authorship more than most — it touches
+      # CODEOWNERS-owned gate paths, and only a pull request the owner did
+      # not author is one the owner can approve.
+      - "template/**"
+
+# These scope GITHUB_TOKEN only; the App token's reach comes from the App's
+# own permissions. Nothing here needs the built-in token at all.
+permissions: {}
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Hoisted because the secrets context is not available in any `if:` —
+    # referencing it there fails the whole file (ESC-36).
+    env:
+      APP_ID: ${{ secrets.APP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the request
+        id: request
+        # No request file means this push is not asking for a pull request —
+        # the local driver's pushes land here too, and they open their own.
+        run: |
+          if [ ! -f .pr-request.json ]; then
+            echo "wanted=false" >> "$GITHUB_OUTPUT"
+            echo "open-pr: no .pr-request.json at this ref; nothing to do."
+            exit 0
+          fi
+          echo "wanted=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "base=$(jq -r '.base // empty' .pr-request.json)"
+            echo "title=$(jq -r '.title // empty' .pr-request.json)"
+          } >> "$GITHUB_OUTPUT"
+          jq -r '.body // ""' .pr-request.json > /tmp/pr-body.txt
+      - name: Refuse without the App
+        if: steps.request.outputs.wanted == 'true' && env.APP_ID == ''
+        run: |
+          echo "open-pr: APP_ID/APP_PRIVATE_KEY secrets are not set. This" >&2
+          echo "workflow exists to author pull requests as the App; without" >&2
+          echo "one there is nothing correct it can do. Configure the App:" >&2
+          echo "scripts/setup-github.sh --app" >&2
+          exit 1
+      - name: Mint the App token
+        id: app-token
+        if: steps.request.outputs.wanted == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - name: Open the pull request as the App
+        if: steps.request.outputs.wanted == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          HEAD: ${{ github.ref_name }}
+          BASE: ${{ steps.request.outputs.base }}
+          TITLE: ${{ steps.request.outputs.title }}
+          REPO: ${{ github.repository }}
+        # Idempotent on re-push: a pull request already open for this head is
+        # the desired end state, not a failure — a fix pushed to an existing
+        # branch re-fires this workflow, and the second run must not die.
+        run: |
+          set -euo pipefail
+          if [ -z "$BASE" ] || [ -z "$TITLE" ]; then
+            echo "open-pr: .pr-request.json needs base and title." >&2
+            exit 1
+          fi
+          existing="$(gh api "repos/$REPO/pulls?state=open&base=$BASE&per_page=100" \
+            --jq ".[] | select(.head.ref == \"$HEAD\") | .number" 2>/dev/null | head -1)"
+          if [ -n "$existing" ]; then
+            echo "open-pr: #$existing is already open for $HEAD -> $BASE."
+            exit 0
+          fi
+          gh pr create --repo "$REPO" --head "$HEAD" --base "$BASE" \
+            --title "$TITLE" --body-file /tmp/pr-body.txt

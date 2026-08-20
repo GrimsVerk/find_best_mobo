@@ -209,8 +209,12 @@ PERM_MODE="acceptEdits"
 # never as the thing standing between an agent and a document.
 ORACLE_TOOLS=(
   "Read" "Grep" "Glob"
+  # Every Write() carries an Edit() twin, and the twin is the half that
+  # BINDS: the engine matches file grants against Edit(path) rules only and
+  # rejects Write(path) with a warning (anvil F7 — docs/oracle/** had no
+  # twin, so the oracle held NO effective grant for its own handoff path).
   "Write(docs/DESIGN.oracle.md)" "Edit(docs/DESIGN.oracle.md)"
-  "Write(docs/oracle/**)"
+  "Write(docs/oracle/**)" "Edit(docs/oracle/**)"
   "${GIT_TOOLS[@]}"
 )
 STEWARD_TOOLS=(

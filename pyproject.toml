@@ -21,6 +21,10 @@ find-best-mobo = "find_best_mobo.cli:main"
 # with no diff to explain why. Bump these and the pre-commit revs together.
 dev = [
     "mypy~=2.3",
+    # pre-commit is a dev dependency, not an assumed global: a fresh machine
+    # or a hosted container has no `pre-commit` on PATH, and the README's
+    # `uv run pre-commit install` step must work from `uv sync` alone (ESC-55).
+    "pre-commit~=4.0",
     "pytest>=8.3",
     "ruff~=0.15.22",
 ]

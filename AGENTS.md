@@ -54,9 +54,12 @@ smuggle work past that rule — `.github/scripts/oracle-decisions.sh` enforces i
 mechanically on the unattended path. The owner steers an unattended run by
 editing `docs/VISION.md` and `docs/DESIGN.md` (which remain owner-landed), and
 reviews the built system at the end; nothing mid-run waits on them. **One
-pipeline pull request in flight at a time**: nothing is dispatched while one is
-open, which keeps every merge tested against the tree it will actually land on
-and keeps the review gate's budget for the pull request that needs it.
+pipeline pull request in flight at a time, per base branch**: nothing is
+dispatched while one targeting the run's base branch is open, which keeps every
+merge tested against the tree it will actually land on and keeps the review
+gate's budget for the pull request that needs it. Two pull requests into one
+base branch is illegal; pull requests into two separate base branches are two
+independent runs, and neither waits on — or touches — the other's.
 
 **`docs/VISION.md` must be finished before a plan lands, and not before that.**
 The vision does not have to be written before the design — writing it after is
@@ -126,7 +129,11 @@ change is less checked than a planned one, not more trusted.
 **The documents this process itself demands are exempt from that cap**, and
 only they: a branch whose entire diff sits inside `docs/plans/`,
 `docs/DESIGN.md`, `docs/DESIGN.oracle.md`, `docs/oracle/`, `docs/VISION.md`,
-`docs/acceptance.md`, `docs/architecture.md`, `docs/runs/` or `docs/BACKLOG.md`
+`docs/acceptance.md`, `docs/architecture.md`, `docs/runs/`, `docs/BACKLOG.md`
+or the opener's `.pr-request.json` marker (the one non-document member — the
+pull-request machinery a driver without App identity must commit; its story
+is in the TEMPLATE repository's escape ledger, cited by id only there,
+because this project's `ESC-<n>` namespace is its own)
 passes at any size. This list is exactly the one
 `.github/scripts/plan-resolve.sh` enforces — the prose and the script must name
 the same paths, because the review gate judges by this text while the `plan`
@@ -235,7 +242,9 @@ A lockfile that moves on its own is not covered by that detection —
 `plan-metrics.sh` reads the manifests, not the lock. Say so in the pull request
 when you refresh one.
 
-**Licensing.** This project is intentionally unlicensed: there is no
+**Licensing.** This project is intentionally unlicensed unless the OWNER has
+placed a `LICENSE` file at the repository root themselves — never remove or
+second-guess one that exists. Absent that: there is no
 `LICENSE` file and no `license` field in package metadata, and their absence
 is a decision, not an omission. Licensing is assessed per project by the
 owner, at the point it actually matters — publication, distribution, or

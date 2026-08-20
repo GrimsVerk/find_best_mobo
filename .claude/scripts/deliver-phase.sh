@@ -13,12 +13,14 @@
 # and cannot be corrupted by a killed run — the driver persists almost nothing
 # and trusts none of what it does persist.
 #
-# Output: KEY=VALUE lines, PHASE first. The phases, in detection priority:
+# Output: KEY=VALUE lines, PHASE first, then BASE (the base branch this
+# detection was scoped to). The phases, in detection priority:
 #
-#   PHASE=WAIT PR=<n> HEADREF=<ref>   an open pipeline pull request — nothing
-#                                     is dispatched while one is open (the
-#                                     one-PR rule, AGENTS.md); wait on its
-#                                     checks
+#   PHASE=WAIT PR=<n> HEADREF=<ref>   an open pipeline pull request TARGETING
+#                                     THIS RUN'S BASE BRANCH — nothing is
+#                                     dispatched while one is open (the
+#                                     one-PR-per-base rule, AGENTS.md); wait on
+#                                     its checks
 #   PHASE=ORACLE REASON=uncertainties UNRULED=<BL ids>
 #                                     a plan filed HIGH-risk uncertainties and
 #                                     no decision cites them yet — planning is
@@ -53,6 +55,13 @@
 #
 # Optional env:
 #   GH              default: gh      (tests substitute a stub)
+#   RUN_BASE        the base branch this run merges into. Defaults to the
+#                   repository's default branch (origin/HEAD, falling back to
+#                   the current branch). Every pull-request query below is
+#                   scoped to it: a pull request targeting a DIFFERENT base
+#                   belongs to a different run and neither holds this loop nor
+#                   marks this run's plans built. Two PRs into one base is
+#                   still illegal; two PRs into two separate bases is two runs.
 #   PROCESSED_FILE  a file of evidence ids (one per line) a previous oracle run
 #                   read and explicitly declined to act on — the driver records
 #                   these from the handoff so the loop cannot thrash re-running
@@ -78,14 +87,40 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
   || { echo "deliver-phase: not inside a git repository" >&2; exit 2; }
 cd "$ROOT" || exit 2
 
+# The base branch this run merges into. Scoping every pull-request query to it
+# is what lets two runs share one repository on two separate base branches:
+# each detector sees only its own run's pull requests. Defaults to the
+# repository's default branch, so a single-run repository behaves as before.
+if [[ -z "${RUN_BASE:-}" ]]; then
+  RUN_BASE="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')"
+  [[ -n "$RUN_BASE" ]] || RUN_BASE="$(git branch --show-current)"
+fi
+
+# REST, never GraphQL, for every API read this script makes. A hosted web
+# session's egress proxy serves REST plus only a pinned set of review GraphQL
+# operations — `gh pr list` is GraphQL, so on that platform it dies with an
+# error that blames the credential, which is fine (ESC-51). REST answers the
+# same questions and works everywhere, so there is ONE code path, not a local
+# one and a hosted one. The repository name comes from the git remote for the
+# same reason: `gh repo view` is GraphQL too.
+if [[ -z "${REPO:-}" ]]; then
+  REPO="$(git remote get-url origin 2>/dev/null \
+    | sed -E 's#^(git@[^:/]+:|https?://[^/]+/|ssh://git@[^/]+/)##; s#\.git$##')"
+fi
+[[ -n "$REPO" ]] \
+  || { echo "deliver-phase: cannot resolve owner/repo from the origin remote" >&2; exit 2; }
+
 # ------------------------------------------------- 1. an open pipeline PR?
-# Any open pull request in this repository holds the loop: the one-PR rule is
-# about the tree the checks tested being the tree the merge lands on, and that
-# is violated by ANY concurrent merge, not just a feature's.
-OPEN_PR="$("$GH" pr list --state open --limit 30 --json number,headRefName \
-  --jq '.[0] | "\(.number) \(.headRefName)"' 2>/dev/null || true)"
+# Any open pull request TARGETING THIS RUN'S BASE holds the loop: the one-PR
+# rule is about the tree the checks tested being the tree the merge lands on,
+# and that is violated by ANY concurrent merge into the same base, not just a
+# feature's. A pull request into a DIFFERENT base lands on a different tree —
+# it belongs to a different run and is deliberately not this loop's business.
+OPEN_PR="$("$GH" api "repos/$REPO/pulls?state=open&base=$RUN_BASE&per_page=30" \
+  --jq '.[0] | "\(.number) \(.head.ref)"' 2>/dev/null || true)"
 if [[ -n "$OPEN_PR" && "$OPEN_PR" != "null null" ]]; then
   echo "PHASE=WAIT"
+  echo "BASE=$RUN_BASE"
   echo "PR=${OPEN_PR%% *}"
   echo "HEADREF=${OPEN_PR#* }"
   exit 0
@@ -141,6 +176,7 @@ if [[ -f "$BACKLOG" ]]; then
 fi
 if [[ -n "${UNRULED# }" ]]; then
   echo "PHASE=ORACLE"
+  echo "BASE=$RUN_BASE"
   echo "REASON=uncertainties"
   echo "UNRULED=${UNRULED# }"
   exit 0
@@ -166,6 +202,7 @@ done < "$IDS_TMP"
 rm -f "$IDS_TMP"
 if [[ -n "${UNCITED# }" ]]; then
   echo "PHASE=ORACLE"
+  echo "BASE=$RUN_BASE"
   echo "REASON=evidence"
   echo "UNCITED=${UNCITED# }"
   exit 0
@@ -177,6 +214,7 @@ COV_OUT="$(.github/scripts/coverage.sh 2>&1)" || COV_RC=$?
 case "$COV_RC" in
   2)
     echo "PHASE=SETUP"
+    echo "BASE=$RUN_BASE"
     echo "REASON=$(head -1 <<<"$COV_OUT")"
     exit 0 ;;
   1)
@@ -200,20 +238,27 @@ case "$COV_RC" in
     done
     if [[ -n "${STEWARD_ODS# }" ]]; then
       echo "PHASE=STEWARD"
+      echo "BASE=$RUN_BASE"
       echo "ODS=${STEWARD_ODS# }"
       exit 0
     fi
     echo "PHASE=PLAN"
+    echo "BASE=$RUN_BASE"
     echo "REQS=${PLAN_REQS# }"
     exit 0 ;;
 esac
 
 # ------------------------------------- 5. planned and merged, but unbuilt?
-# A plan is BUILT when a feat/ pull request carrying its slug has merged. The
-# feat/ prefix matters: the plan's own docs/ pull request also carries the
-# slug, and counting it would mark every plan built the moment it landed.
-MERGED_REFS="$("$GH" pr list --state merged --limit 200 --json headRefName \
-  --jq '.[].headRefName' 2>/dev/null || true)"
+# A plan is BUILT when a feat/ pull request carrying its slug has merged INTO
+# THIS RUN'S BASE. The feat/ prefix matters: the plan's own docs/ pull request
+# also carries the slug, and counting it would mark every plan built the moment
+# it landed. The --base scope matters just as much: a twin run on another base
+# branch merges the same slugs, and counting ITS merges would mark this run's
+# plans built with the work simply absent here.
+# REST has no state=merged filter: closed pull requests include unmerged ones,
+# and merged is the merged_at field being set. --paginate replaces --limit 200.
+MERGED_REFS="$("$GH" api --paginate "repos/$REPO/pulls?state=closed&base=$RUN_BASE&per_page=100" \
+  --jq '.[] | select(.merged_at != null) | .head.ref' 2>/dev/null || true)"
 #
 # WHICH STRING IDENTIFIES A PLAN. The front-matter `slug:` field, not the
 # filename. plan-resolve.sh — the check that decides which plan a branch
@@ -273,6 +318,7 @@ while IFS= read -r f; do
   # `feat/<slug-as-a-substring-of-a-different-name>`.
   if ! grep -qE "^feat/${slug}([/-][^/]*)?$" <<<"$MERGED_REFS"; then
     echo "PHASE=ORCHESTRATE"
+    echo "BASE=$RUN_BASE"
     echo "SLUG=$slug"
     exit 0
   fi
@@ -288,6 +334,7 @@ done < <(find "$PLANS_DIR" -name '*.md' 2>/dev/null | sort)
 # put the loop in charge of deciding a criterion is unmeetable, which is exactly
 # the judgement docs/acceptance.md exists to keep away from the pipeline.
 echo "PHASE=ACCEPTANCE"
+echo "BASE=$RUN_BASE"
 FAILING=""
 if [[ -d "$ACCEPTANCE_DIR" ]]; then
   while IFS= read -r s; do
