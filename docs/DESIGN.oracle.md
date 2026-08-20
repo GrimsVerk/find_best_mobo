@@ -517,3 +517,31 @@ durationless one does.
 Measurement: the printed index summary is already captured in the run reports
 under `docs/runs/`, and the test pair pins both sides in the suite — no new
 collection mechanism is needed.
+
+## OD-15 — R1002 applies within one cue; a cross-cue split is counted, never matched
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-16, BL-8
+- **Requirements added:** R1010
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** "When a decision alters behaviour that no existing check, test, run report or review artifact would notice, adding the thing that notices is part of the decision — not a follow-up, and not optional." — this is what decides the measurement half of this ruling (R1010's counter). The within-cue/cross-cue binary itself is a mechanism question no vision statement decides, and **Alternatives considered** carries that weighing.
+- **Vision statements against:** V1 — "**Real, sourced information about which boards Buildzoid considers safe** for a 7950X3D or 9950X3D — and which he does not." — the nearest, because scoping out cross-cue splits leaves a class of real mentions unfound. It does not forbid this: the two damage classes differ in kind. Speech-to-text mangling is systematic per name — every utterance of "Tomahawk" arrives as `toma hawk` — so before R1002 the board was invisible *everywhere*, which is the total loss BL-8 measured. A cue boundary falls where the caption timing happens to fall, so a name straddling a break in one utterance is whole in its others (and its within-cue splits now match under R1002); title hits have no cues and description hits (R1004) have none either, so neither include signal is touched. The residue is a per-occurrence fraction, not a per-board blindness — and R1010's counter is what turns "the residue is small" from an assumption into a per-run measurement, so if V1 is in fact being shortchanged, the evidence to say so arrives by design instead of never.
+- **Alternatives considered:** (1) Cross-cue matching now — scan cue-joined normalized text and map every match offset back to its source cue — rejected: no cross-cue failure has ever been measured (BL-8's three failures were all tested as within-cue text), the shape change reshapes `find_mentions` and the plan's slice boundaries, and it forces an unforced answer to which cue's `start_seconds` a spanning mention carries — the field R5 cuts every excerpt window from and R14's timestamped links are built on, exactly the expensive-to-reverse decision BL-16 flags. Adopting that structural cost to chase an unquantified marginal recall, while R1002's measured wins land regardless, is backwards. (2) The steward's literal default — scope cross-cue splits out with nothing added — rejected: the loss is silent by construction; no recall report, selection count, fixture or run artifact would ever show a cross-cue miss, so the ruling could never be evaluated against evidence or superseded by it. (3) Merge all cues into one text at parse time and keep per-cue offsets — rejected as (1) in different clothes: the offset mapping and the timestamp question are identical, only moved into the parser. (4) Within-cue rule plus a boundary counter that detects, reports, and never emits — chosen.
+- **Rationale:** BL-16 is right that OD-6 fixed the join rule without naming the text the rule runs over, and the shipped fixture confirms the missing case is real: auto-caption cues break mid-phrase (`...Taichi board` / `has a twelve phase VRM`). But plausible and measured are different states of evidence, and the reversal costs are asymmetric: ruling within-cue today and widening later costs one superseding entry and a contained code change; ruling cross-cue today commits `find_mentions`'s shape and a guessed timestamp semantics before any measurement says the case matters. So the ruling takes the cheap, reversible side and instruments the boundary: the counter is one extra scan over adjacent-cue joins, pure CPU, offline, no token spend — V3 is untouched. Confidence is high on the scoping; the counter is the hedge. This also moots BL-16's second question — no mention ever spans cues, so `start_seconds` is always the start of the single cue containing the match — and answers its last one: the plan gains the counter work, and whether that is a fourth slice or folds into an existing one is the steward's sizing call.
+
+**R1010** — Mention matching applies R1002's token-join rule within one cue's
+normalized text: a mention is never synthesized from text spanning a cue
+boundary, so every mention's `start_seconds` is the start of the one cue
+containing it — the anchor R5's excerpt windows are cut from and R14's
+timestamped links point at. The scoping is measured, not assumed: the matching
+stage also detects matches that exist only in the normalized concatenation of
+adjacent cues — a match that starts in one cue's text and ends in the next's —
+and reports the count per run (zero included) in the selection report, without
+ever emitting a mention for one. The suite pins the distinguishing pair: an
+alias split across a cue boundary yields no mention and increments the
+counter, and the same split within one cue yields a mention and does not.
+
+Measurement: the selection report already lands in the run records under
+`docs/runs/`, so the counter rides the existing mechanism; the first real
+corpus run quantifies what this ruling scoped out, and a material count is
+logged evidence for superseding this decision rather than a silent loss.
