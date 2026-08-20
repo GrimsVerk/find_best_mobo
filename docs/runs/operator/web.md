@@ -210,4 +210,31 @@ Every required check, measured from the REST `check-runs` timestamps:
 No check finished in ~1 second while claiming to have done real work, so ESC-45's
 failure shape did not occur here. Getting to that answer, however, took a
 workaround — see F6.
+| 08:59:00Z | 1 | WAIT | **PR #100 MERGED**, by `autogrims[bot]`, ~112 seconds after it opened. No human touched it. Checklist item (ESC-36): **auto-merge completes without a human — confirmed live.** |
+| 08:59:11Z | 1 | WAIT | **The head branch vanished.** Checklist item (ESC-21) — the one nothing had ever observed — answered completely, see the block below. |
+| 09:25:08Z | - | RESTART | Owner instruction: restart the lane at template **v0.4.39**. Not a blocker; the local lane is restarting and re-gating `run/web`. |
+
+### ESC-21 answered: a merged branch vanishing, observed live for the first time
+
+Four wrong theories were on record. The measured answer, from the REST job
+timings on this lane's own pull request:
+
+| Moment | Time | Evidence |
+| --- | --- | --- |
+| Pull request opened by the App | 08:57:08Z | `open-pr` workflow, push-fired |
+| `arm-auto-merge` armed it | 08:57:13-19Z | Auto-merge run, `pull_request` opened event |
+| Merged by `autogrims[bot]` | 08:59:00Z | `merged_by.login = autogrims[bot]` |
+| **`delete-merged-branch` ran** | **08:59:06-11Z** | second Auto-merge run, `pull_request` closed event |
+| Branch absent from the remote | confirmed at 09:25Z | `git ls-remote --heads origin 'docs/oracle-*'` returns nothing |
+
+**By which path: the `delete-merged-branch` job of the Auto-merge workflow,
+fired by the pull-request-closed event — 11 seconds after the merge.** NOT the
+nightly sweep: `sweep-merged-branches` was `skipped` in the very same run. The
+whole open-to-vanished lifecycle took 123 seconds.
+
+`update-open-prs` (ESC-17) also **ran and succeeded** in that same post-merge
+run, 08:59:06-13Z. That is the job firing, observed live; what it is meant to
+do — auto-update a *different* open pull request into the same base — was not
+exercised, because this lane had no second pull request open. Recorded as a
+partial observation, not a full one.
 
