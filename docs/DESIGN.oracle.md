@@ -497,3 +497,27 @@ each took — so the checkpoint (R7) shows what the uncapped path costs before
 anything is spent. That is the existing projection mechanism carrying a new
 count, not a new collection mechanism; the durable-evidence section of
 `docs/VISION.md` is what asks for it.
+
+## OD-14 — R1002's caption-split matching is per-cue; a split straddling two cues stays out of scope
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-15, BL-8
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** V1 — "**Real, sourced information about which boards Buildzoid considers safe** for a 7950X3D or 9950X3D — and which he does not." — it pushes toward recovering every mention, and it does not forbid this: BL-8's and BL-9's measured losses were total per-video blindness, while a cue-boundary split costs at most individual mentions of a signal that is redundant by design — the design assumes he names a board he is discussing several times (§6), a title hit auto-includes (R4), and a description hit auto-includes (R1004) — so no video's visibility rests on the population this leaves out. And where BL-8's three failures were measured, no cue-spanning miss has ever been observed; the population is hypothesized.
+- **Alternatives considered:** (1) Cross-cue joining — scan the cues joined into one normalized string and map every match offset back to a cue start — rejected: it reshapes `find_mentions`, forces R22's streaming property to be restated over joined text, moves the re-cut plan's Signatures block and a slice boundary, and must invent a timestamp convention for a match that belongs to no single cue — weakening the per-cue anchoring that V11's timestamped-pointer demand ultimately rides on — all to recover a population with no measured miss in it. (2) A narrow variant — join only each adjacent pair's last and first words — rejected: the same shape question at smaller size, the same timestamp convention, and a second matching pass whose remaining misses are exactly as silent as the ones it fixes. (3) No cross-cue joining, with the decided boundary pinned as a negative test — chosen, as BL-15's proposed default.
+- **Rationale:** R1002's rule reads over the text handed to the matcher, which is one cue at a time; that scope is now decided, not implied. All three of BL-8's measured failures sit inside one cue, so the evidence the requirement metabolised is fully served without cross-cue joining. A `Mention`'s timestamp stays its cue's start. The ruling is cheap to reverse: if the recall instrument or the calibration batch ever measures a cue-spanning miss that cost a video, that is logged evidence and this decision is superseded at the cost of one entry.
+
+Scope, stated for the steward re-cutting the OD-6 plan: `find_mentions` keeps
+its signature and its cue-at-a-time scan; `toma` ending cue N and `hawk`
+starting cue N+1 yields no mention, by decision. The re-cut plan pins that
+boundary as a negative fixture case — a transcript holding exactly that split
+produces no mention — so the decided scope is asserted in the suite rather
+than implicit, and any future change to it is a visible test edit instead of
+drift.
+
+Measurement: this decision confirms existing behaviour, so no new collection
+mechanism is needed. The observables stay the ones OD-6 named — the
+`aliases --check` recall report and R4's selection counts — plus the pinned
+negative case above, which is what makes the boundary itself observable.
