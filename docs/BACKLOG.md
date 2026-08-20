@@ -193,6 +193,87 @@ Worth weighing before adopting:
 This touches `docs/DESIGN.md` R5, R6 and R17, so it is recorded here as a
 proposal and neither the design nor any plan has been edited.
 
+### BL-15 — The zero-duration warning cries wolf on every real run
+
+The `index` command warns loudly when more than one video reports no duration,
+on the reasoning that a missing duration reads as 0, classifies as a Short, and
+silently drops a real video. Exactly one is expected and harmless — a stream in
+progress reports no duration, and he can only be live in one place at a time.
+
+On the first index run against the real channel after the `timestamp` fix
+landed, **eight** videos reported no duration, so the warning fired:
+
+```
+Found 1215 videos on the channel; index written to data/index.jsonl
+  910 outside the date range
+  20 excluded as Shorts
+  285 kept
+  8 with no duration reported
+
+!!!! WARNING: 8 videos reported no duration.
+```
+
+All eight were then read out of `data/index.jsonl`:
+
+| video id | date | was_live | inclusion | title |
+| --- | --- | --- | --- | --- |
+| `0pgWWFCvf6w` | none | false | excluded_short | simple and effective DDR5 cooling |
+| `FUCLMRq5oOM` | none | false | excluded_short | motherboard collection: ASUS WS Z390 PRO #motherboard |
+| `OffiCcQMK-4` | none | false | excluded_short | Adding a POST code display to the Gigabyte B850M Force |
+| `PB1iPWcibbw` | none | false | excluded_short | stock MSI 3060Ti Gaming X vcore regulation. #Shorts |
+| `T94q9a4JZiI` | none | false | excluded_short | Buildzoid's collection: Gigabyte B850M Force |
+| `qd3flkh_eg0` | none | false | excluded_short | My first LN2 overclocking motherboard |
+| `rNMZqqg1NI4` | none | false | excluded_short | VRM cooling upgrade for an itx motherboard #overclocking |
+| `wEFp9Eo-QZ4` | none | false | excluded_short | Buildzoid's motherboard collection: ASRock 970M Pro3 |
+
+**Every one of them is a genuine Short**, by title alone — two say so in their
+own hashtags, the rest are the short-form collection clips. None is a stream in
+progress; `was_live` is false for all eight. So the outcome is right:
+`excluded_short` is exactly where they belong, and no real video was dropped.
+
+**The warning is a false positive, and it is a permanent one.** Its premise —
+"only one video can legitimately report no duration" — is wrong. A flat channel
+listing returns Shorts with no `duration` field at all, and the same eight rows
+also carry no date in either field (`upload_date` absent AND `timestamp`
+absent, which is why the table above reads `none` where the sentinel
+`0001-01-01` is recorded). That is a distinct listing shape for Shorts, not an
+anomaly, and it will be there on every run.
+
+Two costs, and the second is the one that matters:
+
+1. Every index run ends in a 72-character banner of exclamation marks naming
+   eight video ids and telling the operator that real videos are vanishing. They
+   are not. An operator who checks — as this one did — spends the time for
+   nothing, every run.
+2. **It destroys the signal it exists to carry.** The warning was written for a
+   real failure mode: a genuine long video coming back with no duration and
+   being silently excluded. With eight permanent false alarms in the way, a
+   ninth id appearing in that list is invisible. The check that was supposed to
+   catch a silent drop now guarantees one goes unnoticed.
+
+Directions, not mutually exclusive:
+
+1. **Judge on evidence, not on count.** A listing entry that has no duration
+   *and* no date in either field is the Shorts shape; one that has a real date
+   but no duration is the anomaly worth shouting about. Warn on the second only.
+2. **Use what the listing already says.** If the flat entry carries any Shorts
+   marker of its own, classify on that rather than inferring a Short from a
+   duration of zero — the inference is what makes a missing field
+   indistinguishable from a genuine short video.
+3. **Keep the loud banner for the real case and make the ordinary case a
+   count.** "8 Shorts reported no duration (expected)" on one line, with the
+   banner reserved for an entry that does not fit the Shorts shape.
+
+Whichever direction is taken, this deserves a test that a dateless,
+durationless listing entry does NOT trip the warning, and that a dated one with
+no duration still does — the pair that tells the two cases apart. Note that
+`docs/escapes.md` ESC-21 already records the cost of trusting fixtures that
+agreed with the code and disagreed with the real listing shape; this is the same
+listing, still not fully described by the fixtures.
+
+— filed by: the operator of the 2026-08-20 local-lane run, from the first real
+index run after the `timestamp` fix (PR #67) landed
+
 ## Uncertainties awaiting oracle ruling
 
 _(nothing yet — filed by `/plan` when a design leaves a question open; format:_
