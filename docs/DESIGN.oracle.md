@@ -461,3 +461,36 @@ Signatures block) states, per shared type and exception, the module it lives
 in. That revision ratifies `FetchFailure` in `ledger.py` and retires the
 `transcripts.py` re-export shim. BL-2, outside this run's scope, is the same
 class of correction and can ride in the same revision when it is ruled.
+
+## OD-13 — OD-5's cap is superseded: the whole-transcript path is uncapped, and the capped plan must be re-cut before anything builds it
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-14, BL-13
+- **Requirements added:** R1008
+- **Requirements superseded:** R1001
+- **Vision statement relied on:** V4 — "Given a choice between a cheaper run and a better-sourced answer, take the better answer." — and the durable-evidence ruling: "When a decision alters behaviour that no existing check, test, run report or review artifact would notice, adding the thing that notices is part of the decision — not a follow-up, and not optional."
+- **Vision statements against:** V3 — "Cost is about not being *stupid* — not spending budget I could have used on other projects — rather than a hard constraint." — the lumpy-spend risk was OD-5's whole reason for the cap, and V3 is the statement that reason leaned on. It does not forbid this: the owner's amended R5 handles the lumpy case at its source — sparse long streams cluster small and never reach the 80% ratio — and a video that does reach the ratio, measured on R1000's honestly re-cut clusters, is one whose signal-dense text is nearly all being sent anyway, so the residual extra spend is exactly the cost-for-quality trade V4 tells the design to take. V3 itself says cost is not a hard constraint.
+- **Alternatives considered:** (1) Keep R1001's cap and rule the owner's entry ambiguous — rejected: the ruling is explicit ("OD-5 is overruled on the cap. … R1001 is to be superseded"), and the owner has already landed the amended R28 stating "The whole-transcript path is not capped"; a ledger keeping a requirement the owner's own design document names as superseded would put the two design documents in direct contradiction, which `coverage.sh` unions as one. (2) Supersede R1001 and add nothing — rejected: R1001 carried the routing's only observability clause (per-path counts in the projection), and the capped plan itself showed why it is load-bearing — without a per-path report, a routing change is invisible in the bundles and the totals. Dropping the cap must not also drop the measurement; the durable-evidence ruling makes adding it part of this decision. (3) Let the merged plan `capped-whole-transcript-path` stand and patch it at build time — rejected: its cap, its `EXCERPTS_OVER_CAP` path, its packer invariant ("no whole block over the cap") and its projection fields all implement the overruled decision; building it as merged would put a reversed ruling into the tree, and a worker departing from a merged plan is the exact failure the plan gate exists to prevent. Supersede, and re-cut the plan first — chosen, as BL-14's own proposed default.
+- **Rationale:** BL-14 asks whether the merged plan still stands now that the owner's 2026-08-19 ruling (`docs/DECISIONS.md`) overrules OD-5's cap and amends R5/R28 to transitive clustering with an uncapped whole-transcript path. It does not. OD-5 read BL-13 as an unapproved proposal it could not adopt against an earlier owner ruling; the owner has since approved the backlog (`docs/BACKLOG.approved.md`), amended the design, and directed this supersession by name. The design layer now says: clusters per R5, the 80% ratio from re-cut cluster characters, no cap on the whole path, and over-cap transcripts delivered across sequential bundles — mechanics the implementing plan specifies. OD-4/R1000 stands untouched, confirmed by the same ruling.
+
+**R1008** — The projection reports the amended R5/R28 routing before anything
+is spent: how many videos took the whole-transcript path and how many stayed on
+excerpts, the characters and projected tokens each path accounts for, and how
+many whole transcripts were delivered across more than one sequential bundle,
+with the bundle counts they span. This carries forward superseded R1001's
+observability clause without its cap: the cap-forced third outcome no longer
+exists, so the third figure is the multi-bundle count, which is the one place
+the uncapped path's cost concentrates and therefore the one figure the owner
+must be able to read at the checkpoint.
+
+Downstream: `docs/plans/oracle/capped-whole-transcript-path.md` is partly
+wrong and **must not be built as merged** — its routing shape (a new
+`submission.py`, the `form` field and bundle attribute, ratio-at-or-above-80%,
+measured after merge and cap, per-path projection counts) survives, while its
+cap, its `EXCERPTS_OVER_CAP` path, and its no-whole-block-over-the-cap packer
+invariant are the overruled parts. The steward re-cuts it into a new plan under
+`docs/plans/oracle/` citing this decision, covering R1008 (and delivering the
+amended R28 behaviour, including sequential-bundle delivery), built after
+R1000's `recut-merged-excerpts` for the sequencing reason that plan already
+states. `docs/plans/whole-transcript-threshold.md` stays unbuildable and its
+revision stays the owner's, exactly as before.
