@@ -521,3 +521,31 @@ Measurement: this decision confirms existing behaviour, so no new collection
 mechanism is needed. The observables stay the ones OD-6 named — the
 `aliases --check` recall report and R4's selection counts — plus the pinned
 negative case above, which is what makes the boundary itself observable.
+
+## OD-15 — R1002's variant fixture is the declared reconstruction, and the reconstruction is the reference set
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-16, BL-8
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** V11 — "Provenance is not optional in any design: a claim I cannot go and watch is not usable, and the pointer to the moment he said it *is* the recommendation of what to watch." — it pushes against a rebuilt list standing in for a measurement, and it does not forbid this: V11 governs claims in the answer about what Buildzoid said, not test fixtures — and the ruling keeps its spirit by requiring the fixture to carry its own provenance, a declared reconstruction naming BL-16, so an invented list can never read as the original measurement.
+- **Alternatives considered:** (1) A fixture of only the observed failing variants — the plan's own offered alternative, and rejected: the 49 variants that *matched* are the regression surface. R1002's fixture clause exists to pin recall as a suite-level number, and a failures-only fixture would let a future matcher change silently break `giga byte` or `as rock` while staying green; BL-8's value was a recall measurement over the whole damage class, not three bug reports. (2) Recover or re-run the original measurement — impossible, verified this run: the list is in nothing the tree holds — not the backlog, not the journal, not `docs/runs/`, and not the preserved worker logs, whose own steward log records "BL-8's 52 variants are not in the repository"; the measurement was taken offline before any real run and left no instrument to re-run. (3) Supersede R1002 with a re-worded requirement dropping "measured" — rejected: OD-14 already set the precedent that a clarifying decision fixes R1002's reading at the cost of one entry, and re-numbering a requirement two landed plans cover would move `covers:` lists for a one-word repair.
+- **Rationale:** R1002 says "BL-8's measured 52-variant set lands as a fixture", and BL-16 records the plain fact that no such set exists to land — the backlog entry kept the count, the three named failures and the damage classes, and the list itself was never committed. A requirement that names an artifact nobody has is satisfied by the honest substitute or by nothing, and nothing stops work. The steward's reconstruction is the honest substitute: same size, same damage classes, the named failures verbatim, and self-declared as a reconstruction. BL-16's two flagged facts resolve cleanly rather than against it. First, BL-8's arithmetic (49 matched + 3 failures = 52) indeed leaves no room for `steel-legend` — BL-8's own text marks it a parenthetical aside failing "for the related reason", outside the 52; the reconstruction may include it anyway, because the fixture's job from here forward is recall coverage, not archival fidelity to a list nobody possesses. Second, five failing variants where BL-8 named three is the reconstruction exceeding the record, not contradicting it: the two extra reds (`as-rock`, `steel-legend`) are hyphen cases the same plan turns green, which is strictly more red-then-green evidence, not a discrepancy to reconcile.
+
+The ruling, stated for the plan that proceeded on the default
+(`docs/plans/oracle/caption-split-aliases.md`): R1002's fixture clause is
+satisfied by a reconstruction that (i) holds at least 52 variants drawn from
+the shipped table's own canonicals across BL-8's damage classes, (ii) contains
+the three named failures — `toma hawk`, `aor us master`, `air us elite` —
+verbatim, and (iii) declares itself a reconstruction in the fixture file
+itself, citing its provenance. From its landing the reconstruction is the
+reference set: additions are welcome, a loss is a regression, and if the
+original list ever surfaces that is new logged evidence folded in by an edit
+to the fixture — never by silently replacing it, which would discard whatever
+recall coverage the reconstruction had accumulated beyond it.
+
+Measurement: none new. The fixture is itself the instrument — its assertions
+run in the suite on every pull request — and its self-declared provenance note
+is the durable record that the set is rebuilt, which is what keeps the
+substitution visible instead of silent.
