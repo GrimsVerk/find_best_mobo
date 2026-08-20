@@ -549,3 +549,31 @@ Measurement: none new. The fixture is itself the instrument — its assertions
 run in the suite on every pull request — and its self-declared provenance note
 is the durable record that the set is rebuilt, which is what keeps the
 substitution visible instead of silent.
+
+## OD-16 — R1003's regression title is the declared reconstruction, asserted by canonical and never by string
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-17, BL-9
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** V11 — "Provenance is not optional in any design: a claim I cannot go and watch is not usable, and the pointer to the moment he said it *is* the recommendation of what to watch." — it pushes against a rebuilt title standing in for the real video's, and it does not forbid this: V11 governs claims in the answer about what Buildzoid said, not test fixtures — OD-15 drew exactly this line for R1002's fixture — and the ruling keeps its spirit by requiring the stand-in to carry its own provenance in the test itself, so an invented title can never read as the recorded one.
+- **Alternatives considered:** (1) Recover the real title or video id — impossible, verified this run: BL-9 recorded the board (MSI MPG B850I Edge TI) and the video's duration and nothing else; no index, fixture, journal entry, `docs/runs/` artifact or preserved worker log holds an id or a title, and the only YouTube URL in the tree is a synthetic test fixture. This environment has no channel access by construction, and even a live lookup could not prove it had found the same video BL-9 measured, since no id was ever recorded to compare against. (2) Assert the reconstructed string itself as the regression's expected title — rejected: it pins the suite to text nobody can verify while adding nothing R1003 asks for; the requirement's substance is that the title auto-includes on the chipset, which the canonical assertion is, and a string assertion would turn the later substitution of the real title into a test edit with meaning instead of a one-line stand-in correction. (3) Supersede R1003 with wording that drops "the real" — rejected: OD-14 and OD-15 set the precedent that a clarifying decision fixes a landed requirement's reading at the cost of one entry, and renumbering a requirement a landed plan covers would move `covers:` lists for a wording repair.
+- **Rationale:** R1003 says "the real B850I review's title auto-includes on its chipset", and BL-17 records the plain fact that the real title is not in the repository to use — the same shape as BL-16, where R1002 named a measured set nobody holds, and the ruling follows OD-15: a requirement naming an artifact nobody has is satisfied by the honest substitute or by nothing, and nothing stops work. The honest substitute here is the plan's proposed default, a declared reconstruction built from the one fact BL-9 does record — the board's full name — which is precisely what the title rule needs: the fused `B850I` token present in a title. Asserting the canonical rather than the string keeps the test's meaning independent of the invented text.
+
+The ruling, stated for the plan that proceeded on the default
+(`docs/plans/oracle/itx-chipset-variant.md`): R1003's regression clause is
+satisfied by a title reconstruction that (i) contains the board's full name as
+BL-9 records it, so the fused `B850I` token appears in the title; (ii) declares
+itself a reconstruction in the test's own docstring, citing BL-9 as its
+provenance and BL-17 as the ruling that admitted it; and (iii) asserts that the
+video is admitted with the title-hit reason on the canonical `B850` — never
+that the string is the original. `MSI MPG B850I Edge TI review` satisfies all
+three. If the real video's id or title ever surfaces, that is new logged
+evidence folded in by editing the declared stand-in — never by silently
+replacing it, which would make an unverifiable string read as a recorded one.
+
+Measurement: none new. The regression case is itself the instrument — it runs
+in the suite on every pull request — and its docstring's provenance note is
+the durable record that the title is rebuilt, which is what keeps the
+substitution visible instead of silent.
