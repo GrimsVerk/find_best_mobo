@@ -617,3 +617,120 @@ re-raised. Five pull requests, five merges, no repeats. **This is progress, not
 thrash**, and the queue shrinking is the mechanical evidence for it rather than
 an impression.
 
+---
+
+## ROUND 4 — update to v0.4.42, and a stop pending on the owner
+
+### Two briefing premises did not match the repository. Recorded before anything else.
+
+| Briefed | Actual | Consequence |
+| --- | --- | --- |
+| "your lane is at template v0.4.37" | `origin/run/web` and the local checkout both read `_commit: v0.4.41` | The jump was **v0.4.41 -> v0.4.42, one release**, not five. This lane's rounds 1-3 already pulled v0.4.37, v0.4.39 and v0.4.41 in turn. |
+| "Pull main and re-read `test-kit/TESTPLAN.md`" | `git ls-tree origin/main` on find_best_mobo has no `test-kit/` — the kit lives in **grimsverk-anvil** | Re-read the anvil copy instead (the operator's own brief names it as the source). The plan HAS changed; see below. |
+
+**The five-release-wide multi-release test therefore did not happen on this
+lane, and nothing here should be read as evidence for or against it.** What this
+lane can say about multi-release updates is separate and stronger: rounds 1-3
+each ran a **fourteen-release** update, v0.4.27 -> v0.4.37/39/41, and all three
+produced zero conflicts and touched no project content. Round 4's one-release
+update is the narrow case, not the wide one.
+
+### The wiping drill did change, and the change is load-bearing
+
+`test-kit/TESTPLAN.md` on anvil `main` now carries, citing **anvil local F18**:
+
+> **Order matters, and the obvious order is wrong.** [...] Never close "every
+> open pull request on the base". And take every reading **before** the rebuild:
+> force-pushing the lane base destroys the base any surviving pull request was
+> measured against, so a reading taken afterwards is a reading of something else.
+
+Followed literally. Every reading below was taken before anything was removed.
+
+### Readings, taken first
+
+**Open pull requests, whole repository:** exactly one — `#117`, base `run/local`,
+head `docs/run-20260820T102917Z--run-local`, author `autogrims[bot]`. That is the
+**other lane's own run-evidence pull request** — precisely the artifact the new
+drill says to protect, and not mine under any circumstance. **Left untouched.**
+**There were no stale WORK pull requests on `run/web` to close**: all five of
+this lane's round-3 pull requests (#108, #110, #112, #113, #115) had already
+merged.
+
+**Leftover worktrees:** six, read before removal:
+
+| Worktree | Branch | Commits ahead of `run/web` | Contained in `run/web` |
+| --- | --- | --- | --- |
+| `oracle-20260820102718` | `worker/oracle-20260820102718` | 0 | yes |
+| `oracle-bl15-104223` | `worker/oracle-bl15-104223` | 0 | yes |
+| `oracle-bl16-105927` | `worker/oracle-bl16-105927` | 0 | yes |
+| `steward-od-6` | `docs/od-6-cross-cue-splits` | 0 | yes |
+| `steward-od-6-r2` | `docs/oracle-plan-caption-split-aliases` | 0 | yes |
+| `steward-od-7` | `worker/steward-od-7` | 0 | yes |
+
+Every one fully contained in the lane, so **no unpushed work was destroyed** —
+which is the exact loss ESC-76's own comment says a leftover worktree can hold
+("a real plan was salvaged from one as a 562-line patch"). The OD-7 steward was
+still running and was stopped first; it had committed nothing.
+
+### F13 — RESOLVED: `template-sync` finally judged a real update, closing F3 and F8
+- Where: PR #118, branch `template/v0.4.42--run-web`
+- What happened: `scripts/update-from-template.sh --base run/web` — the flag this
+  lane's F2 asked for — ran clean end to end. It branched
+  `template/v0.4.42--run-web` **with the lane suffix**, committed the update,
+  wrote `.pr-request.json`, pushed, and `open-pr.yml` (whose triggers now include
+  `template/**`, ESC-63) opened **PR #118 authored by `autogrims[bot]`**. Both
+  F2 and F4 are now not merely fixed but exercised.
+- **`template-sync` ran for real and passed.** Step timings: `Mint a read-only
+  token for the template repository` 1s (so the App *is* installed on the
+  template repo), `Verify this is exactly what the template produces` **3s**.
+  The 3s was checked rather than trusted: the script's only work-free exit is
+  line 54, `'<ref>' is not a template/ branch`, and this branch matches the
+  `template/` prefix, so the run reached the replay at line 128
+  (`replaying copier update --vcs-ref=v0.4.42 from the base commit`) and the
+  PASS at line 188.
+- Expected: the anvil plan lists `copier update` / `template-sync` on a real
+  update as **out of scope**, arming it for "whichever lane survives better".
+  This lane armed it and fired it. F3 and F8 recorded the gap twice; it is now
+  closed, **positively**, with the byte-for-byte guarantee actually enforced.
+- Severity: docs (resolved; the check works)
+
+### F14 — ESC-72 fired exactly as designed, and it is the reason this lane stops
+- Where: `RUN_BASE=run/web .github/scripts/unattended-ready.sh --runtime`
+- What happened: readiness returned **REFUSED**, on one item and only one:
+  ```
+  MISSING  a pull request is already open against 'run/web'
+           (#118 template/v0.4.42--run-web) — the run's first act would be to
+           wait on it, and a template update waits for YOUR review, which no
+           unattended actor can give. Merge or close it first
+  ```
+- Expected: this is ESC-72 doing its job on its first live opportunity, and the
+  message is better than the fix it implements — it does not merely say "a pull
+  request is open", it says **why no unattended actor can clear it**. That
+  sentence is what stopped this driver from approving its own gate change.
+- Severity: docs (recorded positively; the refusal is correct)
+
+### F15 — ESC-73's private-repository path cannot fire here, stated rather than skipped
+- Where: `unattended-ready.sh` line 146, `grep -q '"private": true'`
+- What happened: the ESC-73 branch exists in the script, but
+  `GrimsVerk/find_best_mobo` is **public**, so the note it would print is
+  unreachable on this lane. Recorded because "did not check" is not an allowed
+  value on the observation checklist, and neither is letting an unfired branch
+  read as a passed one.
+- Severity: docs (not exercised; not exercisable here)
+
+### F16 — ESC-76 is present in v0.4.42 but this lane could not exercise it, and that is the drill's fault, not the fix's
+- Where: `unattended-ready.sh` (v0.4.42), the leftover-worktree refusal
+- What happened: the check is real — it refuses on `.worktrees/` contents with a
+  message that tells the reader to **read them first** because one can hold
+  finished unpushed work. But the operator's step order puts "clear your lane"
+  (step 2) **before** "run readiness" (step 4), so by the time readiness ran, the
+  six worktrees were already gone and it printed `ok no leftover worktrees`. The
+  refusal path was never taken.
+- Consequence: a fix whose whole purpose is to catch debris **before** the owner
+  walks away cannot be validated by a drill that clears the debris first. Its
+  code was read directly instead, which is inference from source, not observation
+  of a run — the same shortfall F6 forced.
+- Suggested drill change: run readiness **once before** clearing the lane and
+  once after, and record both. The first is the only chance to see ESC-76 refuse.
+- Severity: friction
+
