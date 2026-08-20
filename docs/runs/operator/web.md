@@ -1091,4 +1091,21 @@ So all three planning routes are exercised, the queue only ever shrinks, and no
 `BL-<n>` has been raised twice. Twelve pull requests, twelve merges, zero red
 checks, zero human interventions except the one approval the gate correctly
 demanded.
+| 13:41:06Z | 7 | ORACLE | Ruling **OD-18**: after a subcommand name, `-h`/`--help` stays the **dispatcher's**; a subcommand parser never advertises it. Evidence `BL-19`, `BL-5`. No requirement added or superseded — it settles who owns a flag, ratifying the LOW default the OD-10 plan proceeded on. Contamination probe: clean. |
+| 13:43:39Z | 7 | WAIT | **PR #138 MERGED** by `autogrims[bot]`. Thirteenth App-authored pipeline pull request, thirteenth merge. |
+| 13:44Z | 8 | STEWARD | Detector: `PHASE=STEWARD ODS=OD-11`. **OD-10's ruling cleared; one decision left in the queue.** Steward dispatched for OD-11. Counters: **13 of 30 pull requests** (all merged), **21 of 60 iterations**, ~137 minutes of 12 hours. |
+
+### The decision queue, whole round
+
+| Iteration | `ODS` reported |
+| --- | --- |
+| round 3, it. 2 | `OD-6 OD-7 OD-8 OD-9 OD-10 OD-11` |
+| round 4, it. 1 | `OD-7 OD-8 OD-9 OD-10 OD-11` |
+| round 4, it. 3 | `OD-8 OD-9 OD-10 OD-11` |
+| round 4, it. 4 | `OD-9 OD-10 OD-11` |
+| round 4, it. 6 | `OD-10 OD-11` |
+| round 4, it. 8 | `OD-11` |
+
+Six entries down to one, monotonically, with no id ever returning. Every step is
+mechanical output from the detector rather than a claim by the driver.
 
