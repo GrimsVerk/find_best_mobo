@@ -20,6 +20,7 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T08:49:38Z | PRE-DRIVER PR | #98 docs/bl-15-zero-duration-warning -> run/local (project backlog filing) |
 | 2026-08-20T08:46:41Z | RIG/GATED | run/local gated, 7 checks, strict; unattended-ready exit 0, all ready |
 | 2026-08-20T08:46:41Z | RIG/WAIT | run/web present at v0.4.37, ungated, awaiting owner gating call |
 | 2026-08-20T08:35:37Z | RIG/BLOCKED | gates ruleset = default branch only; run/local ungated; setup-github.sh refused by sandbox |
@@ -176,4 +177,23 @@ Register values are never written here. They appear as `<repos_root>`,
   change. The delay is charged to the local lane's rig duties, not to the web
   agent.
 - **Severity:** blocker (rig, not template) — the same root cause as F5.
+
+### F8 — project bug filed as BL-15 (not a template finding; recorded for the trail)
+- **Where:** between rig duties and driver start, on lane base `run/local`
+- **What:** the first real `index` run after the `timestamp` fix (PR #67)
+  warned that 8 videos reported no duration. All 8 checked by hand: every one is
+  a genuine Short, correctly classified `excluded_short`, `was_live` false, and
+  carrying no date in either field. No video was dropped — the warning's
+  premise, that only one video can legitimately report no duration, is wrong for
+  the flat listing shape, so it fires on every run and buries the ninth id that
+  would be a real silent drop.
+- **Filed as:** `BL-15` in `docs/BACKLOG.md`, Proposed section, PR #98 into
+  `run/local`.
+- **This is a PROJECT defect, not a template one.** Recorded here only so the
+  operator's trail is complete; it belongs to find_best_mobo and is not for
+  upstream collection.
+- Both gates were run locally before pushing: `backlog-append-only.sh` reports
+  29 landed items intact, `plan-resolve.sh` grants the `docs/BACKLOG.md`
+  exemption at any size (81 lines added).
+- **Severity:** none, as a template finding.
 
