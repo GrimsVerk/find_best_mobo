@@ -691,6 +691,35 @@ an impression.
 - Severity: bug
 
 
+### F20 — the plan Summary's "hard ceiling" is enforced by nobody, and the review gate declines to block on it
+- Where: `AGENTS.md` ("**One screen**, ~40 lines, a hard ceiling") vs. the review
+  gate's verdicts on PR #113 and PR #130
+- What happened: the reviewer has now measured the Summary section twice and
+  reported it twice, both times as **non-blocking**:
+  - PR #113: "runs to roughly 35-37 lines, right at the edge of AGENTS.md's
+    '~40 lines, hard ceiling' guidance. Still within bounds, worth watching."
+  - PR #130: "runs to roughly 41-42 lines including blank lines, **just over**
+    the '~40 lines, hard ceiling' guidance [...] this doesn't rise to a blocking
+    violation — noting it only because the rule calls it a 'hard ceiling'."
+  Searched for a mechanical enforcer and found none: no script under
+  `.github/scripts/` references the Summary section or a 40-line bound, and
+  `plan-metrics.sh` carries no such rule. So the ceiling is enforced by exactly
+  one thing — a reviewer's judgement — and that reviewer has now twice decided
+  not to enforce it.
+- Expected: AGENTS.md's own words are "**a hard ceiling**", and it explains why
+  the bound matters ("not fitting is itself a signal that the plan is doing too
+  much"). A hard ceiling that nothing measures and the one judge declines to
+  apply is an advisory dressed as a rule — the same shape this repository
+  distrusts elsewhere ("a recorded check is demonstrated, or it is labelled as a
+  proposal"). Note the reviewer is not wrong to hesitate: it is measuring a prose
+  bound with no definition of whether blank lines count, and it said so.
+- Suggested ratchet: either count the Summary in `plan-metrics.sh` and report the
+  number as a mechanical fact for the reviewer to judge — which is how the line
+  estimate is already handled — or soften the wording in AGENTS.md to match what
+  actually happens. Both are honest; the present pairing is not.
+- Severity: friction
+
+
 ---
 
 ## ROUND 4 — update to v0.4.42, and a stop pending on the owner
@@ -947,4 +976,6 @@ blank section reads identically to a forgotten one. This plan did not leave it
 blank, and it went further than the rule asks by making the empty list
 **checkable**: the derivations are written down, so a reviewer can test the claim
 rather than trust it.
-
+| 13:00:05Z | 3 | WAIT | **Review gate `PASS`** on `e0de513f`. Notably it stated the plan-landing exemption **explicitly rather than silently** ("this isn't real work arriving on an exempt branch skipping the plan gate, it's the plan itself"), cross-checked all five of OD-8's clauses against `docs/DESIGN.oracle.md`, and confirmed the plan **discloses** where it departs from R1004's literal wording rather than quietly diverging. One non-blocking nit on Summary length — see **F20**. |
+| 13:00:08Z | 3 | WAIT | **PR #130 MERGED** by `autogrims[bot]`; head branch deleted 13:00:09Z — **1 second after. ESC-21 confirmed an eleventh time.** |
+| 13:00Z | 4 | STEWARD | Detector: `PHASE=STEWARD ODS=OD-9 OD-10 OD-11`. **OD-8 cleared** — third decision retired this round. Steward dispatched for OD-9. Counters: **9 of 30 pull requests** (all merged), **16 of 60 iterations**, ~93 minutes of 12 hours. |
