@@ -436,4 +436,28 @@ where the measurement is booked, not whether it exists. Worth the owner's eye
 nonetheless, because nothing mechanical would have caught it had one of the three
 simply dropped the measurement — the rule is prose, and the check that enforces it
 is a reader.
+| 10:31:44Z | 1 | WAIT | `auto_merge_enabled` by `autogrims[bot]`. |
+| 10:33:05Z | 1 | WAIT | **Review gate returned `PASS`** on `0e03605b`, with a substantive verdict — it verified the evidence chain (BL-14 present at the base commit with a proposed default OD-13 follows), the schema fields, both vision quotes matching `docs/VISION.md` verbatim, the exemption-path claim, gate-tampering (none), and checked the base tree directly to confirm the capped plan exists as described. It also noted `test-the-tests` correctly did not run. **87 seconds** — a real review, not a skip. |
+| 10:33:09Z | 1 | WAIT | **PR #108 MERGED** by `autogrims[bot]`. |
+| 10:33:10Z | 1 | WAIT | **Head branch deleted 1 second after the merge**, actor `autogrims[bot]`. **ESC-21 confirmed a third time.** Full lifecycle: opened 10:32 -> armed 10:31:44 -> merged 10:33:09 -> branch gone 10:33:10. |
+| 10:34Z | 2 | STEWARD | Base pulled. Detector: `PHASE=STEWARD BASE=run/web ODS=OD-6 OD-7 OD-8 OD-9 OD-10 OD-11`. **The pipeline advanced a phase** — first time this lane has moved past ORACLE in any round. Dispatched a steward worker for **OD-6**, again with the full ESC-69 contract. |
+
+### Check durations on PR #108 (checklist item, ESC-45)
+
+| Check | Duration | Honest? |
+| --- | --- | --- |
+| `review` | **87s** | Yes — a real LLM review with a detailed, verifiable verdict. |
+| `checks` | 12-18s | Yes. |
+| `acceptance-criteria` | 15s | Yes. |
+| `template-sync` | 13s | Yes (early exit on a non-`template/` branch). |
+| `secrets` | 6-10s | Yes. |
+| `plan` | 6s | Yes. |
+| `test-the-tests` | 6s | Yes (documented skip: no `src/` change). |
+| `arm-auto-merge` | 8s | Yes. |
+| `open-pr` | 8s | Yes. |
+| `delete-merged-branch` | 2s | Yes — this is the job that removed the head branch. |
+| `update-open-prs` | 3s | Ran; nothing to update (no second open pull request on this base). |
+
+Nothing green-in-one-second while claiming work. ESC-45's failure shape has not
+appeared on this lane in three rounds.
 
