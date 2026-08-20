@@ -286,3 +286,56 @@ _why that class, and `— filed by: plan`.)_
   with no command must still print the top-level help, so help would have to be
   routed on whether a command name was already seen.
   — filed by: steward
+- **BL-20** — May the pipeline take a subscription-usage reading itself, or must
+  a reading be handed to it? R26 names two readers — `claude -p "/usage"` and
+  `omarchy-agent-usage-claude --limits-only --force` — and then says "The Python
+  pipeline itself still cannot read them", while S3 calls its criterion
+  mechanically checkable *because* the omarchy reader returns JSON on this
+  machine. One sentence puts the probe outside Python; the other leans on it
+  being reachable, and R8's projected-against-actual record needs whichever
+  answer is true before it can be built. Proposed default: the pipeline never
+  spawns a probe. A reading enters as data — `find-best-mobo usage record`
+  normalises one reader's output from a file or stdin and appends it to
+  `data/usage.jsonl` — and the extraction stages refuse to hand out further work
+  once the recorded delta from the effort's baseline reaches R26's cap. **HIGH**:
+  the two answers put a subprocess boundary in different places — a probing
+  `usage.py` would be a second tool boundary beside `ytdlp.py`, with everything
+  R20's offline rule implies for it — so this milestone's Signatures block and a
+  slice boundary move with the answer, and reversing it later means moving a
+  boundary rather than editing a call site.
+  — filed by: plan
+- **BL-21** — What is "actual usage" in R8 and S3, and what does the reported
+  delta compare? The projection is in tokens and its factor is chars-per-token
+  (R7), while the only readings the design names return percentage points of a
+  weekly subscription limit and no token count at all (R26). The two quantities
+  are not in the same units, so no chars-per-token correction follows from a
+  points reading, and R8's three clauses — record projected against actual,
+  report the delta, correct the factor — cannot all be satisfied from the same
+  number. Proposed default: record both and keep them apart. The calibration
+  record holds the projected tokens, the points delta between the readings taken
+  before and after the batch (the figure R26's cap is enforced against), and the
+  actual token counts the extraction agent reports for each bundle it processed;
+  chars-per-token is corrected from the token counts alone, and the delta R8
+  reports is the token delta, with the points delta printed beside it as what was
+  spent. **HIGH**: it decides what the calibration artifact holds — an external
+  format one side writes and another reads — and whether the extraction agent's
+  contract must carry self-reported token counts at all, which changes the claims
+  schema and the slice that defines it.
+  — filed by: plan
+- **BL-22** — Where does the corrected chars-per-token factor land, so that
+  subsequent projections use it? R8 says the factor is corrected "for subsequent
+  projections"; today it is a `config.toml` key, R17 makes the cost levers
+  configuration, and R23 promises byte-identical corpus and bundling output
+  "given the same cache and configuration". Nothing says whether the correction
+  is written back to configuration, published as a data artifact the projection
+  prefers, or only reported for a human to apply — and in an unattended run there
+  is no human to apply it. Proposed default: the calibration stage writes
+  `data/calibration.json`, `estimate` prefers its measured factor over
+  `config.chars_per_token` and prints which source it used and whether the number
+  is a measurement or a guess, and the configuration key stays the fallback and
+  is never rewritten by a stage. **HIGH**: the factor drives `pack_bundles`, so
+  the answer changes what `project` and `estimate_tokens` take as input (a
+  Signatures block), it decides whether R23's reproducibility guarantee is read
+  against a second artifact, and a stage that rewrites tracked configuration is
+  expensive to take back.
+  — filed by: plan
