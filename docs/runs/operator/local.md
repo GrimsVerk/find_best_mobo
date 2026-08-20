@@ -20,6 +20,8 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T11:12:08Z | RUN STOPPED | v0.4.41 run 20260820T102917Z: 8 iterations, PRs #109-#117 merged; stopped for the v0.4.42 update |
+| 2026-08-20T11:12:08Z | LANE CLEAR | all 4 worktrees read: 0 unmerged, 0 uncommitted; no stale WORK pull requests open |
 | 2026-08-20T10:29:05Z | RESTART/CLEANUP | driver refused on 3 leftover worktrees; 1 stranded commit salvaged; cleaned |
 | 2026-08-20T10:27:31Z | RESTART/UPDATE | v0.4.39 -> v0.4.41 via update-from-template.sh --base run/local; 5 files, 0 conflicts |
 | 2026-08-20T10:27:31Z | RESTART/READY | both lanes at v0.4.41 and gated; readiness exit 0 incl. the ESC-72 clear-base line |
@@ -636,4 +638,92 @@ Second restart, ordered by the owner. Findings F1-F18 stand as written.
   work-in-flight at the moment of the kill, which the trap does not claim to
   capture. Salvaged by hand because it was real work, not because a promise
   broke.
+
+---
+
+## RESTART — v0.4.42
+
+Third restart. Findings F1-F24 stand. The v0.4.41 run
+(`20260820T102917Z`) reached 8 iterations and merged PRs #109 through #117
+before being stopped for this update; three of its findings are below.
+
+### F25 — ESC-74 observed live: the window "reset" flapped five times in one run
+- **Where:** v0.4.41 run, `deliver-loop.sh` budget re-baselining
+- **What happened:** the driver announced a mid-run weekly reset **five times**,
+  alternating between two renderings of the same instant:
+
+  ```
+  the weekly window reset mid-run (Aug 27, 11am -> Aug 27, 10:59am) — re-baselining the allowance
+  the weekly window reset mid-run (Aug 27, 10:59am -> Aug 27, 11am) — re-baselining the allowance
+  the weekly window reset mid-run (Aug 27, 11am -> Aug 27, 10:59am) — re-baselining the allowance
+  the weekly window reset mid-run (Aug 27, 10:59am -> Aug 27, 11am) — re-baselining the allowance
+  the weekly window reset mid-run (Aug 27, 11am -> Aug 27, 10:59am) — re-baselining the allowance
+  ```
+
+  (Timezone suffix `(Europe/Amsterdam)` trimmed from each line for width; it was
+  identical on both sides of every arrow.)
+- **The two values are the same moment**, rounded differently by the upstream
+  gauge — 10:59am and 11am one minute apart, never a real weekly rollover, which
+  can happen at most once and not at all inside a 40-minute run.
+- **Why it matters:** each "reset" **re-baselines the allowance**, so the 20
+  points were reset to zero-spent five times. A run that flaps like this can
+  never reach its ceiling: the ceiling is moved every other iteration. The
+  budget was the one limit the owner said they would actually rely on.
+- **Independent confirmation of ESC-74**, which v0.4.42 fixes by comparing the
+  reset as an instant rather than as a rendered string. Recorded because this
+  lane watched it happen rather than reading about it.
+- **Severity:** blocker — an allowance that re-zeroes is not an allowance.
+
+### F26 — ESC-75 observed live: a killed run reports exit code 0 and no reason
+- **Where:** v0.4.41 run stop, landed report
+  `docs/runs/20260820T102917Z/run.md`
+- **What happened:** the run was stopped with `SIGTERM`. The report records:
+
+  ```
+  Stopped 2026-08-20T11:08:20Z with exit code 0.
+  ```
+
+  Exit code 0 is "finished cleanly". No stop reason is given, and the driver's
+  own log ends after the evidence lines with no stop line at all.
+- **Expected (and what v0.4.42 now does):** a stop with no reason is exit code
+  **7**, never 0, and kills are trapped and named.
+- **Why it matters beyond tidiness:** the exit code is what a reader of the
+  landed report has to judge the run by. A killed run and a completed run are
+  currently indistinguishable in the one artefact that outlives the session.
+- **Independent confirmation of ESC-75.**
+- **Severity:** bug
+
+### F27 — the landed run report leaks the operator's absolute machine paths
+- **Where:** `docs/runs/20260820T102917Z/run.md`, merged to the lane in PR #117
+- **What happened:** every `WORKER_RESULT` line records the worktree as an
+  absolute path:
+
+  ```
+  WORKER_RESULT id=steward-od-6 branch=docs/oracle-plan-caption-split-aliases
+    worktree=<repos_root>/find_best_mobo/.worktrees/steward-od-6 engine=claude exit=0 commits=1
+  ```
+
+  Four such lines, in a file that is committed, pushed, and merged.
+- **The literal path expands the owner's `repos_root` register value**, together
+  with the home directory it sits under. Under the test kit's rule 13 that is
+  exactly the thing that must never appear in a pushed file — and the plan says
+  a register value found in anything pushed is itself a finding.
+- **The template wrote it, not the operator.** No hand-editing put it there;
+  `deliver-loop.sh` composes the line. So no amount of operator discipline
+  prevents it — the rule cannot be kept while this line is emitted as-is.
+- **This repository is private, so the exposure here is small.** The finding is
+  that the mechanism is unconditional: the same code renders the same absolute
+  path into a public project's run evidence.
+- **Suggested fix:** record the worktree relative to the repository root
+  (`.worktrees/steward-od-6`), which is the only part that carries meaning to a
+  later reader anyway.
+- **Severity:** bug
+- **Note:** the paths quoted in THIS ledger are masked to `<repos_root>` by hand.
+
+### F28 — the evidence pull request opened and merged on its own (positive)
+- `docs/run-20260820T102917Z--run-local` was pushed by the trap, opened as
+  **#117**, and **merged** — `run.md`, 3 review payloads with **zero
+  `MISSING.md`**, and **4** worker logs. ESC-40 and ESC-43 confirmed again, on a
+  second run. Second consecutive clean self-recording; no failsafe used.
+- **Severity:** none
 
