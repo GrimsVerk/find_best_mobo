@@ -20,6 +20,7 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T08:31:00Z | SETUP/UPDATE | v0.4.27 -> v0.4.37 · 23 files · 0 conflicts · 0 .rej · run/local pushed |
 
 ---
 
@@ -59,4 +60,51 @@ Register values are never written here. They appear as `<repos_root>`,
 - **Severity:** bug — blocks the documented route; the fallback below works.
 - **Action taken:** fell back to `copier update` directly on `run/local`, as the
   owner's instruction provides for.
+
+### F2 — the v0.4.27 -> v0.4.37 update itself was clean (positive observation)
+- **Where:** Part 1 step 2 (THE UPDATE), `copier update --vcs-ref=v0.4.37`
+- **What happened:** ten template releases in one jump, on a project with a
+  month of divergent history. 23 files changed, 1155 insertions, 184 deletions.
+  **Zero conflict markers, zero `.rej`, zero `.orig`.** Nothing needed the
+  conflict rule applied; the template side and the project side never collided.
+- **Checked, not assumed:** every file the template and the project both own
+  was diffed by hand. `docs/DECISIONS.md` gained a new template decision
+  *above* the `<!-- Append project decisions below -->` marker and all four
+  project rulings below it survive verbatim. `pyproject.toml` gained only the
+  template's `pre-commit~=4.0` dev pin (ESC-55). `AGENTS.md` and `README.md`
+  took the template side, as the conflict rule directs. `src/`, `tests/`,
+  `acceptance/` and every project document were untouched.
+- **Severity:** none — recorded because a ten-release jump landing clean is
+  exactly the claim the template makes and it has now been observed once.
+
+### F3 — copier prints a false prerequisite warning on every update
+- **Where:** Part 1 step 2, `copier update` output
+- **What happened:**
+
+  ```
+  Updating to template version 0.4.37
+  Make sure Git >= 2.24 is installed to improve updates.
+  $ git --version
+  git version 2.55.0
+  ```
+
+- **Expected:** no warning. Git 2.55.0 is thirty-one minor versions past the
+  stated requirement.
+- **Note:** this is copier's message, not the template's, so it is not a
+  template defect. It is recorded because the template's own update script
+  passes copier's output straight through to the operator, and an operator
+  following the documented route sees an unmet-prerequisite warning that is
+  not true. A one-line note in the update script's output would cost nothing.
+- **Severity:** friction
+
+### F4 — the lane branch pushed with no ruleset rejection
+- **Where:** Part 1 step 6
+- **What happened:** `git push -u origin run/local` succeeded first try, exit 0.
+  The plan's step 6 anticipates a rejection here ("required status checks have
+  not succeeded") when a stale ruleset from a previous round still names the
+  lane, and routes the local lane through step 6a first to clear it.
+- **Expected on this repository:** no rejection. This is not a wiped anvil
+  round — the ruleset here already names the default branch only.
+- **Severity:** none — recorded so the two lanes' step-6 behaviour can be
+  compared, and so a later rejection is known to be new rather than stale.
 
