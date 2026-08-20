@@ -20,6 +20,8 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T09:36:06Z | RESTART/UPDATE | v0.4.37 -> v0.4.39, 7 files, 0 conflicts, 0 .rej; F1/F10/F13/F14 fixes verified present |
+| 2026-08-20T09:36:06Z | RESTART/BLOCKED | PR #105 all checks green, auto-merge armed, BLOCKED on CODEOWNERS review |
 | 2026-08-20T09:28:11Z | RUN STOPPED | v0.4.37 run 20260820T085531Z: 6 clean iterations, PRs #100-#103 merged, then steward livelock |
 | 2026-08-20T09:28:11Z | EVIDENCE LANDED | docs/run-20260820T085531Z--run-local: run.md + 3 reviews (0 MISSING) + 3 worker logs, by the trap |
 | 2026-08-20T08:56:53Z | DRIVER START | base run/local; gauge weekly 79% model 90%; allowance 20 points; max-prs 30; max-hours 12 |
@@ -447,4 +449,60 @@ binds. No finding.
   this whole test exists to catch did not occur, which is only meaningful if the
   success is written down too.
 - **Severity:** none — positive confirmation.
+
+---
+
+## RESTART — v0.4.39
+
+The owner restarted the lane at template **v0.4.39**. Findings F1-F16 stand as
+written; nothing above is revised. This section continues the same ledger.
+
+v0.4.39 carries the fixes for three findings this lane filed, plus the oracle
+livelock this lane independently reproduced. All four verified present in the
+updated tree before the restart:
+
+| finding | fix, verified in the v0.4.39 tree |
+| --- | --- |
+| F1 | `scripts/update-from-template.sh` now takes `--base <b>` (line 26 help, line 42 parse, line 222 `gh pr create`) |
+| F10 | `scripts/setup-github.sh` `git add` + `git commit` its own transcript (lines 126-127), so setup no longer leaves the tree dirty |
+| F13 | `deliver-loop.sh` reads the reset field to end-of-line — "reset= is the probe's LAST field by contract and its value contains spaces" (line 622) |
+| F14 | oracle livelock, ESC-66/67 |
+
+**F13's reach, per the owner:** the truncation was not cosmetic after all. It
+was the root cause of a live window-rollover miss on the other test bed. Logged
+here because this lane filed it as *friction* — the lowest severity it carries —
+and the severity was wrong. A dropped timestamp is not a display defect when a
+scheduler reads the same value.
+
+### F17 — the v0.4.37 -> v0.4.39 update, and why the F1 fix could not be used for it
+- **Where:** restart step 2 (THE UPDATE)
+- The shipped updater is still the v0.4.37 one, so it refused the lane exactly
+  as F1 recorded: `update-from-template: you are on 'run/local', not 'main'.`
+  Its `--base` fix arrives *inside the pull request being opened*, so the first
+  update after the fix must still be done by hand; every one after it can use
+  the script. Not a new finding — the ordering is inherent, and worth one line
+  so it is not re-filed next round.
+- `copier update --vcs-ref=v0.4.39`: seven files, **no conflicts, no `.rej`**.
+  Second clean update in a row on this project.
+- **Severity:** none
+
+### F18 — the update pull request is BLOCKED on CODEOWNERS, exactly as designed
+- **Where:** restart, PR #105 into `run/local`
+- **State:** all seven required checks green (`review` 1m32s, `template-sync`
+  15s, `checks` 16s, `acceptance-criteria` 13s, `secrets` 11s, `test-the-tests`
+  9s, `plan` 8s), `arm-auto-merge` **pass** 7s, auto-merge armed —
+  and `mergeStateStatus: BLOCKED`, `reviewDecision: ""`.
+- **Why:** the update touches four CODEOWNERS-owned gate paths —
+  `.claude/scripts/`, `.github/scripts/`, `.github/workflows/`, `scripts/`. The
+  owner's review is required and has not been given.
+- **This is the machinery working**, and the update script's own closing message
+  predicts it in advance: "You will have to approve it. A template update
+  touches CODEOWNERS-owned paths… That is deliberate: a change to this
+  project's gates is exactly what a person should look at."
+- **It also sets up a Part 3 closing action.** The pull request is authored by
+  `app/autogrims`, not the owner — which is the only reason the owner *can*
+  approve it, since GitHub refuses an author's approval of their own pull
+  request. ESC-35 predicted this works and nothing has ever observed it. The
+  owner's approval here is that observation.
+- **Severity:** none — expected, and blocking the restart until approved.
 
