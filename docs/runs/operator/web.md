@@ -733,4 +733,49 @@ still running and was stopped first; it had committed nothing.
 - Suggested drill change: run readiness **once before** clearing the lane and
   once after, and record both. The first is the only chance to see ESC-76 refuse.
 - Severity: friction
+### F17 — the acceptance-shaped approval path, observed live for the first time
+- Where: PR #118, the v0.4.42 template update
+- What happened: the pull request went green on all seven required checks and sat
+  at `mergeable_state: blocked`, needing a code-owner approval it could not get
+  from any unattended actor. The owner approved it at **11:24:11Z**, and
+  `autogrims[bot]` merged it **2 seconds later at 11:24:13Z**:
+  ```
+  GrimsVerk: APPROVED at 2026-08-20T11:24:11Z
+  merged: true at 2026-08-20T11:24:13Z by autogrims[bot]
+  ```
+- Why it matters: TESTPLAN Part 3 closing action 1 says an App-authored pull
+  request "must be authored by the App — which is the only reason you CAN
+  approve it (GitHub refuses an author's own approval; **ESC-35 predicted this
+  works and nothing has ever observed it**)". This is that observation, on a
+  gate-path change rather than the acceptance pull request, but the identical
+  mechanism: **App authors, owner approves, auto-merge lands it.** Recorded
+  positively.
+- What the driver did NOT do, deliberately: it held the injected owner-grade
+  credential the whole time and could have approved its own gate change. It did
+  not, because readiness said in words that no unattended actor can give this
+  review. F9 shows the credential would not have been stopped by the ruleset —
+  so the thing that stopped it was the message, not the mechanism. That is worth
+  saying plainly: **on this lane, ESC-72's sentence did the work a permission
+  boundary could not.**
+- Severity: docs (positive observation)
+
+| Time | Iteration | PHASE | Detail |
+| --- | --- | --- | --- |
+| 11:24:13Z | - | - | PR #118 merged; `template/v0.4.42--run-web` **gone from the remote** — ESC-21 confirmed an eighth time, now also on a `template/` branch rather than only `docs/` ones. |
+| 11:26Z | - | - | Lane now reads `_commit: v0.4.42`. |
+| 11:26Z | - | READY | **Readiness PASSES**, and the two new lines both report green: `ready no pull request is open against 'run/web' — the run starts on a clear base` (ESC-72) and `ready no leftover worktrees — no dead run's debris in the way` (ESC-76). Every line is transcribed in the operator report for this round. |
+| 11:27:02Z | preflight | - | Credential ESC-50 as always; `coverage.sh` rc 1; `budget-probe.sh` rc 3 with the documented web-session message. **ESC-74 (the ceiling re-zeroing itself) cannot be exercised on this lane** — there is no gauge here at all, so there is no ceiling to re-zero. Stated rather than skipped. |
+| 11:27Z | 1 | STEWARD | Detector: `PHASE=STEWARD ODS=OD-7 OD-8 OD-9 OD-10 OD-11`. The lane resumed **exactly where round 3 left it** — the update merged into the lane rather than resetting it, so all five of round 3's merged pull requests survive and OD-6 is still off the queue. Steward dispatched for OD-7. |
+
+### What round 4 could and could not test, stated plainly
+
+| Fix | Exercised on this lane? |
+| --- | --- |
+| ESC-71 lane-scoped pull-request updates | **No.** Requires the other lane to merge while my pull request is open; it has not happened in four rounds. |
+| ESC-72 refuse behind an open pull request | **Yes** — refused on #118, then reported `ready` once merged. |
+| ESC-73 private-repository gate note | **No** — repository is public; the branch is unreachable here. |
+| ESC-74 budget ceiling re-zeroing | **No** — no usage gauge exists in a web session, so no ceiling exists to re-zero. |
+| ESC-75 a stop never reported as success | **Partially** — the ESC-72 refusal was reported as a refusal, exit 1, not as success. |
+| ESC-76 readiness refusing on leftover worktrees | **No** — see F16; the drill clears the lane before readiness runs, so only the green branch was seen. |
+| ESC-77 removal of two inert tool grants | **No** — nothing observable from the driver's side. |
 
