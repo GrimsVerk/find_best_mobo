@@ -593,4 +593,27 @@ The alternative — a worker quietly inventing 52 variants and calling them BL-8
 measurement — is the exact failure this machinery exists to prevent, and it did
 not happen. Recorded as a positive observation of the LOW route, matching the
 HIGH route already recorded at BL-15.
+| 11:05:51Z | 5 | WAIT | **Review gate `PASS`** on `80144de8`. It confirmed OD-15's schema fields, that the `V11` quotation is a full sentence rather than a truncated fragment, that the entry is appended after OD-14 with no edits to prior entries, and that `docs/DESIGN.oracle.md` being bot-landed is the deliberate carve-out rather than a criterion-5 violation. It accepted "Measurement: none new" only after arguing the fixture's own suite assertions are the observable — i.e. it checked the durable-evidence rule rather than waving it. |
+| 11:05:55Z | 5 | WAIT | **PR #115 MERGED** by `autogrims[bot]`; head branch deleted 11:05:57Z — **2 seconds after. ESC-21 confirmed a seventh time.** |
+| 11:06Z | 6 | STEWARD | Detector: `PHASE=STEWARD ODS=OD-7 OD-8 OD-9 OD-10 OD-11`. **OD-6 has dropped off the list.** Steward dispatched for OD-7. Counters: **5 of 30 pull requests** (all merged), **9 of 60 iterations**, ~39 minutes of 12 hours. |
+
+### The thrash question, answered
+
+Two iterations ago this ledger flagged a distinction it could not yet resolve:
+a loop finding **new** questions is the design working, while a loop re-raising
+the **same** question is the failure `record_dismissed_evidence` exists to
+prevent. The detector's own output now settles it:
+
+| Iteration | `ODS` reported |
+| --- | --- |
+| 2 | `OD-6 OD-7 OD-8 OD-9 OD-10 OD-11` |
+| 4 | `OD-6 OD-7 OD-8 OD-9 OD-10 OD-11` |
+| 6 | `OD-7 OD-8 OD-9 OD-10 OD-11` |
+
+OD-6 required two steward attempts — the first stopped and filed `BL-15`, the
+second wrote the plan once `OD-14` had ruled — and then **left the queue**. The
+uncertainties `BL-15` and `BL-16` were each raised once, ruled once, and never
+re-raised. Five pull requests, five merges, no repeats. **This is progress, not
+thrash**, and the queue shrinking is the mechanical evidence for it rather than
+an impression.
 
