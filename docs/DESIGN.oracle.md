@@ -756,3 +756,46 @@ and a stopping steward's citation of this decision lands in that same record;
 `coverage.sh`'s report stays re-runnable at any commit, so the moment the
 owner's fix lands, the same observable shows the superseded class excused and
 the loop advancing.
+
+## OD-22 — Stage B is planned now, at BL-23's boundary, and its calibration and spend readings are committed evidence
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-23
+- **Requirements added:** R1011
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** "When a decision alters behaviour that no existing check, test, run report or review artifact would notice, adding the thing that notices is part of the decision — not a follow-up, and not optional." — this is what decides R1011: Stage B is the first stage that spends model budget, and without a committed record its two critical numbers — the calibration delta and the spend guard's readings — exist only in one session's console. The plan's boundary and the cap figure's source are process questions no vision statement decides, and **Alternatives considered** carries that weighing.
+- **Vision statements against:** V13 — "**Burning the weekly limit sifting through completely irrelevant transcripts.** That would genuinely annoy me, and it is the one failure I can name outright." — the nearest, because this decision commissions the first work that spends model budget on transcripts at all. It does not forbid it: Stage B reads only bundles Stage A selected for AM5 signal (R4, R1004), the owner approved BL-23 as its own decision precisely because it is the first spending item, and the item builds the guard rails before anything spends — the small calibration batch first (R8), the R26 readings before, during and after every batch, and the hard stop between batches (R7, §7).
+- **Alternatives considered:** (1) Plan to milestone M2's full scope, which includes the minimal report generator (R16 and R14's partial) — rejected: BL-23 draws its boundary deliberately ("Not covered here, deliberately … This one ends when a calibration batch has been extracted, validated, stored and its factor corrected"), and the design's own calibrate-first shape defers what comes after the checkpoint until the calibration batch shows what the excerpts actually contain; the report generator consumes claims whose real shape that batch is the instrument for measuring. (2) Add no requirement and let Stage B wait for `PHASE=PLAN` — rejected: OD-21 records that the driver cannot pass step 4 while R1001's false gap stands, so the owner's only approved work item would wait on an owner script edit unrelated to it. R1011 is not added to force a dispatch — S3's mechanical checkability genuinely needs it, as the rationale shows — but it is added knowing the consequence: an oracle-added requirement routes through the steward path, which is the designed way oracle-decided work gets planned, and it happens to be the one path the livelock leaves open. (3) Take the cap figure from BL-23's text ("the 10% weekly cap") — rejected: the backlog restates the design, it never defines it; R26 is the single source of the figure, and R1011 pins the fraction in one configured place so a landed owner edit to R26 reaches the guard without a second plan. (4) Waive S3 — rejected: nothing has failed; BL-23 builds the very record S3 checks, and a waiver would set aside the owner's definition of done exactly where the work will genuinely meet it.
+- **Rationale:** BL-23 contradicts nothing: every element it names is already design text — the claim schema's categories and subjects (§7 Stage B, §9 Claim), the validating ingest and the append-only batch-tagged store (R9, R10, R27), the explicit continue command R7 promises, the R26 guard with its named reader, and R8's calibration record. What the evidence adds is the owner's approval and a deliberate boundary; what the design leaves undecided is exactly what a planner would otherwise guess. Which scope governs: BL-23's, being the owner's later and narrower word. Where the cap figure is read from: R26, never the backlog's restatement. And where R8's record lives: §13 calls S3 mechanically checkable, but the reading `omarchy-agent-usage-claude --limits-only --force` returns is a point-in-time number on one machine — nothing in the design makes the projected-versus-actual comparison durable, so as written S3 could only ever be verified by narration, which `docs/acceptance.md` explicitly refuses. R1011 closes that: the records land as committed files, the acceptance script reads them, and the owner — who evaluates both the oracle and the spend — gets evidence instead of a console line that scrolled away. Confidence is high; the one guess (that the owner wants M2's minimal report generator deferred along with Stages C–E) is BL-23's own text.
+
+**R1011** — Stage B's measurements are committed evidence, not console output.
+The calibration record R8 requires — projected tokens, actual usage, the delta,
+and the corrected chars-per-token factor — and the spend-guard readings R26
+requires around each batch (before, part-way through a long one, after) are
+written to git-tracked files outside the gitignored corpus directory, keyed to
+the batch they describe. `acceptance/S3.sh` verifies the calibration record's
+presence and shape, and lands in the same change that commits the first real
+calibration record — never before it, so no pull request is red for a record
+that cannot exist yet. The fraction the spend guard enforces is read from one
+configured place whose default is R26's figure, so an owner edit to that figure
+reaches the guard as a one-line change and a restated number elsewhere is never
+a second source.
+
+Downstream: this decision commissions **one steward plan** under
+`docs/plans/oracle/`, covering R1011 together with R8, R9, R10, R26 and R27,
+elaborating the continue command R7 promises (one batch at a time, per §7's
+stop between batches), and ending where BL-23 ends: a calibration batch
+extracted, validated, stored, its factor corrected, and its record committed.
+M2's minimal report generator (R16, R14's partial) is outside it; Stages C, D
+and E are separate items per BL-23, and by BL-23's own approval logic — the
+first item that spends model budget got its own approval — each later spending
+stage arrives with its own. Sequencing: extraction calibrates only against
+bundles produced by the amended Stage A — R1000's re-cut and R1008's routing
+built first — because a factor calibrated against inflated excerpts is wrong by
+construction (BL-10's measured 4.8x); the plan states that dependency rather
+than relying on the plan walk's path order to deliver it.
+
+Measurement: R1011 is itself the measurement this decision adds — the committed
+records and `acceptance/S3.sh` are the observables — and the run reports under
+`docs/runs/` continue to record every dispatch and phase decision. No other new
+mechanism is needed.
