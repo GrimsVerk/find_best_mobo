@@ -1155,4 +1155,31 @@ mechanical output from the detector rather than a claim by the driver.
 | 13:44:15Z | 8 | STEWARD | **First worker failure of the run**: `exit=1 commits=0`, cause `You've hit your session limit · resets 3:20pm (UTC)`. See **F21**. Twenty-one iterations and thirteen merges had passed without a single failure before this. |
 | 15:23:23Z | 8 | STEWARD | Allowance window passed (reset 15:20Z). Lane verified clean: `origin/run/web` at `8dd8807`, **no pull request open anywhere**, nothing lost — both leftover worktrees read before removal showed `commits-ahead=0`, and the one uncommitted file in `steward-od-11` was the worktree the dead worker never wrote a plan into. |
 | 15:23Z | 8 | - | **Resuming rather than declaring a stop, and saying why.** Anvil rule 7 forbids restarting a *stopped* run. This run reached none of its own limits — 13 of 30 pull requests, 21 of 60 iterations, ~4 hours of 12 — and never wrote a stop report; it was interrupted by an environment allowance outside the run's own accounting, and the owner explicitly directed continuation. Recorded here so the judgement is visible rather than silent. |
+| 15:32:27Z | 8 | STEWARD | **Retry succeeded on the first attempt after the allowance reset.** ESC-68 fired a sixth time — work relocated to `docs/plan-tracked-alias-table`. Plan `docs/plans/oracle/tracked-alias-table.md`, slug `tracked-alias-table`, `covers: [R1007]`, 355 lines. **No uncertainty, said explicitly**: "None: every decision derived from the design." Contamination probe: clean. |
+| 15:34:23Z | 8 | WAIT | **PR #140 MERGED** by `autogrims[bot]`. Fourteenth App-authored pipeline pull request, fourteenth merge. |
+| 15:35Z | 9 | **PLAN** | Detector: `PHASE=PLAN BASE=run/web REQS=R8 R9 R10 R11 R12 R13 R14 R15 R16 R26 R27 R19`. **The oracle-decision queue is EMPTY and the lane has changed phase for the first time.** Milestone planner dispatched. Counters: **14 of 30 pull requests** (all merged), **22 of 60 iterations**, ~4h08m of 12 hours. |
+
+### The oracle queue is cleared — six decisions, start to finish, unattended
+
+`ODS` has gone from six entries to none, and the detector has moved the lane off
+oracle work entirely:
+
+| Decision | Requirement | Plan slug | Route taken |
+| --- | --- | --- | --- |
+| OD-6 | R1002 | `caption-split-aliases` | **HIGH** stop (`BL-15`), then LOW (`BL-16`) |
+| OD-7 | R1003 | `itx-chipset-variant` | **LOW** (`BL-17`) |
+| OD-8 | R1004 | `description-signal` | **NONE**, stated explicitly |
+| OD-9 | R1005 | `refuse-on-missing-artifact` | **LOW** (`BL-18`) |
+| OD-10 | R1006 | `subcommand-flag-forwarding` | **LOW** (`BL-19`) |
+| OD-11 | R1007 | `tracked-alias-table` | **NONE**, stated explicitly |
+
+Six decisions planned, five uncertainties raised and ruled (`BL-15` through
+`BL-19`), six oracle rulings written (`OD-13` through `OD-18`), fourteen pull
+requests opened by the App and merged by the App, **zero red checks**, and
+exactly one human action in the whole sequence — the code-owner approval the
+gate correctly refused to proceed without.
+
+The phase change itself is the evidence that matters: the detector did not have
+to be told the queue was empty. It reported `PHASE=PLAN` with the design's own
+twelve unplanned requirements the moment the last oracle plan merged.
 
