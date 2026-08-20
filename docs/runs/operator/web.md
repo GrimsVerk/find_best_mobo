@@ -37,6 +37,10 @@ Times are UTC.
 | 2026-08-20T08:28:10Z | Bounded wait armed: 15 attempts, 3 minutes apart, 45 minutes total, logging each attempt. |
 | 2026-08-20T08:28:37Z | Attempt 1/15: still ungated. Remote heads now `chore/test-report-local chore/test-report-web main run/web` — the LOCAL lane's ledger branch exists, so the local agent is alive; `run/local` has not appeared yet. |
 | 2026-08-20T08:29Z | Phase detector (read-only, before any dispatch): `PHASE=ORACLE BASE=run/web REASON=evidence UNCITED=BL-14`. The detector reports this run's base back correctly. |
+| 2026-08-20T08:31:40Z | Attempt 2/15: `run/local` appears on the remote. Both lanes now exist. Still ungated. |
+| 2026-08-20T08:34-08:46Z | Attempts 3-7/15: unchanged, still `MISSING no rules bind the run's base branch 'run/web'`. |
+| 2026-08-20T08:48:47Z | Direct REST read of `repos/.../rules/branches/run%2Fweb` shows the gate HAS landed: `deletion`, `non_fast_forward`, `pull_request` (code-owner review required, 0 approvals) and `required_status_checks` with all seven contexts — `checks`, `secrets`, `plan`, `template-sync`, `test-the-tests`, `acceptance-criteria`, `review`. `strict_required_status_checks_policy: true`. |
+| 2026-08-20T08:49:09Z | `RUN_BASE=run/web .github/scripts/unattended-ready.sh --runtime` **PASSES**: "this repository can run unattended." Every one of the seven required checks reported as binding on `run/web`. Total wait from lane push to gate: ~22 minutes, 7 polls, well inside the 45-minute bound. |
 
 ---
 
