@@ -1,0 +1,15 @@
+I reviewed this PR: it's on a `docs/`-prefixed branch (`docs/oracle-plan-od-6--run-local`) and its entire diff is one new entry, **BL-16**, appended to `docs/BACKLOG.md`.
+
+**Plan conformance / branch exemption.** `docs/BACKLOG.md` is explicitly in AGENTS.md's list of paths exempt from the exempt-branch size cap ("passes at any size"), so the 24-added-lines figure doesn't need to clear 50 lines and doesn't need a plan. More importantly, the content matches exactly what a `docs/`-only branch should contain here: per AGENTS.md's planning rule, when a HIGH-risk uncertainty surfaces unattended, the correct move is to file it as `BL-<n>` in `docs/BACKLOG.md` with a proposed default and *stop planning* until an oracle decision cites it — not to write the plan anyway. The entry does exactly that: it identifies that R1002/OD-6 doesn't say whether alias-matching must join tokens across a caption **cue boundary**, explains why the answer changes `find_mentions`'s shape and the plan's slice boundaries (hence HIGH), proposes a default (no cross-cue joining), and stops there. No plan file was added — consistent with "planning stops until a decision cites it."
+
+**Gate tampering.** The diff touches only `docs/BACKLOG.md`. It doesn't touch `AGENTS.md`, `docs/DESIGN.md`, `docs/VISION.md`, `docs/plans/`, `docs/escapes.md`, `docs/acceptance.md`, `.github/`, or `.claude/`. Criterion 5's special instruction about bot-opened diffs applies to `docs/DESIGN.md`/`docs/VISION.md` specifically — neither is touched here, so it doesn't fire despite the bot-opened PR.
+
+**Append-only integrity.** The diff is a pure append after the existing BL-15 entry's closing context line; nothing earlier in the file is modified, consistent with the backlog ledger's append-only discipline.
+
+**Other mechanical facts.** No new dependencies, no test/impl files touched (so `test-the-tests` correctly didn't run), no `Blind-Tests:` trailer (expected for a docs-only filing, not an orchestrated feature build), and no other open PRs from this author.
+
+One minor, non-blocking note: the entry cites `docs/oracle/od-6-plan-draft.md` as where the same question was "preserved" — that file isn't part of this diff and I can't verify its contents, but it isn't a checked citation (only `ESC-<n>`/`BL-<n>` references are mechanically validated), so this is informational context rather than a claim the gate needs to confirm.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

@@ -1,0 +1,10 @@
+base:      38822534214371945a42f36bb390008855262699
+head:      d6c5485dd477bbfea973465dcdaf24ac8ebab15d
+branch:    docs/oracle-20260820090923--run-local
+author:    autogrims[bot]
+title:     Oracle: rulings and handoff
+engine:    claude
+model:     (engine default)
+plan:      (none)
+truncated: 0
+diff_bytes: 9652

@@ -1,0 +1,23 @@
+Preparing worktree (new branch 'worker/oracle-20260820090923')
+HEAD is now at 3882253 Plan for OD-6 (#102)
+=== spawn-worker[oracle-20260820090923] engine=claude branch=worker/oracle-20260820090923 base=run/local (38822534214371945a42f36bb390008855262699) bypass=0 ===
+=== 2026-08-20T09:09:23Z ===
+Permission allow rule (--allowed-tools): Write(docs/DESIGN.oracle.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/DESIGN.oracle.md) instead (Edit rules cover all file-editing tools).
+Permission allow rule (--allowed-tools): Write(docs/oracle/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/oracle/**) instead (Edit rules cover all file-editing tools).
+Push is denied by this session's sandbox, so my work ends at the local commit — the delivery driver owns the branch's onward motion, which matches the role's stopping point anyway.
+
+## Oracle run report — scope: BL-16
+
+**Ruling (OD-15, appended to `docs/DESIGN.oracle.md`, adding R1010):** R1002's token-join rule applies **within one cue's normalized text** — a mention is never synthesized across a cue boundary — and the scoped-out case is **counted rather than left silent**: the matcher detects a match that would exist only in the join of two adjacent cues and reports the per-run count in the selection report, without ever emitting a mention for it. The suite must pin the distinguishing pair (cross-cue split → no mention, counter increments; same split within one cue → mention, no increment).
+
+**Why this side of the binary.** BL-8's measured failures were all within-cue, and the two damage classes differ in kind: speech-to-text mangling is systematic per name (every "Tomahawk" arrives as `toma hawk`, so the board was invisible everywhere), while a cue break falls where the timing falls — it costs one occurrence, not every occurrence, and titles and descriptions have no cues at all. Cross-cue matching would reshape `find_mentions` and force an unmeasured answer to which cue's `start_seconds` a spanning mention carries — the field R5 cuts excerpt windows from and R14's timestamped links stand on. Ruling the cheap side and widening later costs one superseding entry; ruling the expensive side on unquantified plausibility commits a guessed timestamp semantics. The counter is the hedge: the first real corpus run quantifies the residue, and a material count arrives as logged evidence to supersede this — I cited the vision's durable-evidence sentence for exactly that, and verified both quoted sentences match `docs/VISION.md` verbatim under the check's normalization.
+
+This also moots BL-16's second question (no spanning mention exists, so `start_seconds` is always the containing cue's start) and answers the fourth-slice question: the counter is new plan work, sized by the steward.
+
+**Handoff:** `docs/oracle/handoff-2026-08-20-2.md` — the steward can now re-cut the OD-6 plan from the preserved draft, citing OD-6 and OD-15 with `covers: [R1002, R1010]`. It also flags: do not build cross-cue matching, sequencing from the previous handoff is unchanged, and BL-1/BL-2 remain deferred out of scope. The draft's three LOW uncertainties were not commissioned and carry no BL ids; their defaults read sound and should travel in the re-cut plan's own uncertainties section.
+
+**Not decided:** nothing in scope was left undecided; no halts, no waivers.
+
+**Vision feedback:** the V-numbered statements sit at product altitude, so mechanism-level binaries keep resolving through the opt-out class or the durable-evidence sentence — which earned its keep this run by turning "scope it out" into "scope it out and count it". No edit needed.
+
+**Verification honesty:** the commit (`d6c5485` on `worker/oracle-20260820090923`) is local — the sandbox denied `git push` and `uv run`, so the gate was not run here; the diff is docs-only (one append, one new file), pre-commit's secrets check passed, and I hand-verified the `oracle-decisions.sh` invariants (both vision quotes verbatim, evidence BL-16/BL-8 present at base `3882253`, id and R-offset rules). CI on the pull request the driver opens is the real verification.
