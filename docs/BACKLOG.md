@@ -274,6 +274,53 @@ listing, still not fully described by the fixtures.
 — filed by: the operator of the 2026-08-20 local-lane run, from the first real
 index run after the `timestamp` fix (PR #67) landed
 
+### BL-20 — The driver will eventually commission a superseded plan slice
+
+`docs/plans/whole-transcript-threshold.md` is the owner's, `CODEOWNERS`-held, and
+partly wrong: OD-13 (and OD-5 before it) answered its "pending" ceiling
+uncertainty, and its slice 1 builds R28's routing without R5's clustering,
+without R1000's re-cut and with no account of a transcript larger than a bundle.
+Two oracle handoffs say to leave it alone and simply never build its slice 1.
+
+The gap is that "never build it" is nobody's job to enforce.
+`.claude/scripts/deliver-phase.sh` walks every `docs/plans/**/*.md` in sorted
+path order and dispatches an orchestrator for the first plan whose `status:` is
+not `merged` and for which no `feat/<slug>` branch has merged. No
+`feat/whole-transcript-threshold` branch will ever merge, because the work is
+being built under a different slug, so once the plans ahead of it are built the
+driver reaches this one and commissions the superseded slice — unattended, with
+every check green, because the plan resolves and the branch name matches.
+
+Directions: the owner marks it `status: merged` (the field the template already
+documents for work that landed some other way), or deletes it, or drops slice 1
+and R28 from it. Any of the three closes it; nothing an agent may write does,
+which is why this is filed rather than fixed. — filed by: steward (OD-13 plan
+`capped-whole-transcript-path`)
+
+### BL-21 — A superseded requirement id is uncoverable, and coverage says NOT PLANNED forever
+
+`.github/scripts/coverage.sh` builds its requirement universe from `docs/DESIGN.md`
+§5 and from column-anchored `**Requirements added:**` lines in
+`docs/DESIGN.oracle.md`. It does not read `**Requirements superseded:**`. The
+oracle ledger is append-only, so a superseded id — R1001, superseded by OD-13 —
+stays in that universe permanently while no plan can honestly claim it: the
+behaviour it describes is deliberately not being built.
+
+The effect is that `coverage.sh` reports `R1001 NOT PLANNED` and exits 1 from now
+on, and `AGENTS.md`'s definition of done ("every requirement of the design …
+covered by a merged plan", mechanical via `coverage.sh`) can never be satisfied
+again. The pressure this creates is the harmful part: the cheapest way to make
+the report green is for some plan to name R1001 in its `covers:`, which is
+exactly the over-claim the adequacy note exists to expose.
+
+Directions: teach `coverage.sh` to subtract ids named by
+`**Requirements superseded:**` at the ledger's head; or report superseded ids as
+their own class, the way non-functional requirements are already excused; or rule
+that a superseding decision's requirement text must name the id it retires so a
+reader can pair them. All three live in `.github/scripts/`, a gate path — and the
+same hole exists in the template, so the fix probably belongs upstream. — filed
+by: steward (OD-13 plan `capped-whole-transcript-path`)
+
 ## Uncertainties awaiting oracle ruling
 
 _(nothing yet — filed by `/plan` when a design leaves a question open; format:_
