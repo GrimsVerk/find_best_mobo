@@ -585,3 +585,47 @@ next-cycle review `AGENTS.md` promises a LOW default, ratifying it; no re-cut
 and no new requirement. Measurement: the fixture is itself the measurement,
 alongside the `aliases --check` recall report OD-6 already names — no new
 collection mechanism.
+
+## OD-17 — R1003's regression title is a labelled reconstruction; only the board name and the zero-`B850` property carry measured provenance
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-18, BL-9
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V1 — "**Real, sourced information about which boards Buildzoid considers safe** for a 7950X3D or 9950X3D — and which he does not."
+- **Vision statements against:** V12 — "If he did not say it, the answer must say he did not say it. Silence has to read as silence." — the nearest, one level down exactly as in OD-16: a test presenting an invented title as "the real B850I review's title" would be reconstruction wearing measured provenance. It does not forbid this ruling because the ruling forbids that presentation — the docstring declares the reconstruction, only what BL-9 actually recorded claims measured provenance, and nothing asserts on the invented wording.
+- **Alternatives considered:** (1) Assert on the board-name token alone with no surrounding title (BL-18's stated alternative, the plan's own open question) — rejected: a title that is nothing but the board name exercises the pattern only at string edges, while the failure R1003 fixes lives at both lookaround boundaries mid-text; the invented surroundings buy the realistic mid-title position and cost nothing, because no assertion reads them. (2) Fetch the video's real title from YouTube and commit it — rejected: a title fetched today is not the title BL-9 measured (titles are editable, and the measured string survives in no commit, journal entry or run record), so for the one property that matters — zero `B850` matches at measurement time — a fetched title carries the same reconstruction status while adding a network step V3 has no reason to buy and the offline suite cannot repeat. A future agent that does recover the measured title has logged evidence for superseding this decision — file it, never swap it in silently. (3) A labelled reconstruction — BL-9's board name verbatim, invented surroundings declared, assertions only on the canonical and the matched form — chosen; it is BL-18's proposed default, OD-16's provenance rule applied one file over, with the constraints below making it demonstrable.
+- **Rationale:** BL-9's own measurement constrains the reconstruction more tightly than BL-18 notes, in both directions. First, zero `B850` title matches under the pre-fix matcher means the real title cannot have spelled the chipset with a separator — `b850-i` and `b850 i` both leave `b850` with a clean right boundary and would have matched — so the real title carried the chipset only inside an unseparated `B850I` token, which is exactly the shape the verbatim board name `MSI MPG B850I Edge TI` reproduces. The reconstruction is faithful in the one dimension the regression turns on. Second, the reconstruction is *not* faithful in a dimension the shipped table can see: `msi` is a vendor form in `data/aliases.toml`, so a title carrying the board name verbatim title-hits MSI before and after the fix. The reconstruction therefore reproduces BL-9's measured zero-`B850` property and nothing more — in particular it does not reproduce the real video's recorded invisibility to title matching (BL-9, OD-8), and no test or docstring may claim it does.
+
+What discharges R1003's sentence "Regression: the real B850I review's title
+auto-includes on its chipset", given that the measured title string is in no
+commit, journal entry or run record (`data/index.jsonl` is gitignored):
+
+- The test's docstring **declares the title a reconstruction** and states that
+  the measured title is absent from the record — absent, not unknowable: the
+  video is public, which is why recovering it later is a supersession with
+  logged evidence rather than a silent swap.
+- **`MSI MPG B850I Edge TI` lands verbatim from BL-9** and is the only wording
+  with measured provenance; the docstring records what BL-9 did measure — zero
+  `B850` matches in title and body on a 33-minute review — as the provenance of
+  the case, never of the invented string.
+- **Nothing asserts on the invented wording**: the assertions are the canonical
+  (`B850`) and the matched form (the ITX spelling).
+- **The invented surroundings must not contain any form the pre-fix matcher
+  resolves to `B850`** — a bare `b850` token in the padding would make the
+  regression green before the fix, and a red-then-green observation is the
+  demonstration the blind test exists to give. This is OD-16's
+  demonstrated-or-labelled rule applied to the one mark this test carries.
+- **A test claiming the video was excluded before this plan must arrange that
+  itself**: under the shipped table the reconstructed title is vendor-visible,
+  so the plan's selection slice demonstrates pre-fix exclusion only against a
+  table whose forms the title does not otherwise hit — its own `tmp_path`
+  table, as the plan already writes, with no `msi`-like form reachable from
+  the title it uses.
+
+Downstream: `docs/plans/oracle/itx-chipset-variant.md` builds as landed — this
+is the next-cycle review `AGENTS.md` promises a LOW default, ratifying it; no
+re-cut, no covers change, and the constraints above bind slice 2's fixture
+author. Measurement: the regression test itself, observed red against the
+pre-fix matcher and green after, alongside the recall report and selection
+counts R1003 already names — no new collection mechanism.
