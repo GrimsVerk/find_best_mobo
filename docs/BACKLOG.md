@@ -321,6 +321,50 @@ reader can pair them. All three live in `.github/scripts/`, a gate path — and 
 same hole exists in the template, so the fix probably belongs upstream. — filed
 by: steward (OD-13 plan `capped-whole-transcript-path`)
 
+### BL-22 — R1001's false gap livelocks the driver on a steward for OD-5
+
+Measured, not predicted: on 2026-08-20 the driver dispatched a steward for
+**OD-5** — a decision OD-13 superseded in full — and that steward wrote no plan,
+because OD-5's only requirement R1001 is design history (retired by R1008), the
+plan that once implemented it was already re-cut to OD-13 and merged
+(`docs/plans/oracle/capped-whole-transcript-path.md`), and naming R1001 in a
+`covers:` is the over-claim OD-20 forbids by name. This filing is the record of
+that dispatch; nothing else in the repository would hold it.
+
+The mechanism is BL-21's hole reaching a third path, and the consequence is
+worse there than in the report. `.claude/scripts/deliver-phase.sh` step 4 takes
+`coverage.sh`'s gap list, maps each `R>=1000` gap back to the decision whose
+`**Requirements added:**` line names it, and emits `PHASE=STEWARD` whenever that
+set is non-empty — before step 5's built-or-unbuilt plan walk and before
+`PHASE=PLAN`. R1001 is a permanent gap, so the map permanently yields OD-5 and
+the driver emits `PHASE=STEWARD ODS=OD-5` on every cycle and can never reach
+orchestration, milestone planning or acceptance again. BL-21 framed the harm as
+a definition of done that can never be satisfied plus pressure to over-claim;
+the sharper fact is that the delivery loop no longer advances at all, and each
+cycle spends a full unattended session re-deriving the supersession from the
+ledger in order to stop. A session that does not re-derive it writes a plan for
+a behaviour the owner reversed, with every check green — the steward gate cannot
+catch it, since `oracle-decisions.sh` asks only that a cited decision has
+landed, and OD-5 has.
+
+Note this also suspends BL-20's hazard rather than resolving it: the driver
+cannot reach the plan walk that would commission `whole-transcript-threshold`
+slice 1 while it is stuck here, so fixing this one re-arms that one, and OD-19's
+prohibition is what has to hold at that moment.
+
+Directions: the fix OD-20 already recommends for `coverage.sh` — subtract ids
+named by column-anchored `**Requirements superseded:**` lines and report them as
+their own excused class — closes this too, since the dispatch reads that
+script's gap list and nothing else, which argues for doing it there rather than
+teaching a second parser in `deliver-phase.sh`; failing that, skip an `OD-<n>`
+all of whose added requirements are superseded, at the dispatch. A gate-side
+backstop worth considering either way: have `oracle-decisions.sh` fail a plan
+under `docs/plans/oracle/` that cites only superseded decisions, so a steward
+that misses the supersession is stopped by a check rather than by its own
+reading. All of these live in `.claude/scripts/` and `.github/scripts/`, both
+owner-owned gate paths, and the hole is the template's as BL-21's is. — filed
+by: steward (dispatched for OD-5; wrote no plan)
+
 ## Uncertainties awaiting oracle ruling
 
 _(nothing yet — filed by `/plan` when a design leaves a question open; format:_
