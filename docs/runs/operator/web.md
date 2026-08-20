@@ -238,3 +238,94 @@ do — auto-update a *different* open pull request into the same base — was no
 exercised, because this lane had no second pull request open. Recorded as a
 partial observation, not a full one.
 
+---
+
+## RESTART — round 2, template v0.4.39
+
+The owner restarted both lanes at template **v0.4.39**. The web lane was not
+blocked by a bug: round 1 ended mid-WAIT while the local lane restarted and
+re-gated `run/web`. Every finding above stands and is carried forward; numbering
+continues from F7.
+
+| Time | Event |
+| --- | --- |
+| 2026-08-20T09:25:08Z | Restart instruction received. Latest template tag now **v0.4.39** (round 1 ran v0.4.37). |
+| 09:25Z | Round-1 evidence captured before touching anything — PR #100 merged and its branch vanished; see the ESC-21 block above. |
+| 09:29Z | Cleaned the round-1 worker worktree and branch. `git checkout -B run/web origin/main` — lane reset to the kit's common ancestor, `_commit` back to v0.4.27. |
+| 09:30Z | `copier update --defaults --trust` -> **v0.4.39**. **Zero conflict markers** again. 22 files modified, 1 added (`open-pr.yml`). Verified mechanically that every changed path is template machinery: nothing outside `.claude/`, `.github/`, `scripts/`, `AGENTS.md`, `README.md`, `pyproject.toml`, `.pre-commit-config.yaml`, `.copier-answers.yml` and the template-owned append to `docs/DECISIONS.md`. Project and canned inputs untouched. |
+| 09:30Z | `uv sync`, `uv run pre-commit install`, full gate: ruff, ruff format, mypy (33 files), **474 tests pass**. |
+| 09:31:15Z | Committed on `run/web` and force-pushed. Push accepted — **and reported bypassing all seven required checks. See F9.** |
+
+### F7 — RESOLVED UPSTREAM: v0.4.39 fixes this lane's F2 and F4, citing this lane by name
+
+- Where: `scripts/update-from-template.sh` at v0.4.39
+- What happened: both round-1 findings against the update script are fixed in
+  the release the restart pulled in.
+  - F2 (cannot update a lane branch): the script now takes `--base <branch>`,
+    "the same flag deliver-loop.sh and setup-github.sh take". Its own comment
+    names the source of the report: *"Without this, every step assumed the
+    default branch and a lane could be driven but never updated (anvil mobo
+    F1)."* The update branch also carries the lane suffix so twin lanes cannot
+    collide on `template/<version>`.
+  - F4 (opens its pull request as the ambient login): replaced by the driver's
+    credential rule in script form, logged as ESC-63 — mint the App token and
+    open directly, or write `.pr-request.json` as the branch's last commit and
+    let `open-pr.yml` open it server-side, or push and say exactly what remains.
+    The comment states the reason this lane hit: an owner-authored update
+    "was unapprovable by construction".
+- Expected: this is the ratchet working end to end — a lane reports friction, the
+  template repository fixes it and cites the report. Recorded as a positive
+  observation, and as evidence that the finding channel is live.
+- Severity: docs (resolved; no action)
+
+### F8 — the ten-release update was clean a second time, at a different target
+- Where: template update, v0.4.27 -> v0.4.39
+- What happened: a second independent `copier update` across the full gap, to a
+  different target release, again produced **no conflict markers** and touched
+  no project content. The standing conflict rule (template machinery takes the
+  template side, project content keeps the project side) has now had two
+  opportunities to be exercised and has needed neither.
+- Expected: the anvil plan lists the ESC-14 conflict path as never yet tested.
+  It is still untested, but not for want of trying — this project's divergence
+  from the template simply does not overlap the template's own files. Recorded
+  so the gap is not mistaken for a pass.
+- Severity: docs (recorded observation)
+
+### F9 — TOP SEVERITY: the web session's credential bypassed all seven required checks, the pull-request requirement, and the force-push ban
+- Where: `git push --force-with-lease -u origin run/web`, 2026-08-20T09:31:15Z
+- What happened: the push was accepted, and GitHub said exactly what it had
+  waived:
+  ```
+  remote: Bypassed rule violations for refs/heads/run/web:
+  remote:
+  remote: - Cannot force-push to this branch
+  remote:
+  remote: - Changes must be made through a pull request.
+  remote:
+  remote: - 7 of 7 required status checks are expected.
+  remote:
+  To https://github.com/GrimsVerk/find_best_mobo
+   + 586338f...a9513dd run/web -> run/web (forced update)
+  ```
+  Three separate protections — non-fast-forward, pull-request-required, and
+  every one of the seven required status checks — were bypassed in a single
+  push by the session's injected credential.
+- Expected: this reproduces anvil **F16** (round 2.1) exactly, on a different
+  repository and a newer template. The ruleset holds against this session as
+  **policy only** — an instruction the agent obeys — never as mechanism. Nothing
+  but the agent's discipline stands between this credential and `main`, and a
+  push rejection can never teach a web agent that a gate is missing, because it
+  will not be rejected.
+- Scope note, stated plainly so it is not mistaken for a violation: this
+  particular force-push was **explicitly instructed by the owner** as part of the
+  restart (`git checkout -B run/web origin/main ... push`), and it targeted this
+  lane's own base branch, never `main` and never `run/local`. The finding is not
+  that the push happened; it is that GitHub permitted it and reported the
+  bypass, which is the mechanism failing in a way only a log line reveals.
+- Consequence for the round: TESTPLAN Part 3 closing action 3 asks the owner to
+  verify the ruleset held. For `run/web` the honest answer is that it did not
+  hold as mechanism, and this ledger entry is the disclosure. Pipeline integrity
+  in this lane rests entirely on the merge path — auto-merge on green required
+  checks — which the bypass does not touch, and which round 1 observed working
+  correctly on PR #100.
+- Severity: blocker
