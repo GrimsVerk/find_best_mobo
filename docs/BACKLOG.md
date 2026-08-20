@@ -268,3 +268,21 @@ _why that class, and `— filed by: plan`.)_
   exists for `select` either way), no Signatures block changes, no artifact on
   disk changes shape, and reversing it is restoring one `if`.
   — filed by: steward
+- **BL-19** — After a subcommand name, does `-h/--help` belong to the
+  subcommand or to the dispatcher? OD-10/R1006 makes the dispatcher forward
+  arguments it does not recognise, and `--help` is one it does recognise — so
+  `find-best-mobo aliases --help` prints the top-level help, never the
+  subcommand's. R1006's clause is "every flag a subcommand documents", and no
+  subcommand documents `--help` today, so the requirement neither grants nor
+  refuses it. Proposed default, proceeded on in
+  `docs/plans/oracle/subcommand-flag-forwarding.md`: the dispatcher keeps
+  `-h/--help`; a subcommand's usage stays what it prints today when its
+  arguments are wrong, and its own parser is built with `add_help=False` so it
+  never advertises a flag that cannot reach it. **LOW**: it is one constructor
+  argument (`add_help=False` on the top-level parser) and one branch in
+  `cli.py` — no slice boundary moves, no shared signature changes, no artifact
+  on disk changes shape, and reversing it is restoring argparse's default. The
+  other answer costs the dispatcher a special case: `find-best-mobo --help`
+  with no command must still print the top-level help, so help would have to be
+  routed on whether a command name was already seen.
+  — filed by: steward
