@@ -143,8 +143,10 @@ a PR subscription plus a scheduled check-in — because a hosted session holding
 a turn open to watch CI spends its lifetime on nothing. The owner chooses a
 mode by choosing which entry point to start.
 
-The phase order encodes the authority chain: an open pull request holds
-everything (one PR in flight); unruled HIGH uncertainties, then unmetabolised
+The phase order encodes the authority chain: an open pull request targeting
+the run's base branch holds everything (one PR in flight per base branch — a
+pull request into a different base belongs to a different run and holds
+nothing here); unruled HIGH uncertainties, then unmetabolised
 evidence, wake the **oracle**; landed decisions without plans get
 **stewards**; uncovered owner requirements get a **plan**; merged plans
 without merged features get an **orchestrator**; and a fully built design

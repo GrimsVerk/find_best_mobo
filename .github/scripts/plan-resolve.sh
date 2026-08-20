@@ -171,6 +171,16 @@ for prefix in "${EXEMPT_PREFIXES[@]}"; do
       case "$path" in
         "$PLANS_DIR"/*|"$DESIGN_DOC"|"$ORACLE_DOC"|"$ORACLE_DIR"/*|"$VISION_DOC") ;;
         "$ACCEPTANCE_DOC"|"$ARCHITECTURE_DOC"|"$RUNS_DIR"/*|"$BACKLOG_DOC") ;;
+        # The eighth carve-out member, and the first that is machinery rather
+        # than a document (ESC-56): a driver that cannot hold App identity
+        # asks the server-side opener for its pull request by committing this
+        # marker as the branch's last commit (ESC-53). The opener's design
+        # placed it at the repository root ON PURPOSE — outside
+        # CODEOWNERS-owned .github/ — and this list was not updated to match,
+        # so the marker's three lines evicted otherwise-exempt branches from
+        # the carve-out and every web-lane planning pull request failed the
+        # cap it was exempt from.
+        ".pr-request.json") ;;
         *) planning_only=0; break ;;
       esac
     done < <(git -C "$ROOT" diff --name-only "${BASE_SHA}...${HEAD_SHA}")
@@ -178,8 +188,9 @@ for prefix in "${EXEMPT_PREFIXES[@]}"; do
     if [[ "$planning_only" -eq 1 && "$added" -gt "$EXEMPT_MAX_ADDED" ]]; then
       echo "plan-resolve: branch '$HEAD_REF' adds $added lines, all of them in \
 $PLANS_DIR/, $DESIGN_DOC, $VISION_DOC, $ORACLE_DOC, $ORACLE_DIR/, \
-$ACCEPTANCE_DOC, $ARCHITECTURE_DOC, $RUNS_DIR/ or $BACKLOG_DOC — the planning \
-documents themselves and the run evidence, which no plan can cover. Exempt from the size \
+$ACCEPTANCE_DOC, $ARCHITECTURE_DOC, $RUNS_DIR/, $BACKLOG_DOC or the opener's \
+.pr-request.json marker — the planning documents themselves, the run \
+evidence, and the pull-request machinery, which no plan can cover. Exempt from the size \
 cap; the owner still reviews $DESIGN_DOC and $PLANS_DIR/ via CODEOWNERS, and \
 $ORACLE_DOC is constrained by the oracle-decisions check instead." >&2
       exit 0

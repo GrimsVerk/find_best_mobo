@@ -32,7 +32,10 @@
 #   HEAD_REF             the PR head branch name (decides whether this applies)
 # Optional env:
 #   SYNC_PREFIX          branch prefix this check governs (default: template/)
-#   TEMPLATE_TOKEN       token with read access to the template repository,
+#   TEMPLATE_TOKEN       read token for the template repository — in CI this
+#                        is minted per run from the GitHub App, down-scoped to
+#                        Contents: read on the template repo alone (no PAT;
+#                        PATs expire and fail every project at once) —
 #                        required when the template repo is private
 #
 # Exits 0 for any branch outside SYNC_PREFIX — those are the plan check's job.
@@ -145,17 +148,20 @@ _src_path in ${ANSWERS} is:
 That is an SSH URL. If it names a host alias from a personal ~/.ssh/config, no
 CI runner can resolve it — the failure above will say \"Could not resolve
 hostname\", which looks like a credentials problem and is not one. The workflow
-rewrites the alias through TEMPLATE_TOKEN, so this should have been handled; if
-you are seeing it anyway, check that TEMPLATE_TOKEN is set, then change
+rewrites the alias through the read token it mints from the GitHub App, so this
+should have been handled; if you are seeing it anyway, check that the App is
+installed on the TEMPLATE repository (its id is the APP_ID secret), then change
 _src_path to https://github.com/<owner>/<repo>.git, which is what CI can fetch
 without any rewriting at all." ;;
     *)
       die "\`copier update\` failed when replayed from the base commit.
 
-_src_path is '$SRC'. If the template repository is private, CI needs a token
-that can read it — see TEMPLATE_TOKEN in .github/workflows/ci.yml. Otherwise
-the target version '$TARGET_REF' may not exist, or the update may not apply
-cleanly on top of this project's base commit." ;;
+_src_path is '$SRC'. If the template repository is private, CI reads it with a
+token minted from the GitHub App (APP_ID / APP_PRIVATE_KEY secrets) — the App
+must be INSTALLED on the template repository, not only on this one: App
+settings -> Install App -> add the template repo. There is deliberately no PAT
+path. Otherwise the target version '$TARGET_REF' may not exist, or the update
+may not apply cleanly on top of this project's base commit." ;;
   esac
 fi
 

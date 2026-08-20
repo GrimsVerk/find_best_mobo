@@ -20,23 +20,19 @@ name: Auto-merge
 # auto-merge, both with the delete job present and wired, and no workflow run
 # created for either close. The job was never skipped — it was never reached.
 #
-# Three identities, tried in order (see docs/DECISIONS.md, "Unattended runs
-# act as a GitHub App"):
+# Two identities, tried in order (see docs/DECISIONS.md, "Unattended runs
+# act as a GitHub App"). Deliberately NO PAT anywhere in this file: a PAT
+# expires, shares the owner's rate budget, and acts as the owner — every
+# property the App exists to avoid — and a fallback that must be set up
+# defeats the point of having fewer things to set up (the owner's ruling).
 #
 #   1. The GITHUB APP (APP_ID + APP_PRIVATE_KEY secrets; scripts/setup-github.sh
 #      --app sets it up). A short-lived token is minted per run. The App has its
-#      OWN hourly rate-limit budget — a PAT shares the owner's, with every other
-#      tool acting as them, which is how overnight runs kept hitting the limit —
-#      its events fire workflows, so the close event dispatches and cleanup is
-#      immediate, and its merges are authored as the app rather than as the
-#      owner, which keeps "opened by the owner" (owner-authored.sh) meaning
-#      exactly that.
-#   2. AUTO_MERGE_TOKEN, a fine-grained PAT with pull-requests:write and
-#      contents:write. Events fire and cleanup works; the shared rate budget
-#      and the owner-attribution ambiguity remain. It bypasses nothing — branch
-#      protection and required checks still apply — but it acts as you, so
-#      scope it to this repository.
-#   3. GITHUB_TOKEN. Everything still merges — only the cleanup goes quiet,
+#      OWN hourly rate-limit budget, its events fire workflows, so the close
+#      event dispatches and cleanup is immediate, and its merges are authored
+#      as the app rather than as the owner, which keeps "opened by the owner"
+#      (owner-authored.sh) meaning exactly that.
+#   2. GITHUB_TOKEN. Everything still merges — only the cleanup goes quiet,
 #      which is what the scheduled sweep below exists to cover.
 #
 # UNVERIFIED, honestly: the App path has not yet been observed completing the
@@ -121,10 +117,10 @@ jobs:
         # here first and silently did nothing.
         env:
           # The identity ladder from the header: App token when the mint step
-          # ran, the PAT when it exists, the built-in token otherwise. With
-          # GITHUB_TOKEN the merge dispatches no events, so nothing cleans up
-          # after it until the scheduled sweep runs.
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          # ran, the built-in token otherwise. With GITHUB_TOKEN the merge
+          # dispatches no events, so nothing cleans up after it until the
+          # scheduled sweep runs.
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         # --delete-branch is NOT redundant with the repository's "Automatically
         # delete head branches" setting, and this is the part that surprises.
@@ -142,8 +138,8 @@ jobs:
         # needed, and nothing about branch protection changes.
         #
         # The retry ladder exists for the GraphQL rate limit, which is hourly,
-        # per-identity, and — on the PAT path — shared with everything else
-        # acting as the owner, including the agents' own API calls. An
+        # per-identity — and on the GITHUB_TOKEN path shared with the rest of
+        # this repository's workflow runs. An
         # unattended run that opens a pull request every twenty minutes meets
         # it repeatedly, so a single failed arm is not an edge case. Retry with
         # backoff; when giving up, say WHEN the limit resets, because "try
@@ -246,7 +242,7 @@ jobs:
   # not create workflow runs from pushes made with GITHUB_TOKEN, so an update
   # pushed with it produces a new head commit that NO workflow ever runs against
   # — the branch comes up to date and its required checks are then permanently
-  # missing, which is strictly worse than being BEHIND. With no App and no PAT
+  # missing, which is strictly worse than being BEHIND. With no App identity
   # this says so and does nothing.
   update-open-prs:
     if: >-
@@ -273,14 +269,14 @@ jobs:
       - name: Update every other open pull request
         env:
           # No GITHUB_TOKEN fallback, deliberately — see the header above.
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.AUTO_MERGE_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ github.repository }}
           MERGED: ${{ github.event.pull_request.number }}
         run: |
           set -uo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
             {
-              echo "update-open-prs: no App and no AUTO_MERGE_TOKEN, so nothing was updated."
+              echo "update-open-prs: no App identity, so nothing was updated."
               echo ""
               echo "An update pushed with GITHUB_TOKEN creates no workflow runs, so the"
               echo "branch would come up to date with its required checks permanently"

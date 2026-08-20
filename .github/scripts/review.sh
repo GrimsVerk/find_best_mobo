@@ -352,9 +352,18 @@ PAYLOAD="$(printf '%s\n\n%s\n' "$INSTRUCTION" "$CONTEXT")"
 # The evidence. Written BEFORE the engine runs, so a hung or crashed engine
 # still leaves behind what it was asked — which is the half that matters for
 # building fixtures, and the half that was previously lost in exactly that case.
+#
+# The nonce is REDACTED from the recorded copy, and only from it (ESC-59,
+# anvil F12). The nonce's job ends when this review ends — it exists so the
+# diff under review cannot forge a section boundary, and it is high-entropy by
+# construction. High-entropy is exactly what gitleaks's generic-api-key rule
+# flags, so an unredacted payload collected into docs/runs/ made the evidence
+# commit impossible: two of the template's own defences, each correct alone,
+# deadlocked against each other. The engine still receives the real nonce;
+# only the evidence trail carries the placeholder.
 OUT_DIR="${REVIEW_OUT_DIR:-$ROOT/.claude/review-out}"
 mkdir -p "$OUT_DIR" 2>/dev/null || true
-printf '%s\n' "$PAYLOAD" > "$OUT_DIR/payload.txt" 2>/dev/null || true
+printf '%s\n' "${PAYLOAD//$NONCE/REVIEW-NONCE-REDACTED}" > "$OUT_DIR/payload.txt" 2>/dev/null || true
 {
   echo "base:      $BASE_SHA"
   echo "head:      $HEAD_SHA"
@@ -383,7 +392,9 @@ echo "----- review agent output -----"
 printf '%s\n' "$OUTPUT"
 echo "-------------------------------"
 
-printf '%s\n' "$OUTPUT" > "$OUT_DIR/reply.txt" 2>/dev/null || true
+# Same redaction as payload.txt (ESC-59): a reviewer often quotes the
+# delimiters it checked, so the reply can carry the nonce too.
+printf '%s\n' "${OUTPUT//$NONCE/REVIEW-NONCE-REDACTED}" > "$OUT_DIR/reply.txt" 2>/dev/null || true
 
 if [[ "$rc" -ne 0 ]]; then
   echo "ENGINE_ERROR" > "$OUT_DIR/verdict.txt" 2>/dev/null || true

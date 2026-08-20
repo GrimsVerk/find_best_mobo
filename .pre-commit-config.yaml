@@ -1,20 +1,35 @@
 # Git-level enforcement. This (plus CI) is the gate that holds regardless of
 # which tool or agent wrote the code. Enable with: pre-commit install
-# VERSION PINNING. The `rev` values here and the version constraints in
+# VERSION PINNING. The ruff `rev` here and the version constraints in
 # pyproject.toml's dev group must agree. If pre-commit runs ruff 0.15 while CI
 # runs whatever `uv sync` resolved, the two disagree about formatting and you
 # get the worst debugging loop there is: green locally, red in CI, with no diff
 # to explain it. Bump both together, in the same commit.
+#
+# MYPY IS A LOCAL HOOK, NOT PRE-COMMIT'S MYPY MIRROR, AND THAT IS ESC-49. The
+# mirror runs mypy in its own isolated environment holding none of the
+# project's dependencies, so under `strict = true` every import from a real
+# dependency is an untyped Any — `import pytest` in the scaffold's own
+# tests/conftest.py was enough, and a freshly rendered project could not make
+# its FIRST commit. `additional_dependencies` would patch today's list and
+# re-break on every typed dependency the project ever adds — in a
+# CODEOWNERS-owned file no pipeline role may repair at 3am. `uv run mypy` is
+# the exact command and environment CI uses (ci.yml), so the two cannot
+# disagree, and a new dependency is present the moment `uv sync` resolves it.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.22
     hooks:
       - id: ruff-check
       - id: ruff-format
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.3.0
+  - repo: local
     hooks:
       - id: mypy
+        name: mypy (uv run — the same environment CI uses)
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
     hooks:

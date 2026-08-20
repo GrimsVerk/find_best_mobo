@@ -45,8 +45,20 @@ jobs:
         env:
           REVIEW_ENGINE: claude
         run: |
+          # The postinstall re-run and the version probe are ESC-58 (anvil
+          # F11): npm's install can complete without the platform-native
+          # binary (scripts skipped, optional dependency not downloaded), and
+          # then the FIRST review of the run dies with "claude native binary
+          # not installed" — the judgment gate red on a healthy diff. Running
+          # install.cjs is idempotent (a no-op when the binary is already
+          # there), and `--version` proves the engine actually executes
+          # BEFORE a review depends on it, so an install-shaped failure fails
+          # this step with an install-shaped error.
           case "$REVIEW_ENGINE" in
-            claude) npm install -g @anthropic-ai/claude-code ;;
+            claude)
+              npm install -g @anthropic-ai/claude-code
+              node "$(npm root -g)/@anthropic-ai/claude-code/install.cjs" || true
+              claude --version ;;
             codex)  npm install -g @openai/codex ;;
             *) echo "unknown REVIEW_ENGINE: $REVIEW_ENGINE" >&2; exit 1 ;;
           esac
