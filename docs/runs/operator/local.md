@@ -20,6 +20,7 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T16:32:20Z | MID WRAP-UP | R26 stays at 10% (owner reversal); driver console log preserved by hand; worktrees cleared |
 | 2026-08-20T15:26:51Z | RUN STOPPED | v0.4.42 run 20260820T112543Z: 26 iterations, exit code 3, three-strikes on PR #133 |
 | 2026-08-20T15:26:51Z | EVIDENCE SECURED BY HAND | evidence branch was local-only; operator pushed it (F31) |
 | 2026-08-20T11:26:39Z | RESTART/UPDATE | v0.4.41 -> v0.4.42, 4 files, 0 conflicts; PR #119 approved and merged |
@@ -861,4 +862,50 @@ before being stopped for this update; three of its findings are below.
 - **Severity:** friction — the grant should cover removing a file the role is
   already allowed to create.
 - **Action:** nothing salvaged; the file says "Delete this file" and it was.
+
+### F35 — the owner reversed the 15% ruling; R26 stays at 10%
+- **Where:** closing the R26 thread opened at F33
+- **What happened:** the owner changed their mind and kept the cap at **10%**.
+  PR #133 was closed by them deliberately and stays closed. `docs/DESIGN.md` on
+  the lane was never modified — the edit only ever existed on the closed
+  branch — so nothing had to be reverted and R26 still reads 10%.
+- **What this does to F33:** the three fix sessions the driver spent on that
+  pull request were spent on a change that is no longer wanted. It does not
+  change the finding — the driver could not tell an owner-authored failure from
+  a fixable one, and would have burned the same three sessions on a change that
+  *was* wanted. Recorded so a later reader does not treat 15% as pending.
+- **One local-only commit was left behind and deliberately abandoned:**
+  `d57e687 "Drop the docs/DESIGN.md edit: only the owner may open a pull request
+  touching it"`, written by a fix session on `docs/r26-fifteen-percent`. Its
+  effect would have been to keep the `DECISIONS.md` entry recording a 15%
+  ruling while `DESIGN.md` still said 10% — a decision log disagreeing with the
+  design it governs. It is on no remote and is being left to die with the
+  branch, on the owner's instruction.
+- **Worth noting as a near-miss:** that commit is what a fix session does when
+  the red check is "the owner must open this". It removed the owner's change and
+  kept the record of it, which is the wrong half to keep. Strengthens F33's
+  suggested fix — treat owner-authored failures as terminal rather than
+  something to edit around.
+- **Severity:** none as a template finding; recorded to close the thread.
+
+### F36 — the driver's own console log is not part of the evidence the template lands
+- **Where:** evidence for run `20260820T112543Z`
+- **What the landed evidence contains:** `run.md` (the report), 10 review
+  payloads, and all 10 worker logs — verified byte-identical to the local copies.
+- **What it does not contain:** the driver's own console output. That log is the
+  only place carrying `deliver-loop: pull --ff-only failed; continuing on the
+  local tree` — the line that explains F31, where the evidence branch was
+  collected but never pushed. The report says the run stopped; only the console
+  says why the evidence did not arrive.
+- **It lived in `/tmp`**, so a reboot would have taken the one record of how the
+  self-recording failed.
+- **Preserved by hand** at
+  `docs/runs/operator/driver-logs/run-20260820T112543Z-console.log`, 194 lines,
+  with the operator's home directory replaced by `<repos_root_home>` and checked
+  against every identity-register value before committing (rule 13).
+- **Suggested fix:** land the driver's console log alongside `run.md`. The
+  report is the driver's account of itself; the console is what actually
+  happened, and the two differ exactly when something went wrong.
+- **Severity:** bug — recorded as a gap in what the template preserves, distinct
+  from F31 which is the push failing outright.
 

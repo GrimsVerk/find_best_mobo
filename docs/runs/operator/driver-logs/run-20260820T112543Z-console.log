@@ -1,0 +1,194 @@
+
+════════════════════════════════════════════════════════════════════
+  THIS RUN'S BASE BRANCH: run/local
+  Every pull request this run opens will merge into 'run/local',
+  and this run waits only on pull requests targeting 'run/local'.
+  Non-default base: every branch this run pushes is suffixed '--run-local'.
+
+════════════════════════════════════════════════════════════════════
+deliver-loop: checking whether this repository can run unattended…
+unattended-ready: GrimsVerk/find_best_mobo
+  ready    auto_merge: true in .copier-answers.yml
+  ready    auto-merge workflow is present
+  ready    repository allows auto-merge
+  ready    repository deletes head branches on merge
+  ready    required check 'plan' is configured
+  ready    required check 'template-sync' is configured
+  ready    required check 'secrets' is configured
+  ready    required check 'test-the-tests' is configured
+  ready    required check 'acceptance-criteria' is configured
+  ready    required check 'review' is configured
+  ready    required check 'checks' is configured
+  ready    a pull-request rule is active (merges only via PR)
+  ready    base branch 'run/local': pull-request rule binds
+  ready    base branch 'run/local': required check 'plan' binds
+  ready    base branch 'run/local': required check 'template-sync' binds
+  ready    base branch 'run/local': required check 'secrets' binds
+  ready    base branch 'run/local': required check 'test-the-tests' binds
+  ready    base branch 'run/local': required check 'acceptance-criteria' binds
+  ready    base branch 'run/local': required check 'review' binds
+  ready    base branch 'run/local': required check 'checks' binds
+  ready    CLAUDE_CODE_OAUTH_TOKEN is set (review gate can run)
+  ready    merge identity: GitHub App configured (a login that is not the owner's)
+  note     template reads are minted from this App — it must be installed on the TEMPLATE repository too, or template/ branches fail template-sync closed
+  ready    CODEOWNERS resolves cleanly (at run/local)
+  ready    docs/VISION.md is filled in
+  ready    no pull request is open against 'run/local' — the run starts on a clear base
+  ready    no leftover worktrees — no dead run's debris in the way
+
+unattended-ready: this repository can run unattended.
+deliver-loop: budget: weekly at 10% (model 9%), allowance 20 points, window resets Aug 27, 11am (Europe/Amsterdam)
+deliver-loop: budget: weekly at 10% (model 9%), spent 0 of 20 points on the per-model weekly limit
+deliver-loop: iteration 1: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-8)
+deliver-loop: the worker's work is on 'docs/oracle-plan-description-signal', not 'worker/steward-od-8' — pushing what it reported
+remote: 
+remote: Create a pull request for 'docs/oracle-plan-od-8--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-plan-od-8--run-local        
+remote: 
+deliver-loop: budget: weekly at 11% (model 9%), spent 1 of 20 points on the weekly limit
+deliver-loop: iteration 2: phase WAIT
+deliver-loop: waiting on PR #121 (docs/oracle-plan-od-8--run-local) — mechanical watch, no model budget
+deliver-loop: PR #121 merged
+deliver-loop: budget: weekly at 11% (model 10%), spent 1 of 20 points on the per-model weekly limit
+deliver-loop: iteration 3: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-9)
+deliver-loop: the worker's work is on 'docs/oracle-plan-refuse-on-missing-artifact', not 'worker/steward-od-9' — pushing what it reported
+remote: 
+remote: Create a pull request for 'docs/oracle-plan-od-9--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-plan-od-9--run-local        
+remote: 
+deliver-loop: budget: weekly at 12% (model 10%), spent 2 of 20 points on the weekly limit
+deliver-loop: iteration 4: phase WAIT
+deliver-loop: waiting on PR #122 (docs/oracle-plan-od-9--run-local) — mechanical watch, no model budget
+deliver-loop: PR #122 merged
+deliver-loop: budget: weekly at 12% (model 10%), spent 2 of 20 points on the weekly limit
+deliver-loop: iteration 5: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-10)
+deliver-loop: the worker's work is on 'docs/oracle-plan-subcommand-flag-forwarding', not 'worker/steward-od-10' — pushing what it reported
+remote: 
+remote: Create a pull request for 'docs/oracle-plan-od-10--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-plan-od-10--run-local        
+remote: 
+deliver-loop: budget: weekly at 12% (model 10%), spent 2 of 20 points on the weekly limit
+deliver-loop: iteration 6: phase WAIT
+deliver-loop: waiting on PR #123 (docs/oracle-plan-od-10--run-local) — mechanical watch, no model budget
+deliver-loop: PR #123 merged
+deliver-loop: budget: weekly at 12% (model 10%), spent 2 of 20 points on the weekly limit
+deliver-loop: iteration 7: phase ORACLE
+deliver-loop: dispatch oracle worker (oracle-20260820120730)
+remote: 
+remote: Create a pull request for 'docs/oracle-20260820120730--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-20260820120730--run-local        
+remote: 
+deliver-loop: budget: weekly at 13% (model 11%), spent 3 of 20 points on the weekly limit
+deliver-loop: iteration 8: phase WAIT
+deliver-loop: waiting on PR #124 (docs/oracle-20260820120730--run-local) — mechanical watch, no model budget
+deliver-loop: PR #124 merged
+deliver-loop: budget: weekly at 13% (model 11%), spent 3 of 20 points on the weekly limit
+deliver-loop: iteration 9: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-11)
+remote: 
+remote: Create a pull request for 'docs/oracle-plan-od-11--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-plan-od-11--run-local        
+remote: 
+deliver-loop: budget: weekly at 13% (model 11%), spent 3 of 20 points on the weekly limit
+deliver-loop: iteration 10: phase WAIT
+deliver-loop: waiting on PR #125 (docs/oracle-plan-od-11--run-local) — mechanical watch, no model budget
+deliver-loop: PR #125 merged
+deliver-loop: budget: weekly at 13% (model 11%), spent 3 of 20 points on the weekly limit
+deliver-loop: iteration 11: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-13)
+remote: 
+remote: Create a pull request for 'docs/oracle-plan-od-13--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-plan-od-13--run-local        
+remote: 
+deliver-loop: budget: weekly at 14% (model 11%), spent 4 of 20 points on the weekly limit
+deliver-loop: iteration 12: phase WAIT
+deliver-loop: waiting on PR #126 (docs/oracle-plan-od-13--run-local) — mechanical watch, no model budget
+deliver-loop: PR #126 merged
+deliver-loop: budget: weekly at 14% (model 11%), spent 4 of 20 points on the weekly limit
+deliver-loop: iteration 13: phase ORACLE
+deliver-loop: dispatch oracle worker (oracle-20260820124249)
+remote: 
+remote: Create a pull request for 'docs/oracle-20260820124249--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-20260820124249--run-local        
+remote: 
+deliver-loop: budget: weekly at 15% (model 12%), spent 5 of 20 points on the weekly limit
+deliver-loop: iteration 14: phase WAIT
+deliver-loop: waiting on PR #128 (docs/oracle-20260820124249--run-local) — mechanical watch, no model budget
+deliver-loop: PR #128 merged
+deliver-loop: budget: weekly at 15% (model 12%), spent 5 of 20 points on the weekly limit
+deliver-loop: iteration 15: phase STEWARD
+deliver-loop: dispatch steward worker (steward-od-5)
+deliver-loop: the worker's work is on 'docs/bl-22-superseded-decision-dispatch', not 'worker/steward-od-5' — pushing what it reported
+remote: 
+remote: Create a pull request for 'docs/oracle-plan-od-5--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-plan-od-5--run-local        
+remote: 
+deliver-loop: budget: weekly at 15% (model 12%), spent 5 of 20 points on the weekly limit
+deliver-loop: iteration 16: phase WAIT
+deliver-loop: waiting on PR #129 (docs/oracle-plan-od-5--run-local) — mechanical watch, no model budget
+deliver-loop: PR #129 merged
+deliver-loop: budget: weekly at 15% (model 12%), spent 5 of 20 points on the weekly limit
+deliver-loop: iteration 17: phase ORACLE
+deliver-loop: dispatch oracle worker (oracle-20260820125535)
+remote: 
+remote: Create a pull request for 'docs/oracle-20260820125535--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-20260820125535--run-local        
+remote: 
+deliver-loop: budget: weekly at 16% (model 13%), spent 6 of 20 points on the weekly limit
+deliver-loop: iteration 18: phase WAIT
+deliver-loop: waiting on PR #132 (docs/oracle-20260820125535--run-local) — mechanical watch, no model budget
+deliver-loop: PR #132 merged
+deliver-loop: pull --ff-only failed; continuing on the local tree
+deliver-loop: budget: weekly at 16% (model 13%), spent 6 of 20 points on the weekly limit
+deliver-loop: iteration 19: phase WAIT
+deliver-loop: waiting on PR #131 (docs/bl-23-stage-b) — mechanical watch, no model budget
+deliver-loop: PR #131 merged
+deliver-loop: budget: weekly at 16% (model 14%), spent 6 of 20 points on the weekly limit
+deliver-loop: iteration 20: phase ORACLE
+deliver-loop: dispatch oracle worker (oracle-20260820130552)
+deliver-loop: the worker's work is on 'worker/oracle-20260820130552b', not 'worker/oracle-20260820130552' — pushing what it reported
+remote: 
+remote: Create a pull request for 'docs/oracle-20260820130552--run-local' on GitHub by visiting:        
+remote:      https://github.com/GrimsVerk/find_best_mobo/pull/new/docs/oracle-20260820130552--run-local        
+remote: 
+deliver-loop: owner edited the design layer — re-deriving everything, resetting failure counters
+deliver-loop: budget: weekly at 18% (model 17%), spent 8 of 20 points on the per-model weekly limit
+deliver-loop: iteration 21: phase WAIT
+deliver-loop: waiting on PR #135 (docs/oracle-20260820130552--run-local) — mechanical watch, no model budget
+deliver-loop: PR #135 merged
+deliver-loop: pull --ff-only failed; continuing on the local tree
+deliver-loop: budget: weekly at 18% (model 17%), spent 8 of 20 points on the per-model weekly limit
+deliver-loop: iteration 22: phase WAIT
+deliver-loop: waiting on PR #133 (docs/r26-fifteen-percent) — mechanical watch, no model budget
+deliver-loop: PR #133 red (plan ) — dispatching a fix
+deliver-loop: dispatch fix session
+deliver-loop: pull --ff-only failed; continuing on the local tree
+deliver-loop: budget: weekly at 19% (model 18%), spent 9 of 20 points on the per-model weekly limit
+deliver-loop: iteration 23: phase WAIT
+deliver-loop: waiting on PR #133 (docs/r26-fifteen-percent) — mechanical watch, no model budget
+deliver-loop: PR #133 red (plan review ) — dispatching a fix
+deliver-loop: dispatch fix session
+deliver-loop: pull --ff-only failed; continuing on the local tree
+deliver-loop: owner edited the design layer — re-deriving everything, resetting failure counters
+deliver-loop: budget: weekly at 20% (model 18%), spent 10 of 20 points on the weekly limit
+deliver-loop: iteration 24: phase WAIT
+deliver-loop: waiting on PR #133 (docs/r26-fifteen-percent) — mechanical watch, no model budget
+deliver-loop: PR #133 red (plan review ) — dispatching a fix
+deliver-loop: dispatch fix session
+deliver-loop: pull --ff-only failed; continuing on the local tree
+deliver-loop: budget: weekly at 20% (model 19%), spent 10 of 20 points on the per-model weekly limit
+deliver-loop: iteration 25: phase WAIT
+deliver-loop: waiting on PR #133 (docs/r26-fifteen-percent) — mechanical watch, no model budget
+deliver-loop: PR #133 red (plan review ) — dispatching a fix
+deliver-loop: dispatch fix session
+deliver-loop: pull --ff-only failed; continuing on the local tree
+deliver-loop: budget: weekly at 21% (model 19%), spent 11 of 20 points on the weekly limit
+deliver-loop: iteration 26: phase WAIT
+deliver-loop: waiting on PR #133 (docs/r26-fifteen-percent) — mechanical watch, no model budget
+deliver-loop: the same checks failed three times on docs/r26-fifteen-percent (plan review ) — stopping (deliver.md step 5)
+deliver-loop: landing this run's evidence in docs/runs/20260820T112543Z ...
+deliver-loop: collect-evidence: 10 worker log(s) into docs/runs/20260820T112543Z/workers.
+deliver-loop: collect-evidence: 10 review(s) into docs/runs/20260820T112543Z/reviews (78 skipped).
