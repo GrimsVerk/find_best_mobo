@@ -617,6 +617,45 @@ re-raised. Five pull requests, five merges, no repeats. **This is progress, not
 thrash**, and the queue shrinking is the mechanical evidence for it rather than
 an impression.
 
+### F18 — ESC-76 refuses on a LIVE worker's worktree and calls it a dead run's debris; its own remedy would destroy the work
+- Where: `.github/scripts/unattended-ready.sh` (v0.4.42), the leftover-worktree
+  refusal; hit at 2026-08-20T11:34:46Z
+- What happened: the fallback check-in fired and, as the check-in's own
+  instructions require, readiness was re-run mid-run. It **REFUSED**:
+  ```
+  MISSING  leftover worktrees under .worktrees/ (steward-od-7) — a previous run
+           died mid-dispatch and the driver refuses to start on them. READ THEM
+           FIRST [...] Then 'git worktree remove' each, or 'git worktree prune'
+           if the directories are already gone
+  ```
+  At that exact moment the OD-7 steward was **alive and working**, not dead:
+  five `claude` processes running, the worktree's newest file written at 11:33,
+  and it had already committed `94a77dd Plan OD-7: a chipset's ITX variant
+  counts as the chipset`. It finished normally ~40 seconds later and produced a
+  290-line plan.
+- Expected: the check cannot distinguish a **running** worker's worktree from a
+  **dead** run's debris. It asserts the dead reading as fact — "a previous run
+  died mid-dispatch" — and prescribes `git worktree remove`. A driver that
+  followed the message literally at that moment would have deleted a plan while
+  it was being written. That is the precise loss the same message warns about
+  two clauses later ("one can hold a worker's finished but unpushed work"), and
+  ESC-76's own comment cites a real case: "a real plan was salvaged from one as
+  a 562-line patch".
+- Why this bites specifically here: the fallback check-in tells the driver to
+  **re-verify readiness on every wake**, and a wake can land while a worker is
+  mid-dispatch. Round 4's earlier run (F16) missed this only because the drill
+  cleared the lane first; run readiness at any other moment and the false
+  positive is easy to hit.
+- What the driver did instead: read the worktree before believing the message —
+  `ps`, file mtimes, and `git -C .worktrees/steward-od-7 log` — established it
+  was live, let it finish, pushed its work, and only then removed the worktree.
+  The refusal was correctly ignored on evidence, not on convenience.
+- Suggested ratchet: refuse only on a worktree with **no live process and no
+  unpushed commits**, or have `spawn-worker.sh` mark a worktree in-flight (a
+  lock file removed on exit) and have readiness report "worker running" rather
+  than "a previous run died".
+- Severity: bug
+
 ---
 
 ## ROUND 4 — update to v0.4.42, and a stop pending on the owner
@@ -778,4 +817,6 @@ still running and was stopped first; it had committed nothing.
 | ESC-75 a stop never reported as success | **Partially** — the ESC-72 refusal was reported as a refusal, exit 1, not as success. |
 | ESC-76 readiness refusing on leftover worktrees | **No** — see F16; the drill clears the lane before readiness runs, so only the green branch was seen. |
 | ESC-77 removal of two inert tool grants | **No** — nothing observable from the driver's side. |
-
+| 11:34:46Z | 1 | STEWARD | Fallback check-in fired with stale bookkeeping (it still named v0.4.41 and PR #108). Re-entered the loop on **current** state rather than the check-in's numbers. Readiness **REFUSED** on a live worker's worktree — **F18**, a real defect in one of the five fixes this round was sent to exercise. |
+| 11:35Z | 1 | STEWARD | Worker finished: **ESC-68 fired a third time** — work relocated to `docs/plan-itx-chipset-variant`, reported honestly. Plan `docs/plans/oracle/itx-chipset-variant.md`, slug `itx-chipset-variant`, `covers: [R1003]`, +290 lines, plus a `BL-<n>` filing in `docs/BACKLOG.md`. Evidence quoted: a real 33-minute review of the MSI MPG B850I Edge TI matched `B850` **zero times**, because the matcher's right boundary refuses `b850` inside `b850i`. Contamination probe: clean. No slug collision (`itx-chipset-variant` against the seven existing slugs). |
+| 11:35:38Z | 1 | STEWARD | Pushed as `docs/oracle-plan-od-7--run-web`. Worktree removed only **after** the work was pushed. Counters: **7 of 30 pull requests, 11 of 60 iterations**. |
