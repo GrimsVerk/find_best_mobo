@@ -126,3 +126,19 @@ Times are UTC.
   that opens pull requests as whoever happens to be logged in. The script needs
   the `.pr-request.json` path, or a flag that selects it.
 - Severity: bug
+
+---
+
+## Driver run
+
+Run timestamp: `20260820T085011Z`. Run start: 2026-08-20T08:50:11Z.
+Limits, given by the owner in advance: **30 pull requests, 12 wall-clock hours,
+60 iterations**. Wall-clock deadline 2026-08-20T20:50:11Z.
+Steering SHAs at run start: `docs/DESIGN.md` 00a8a21f, `docs/VISION.md` 89ef09ec.
+
+| Time | Iteration | PHASE | Detail |
+| --- | --- | --- | --- |
+| 08:50:11Z | preflight | - | Credential: App mint **failed** (rc 3, "the App identity is not set up yet", no `.claude/app-identity`); `gh api user` **succeeds** and returns `GrimsVerk (type: User)`. This is exactly the ESC-50 shape the command file predicts, so the ambient owner credential drives and every pull request must go through `.pr-request.json` + `open-pr.yml`. |
+| 08:50:11Z | preflight | - | `coverage.sh` rc **1** (not the run-ending rc 2): 18/36 requirements covered, 18 unplanned (R8-R16, R19, R26, R27, R1002-R1007). Adequacy note: R25 and R28 are claimed by a plan but named by none of its slices. |
+| 08:50:11Z | preflight | - | `budget-probe.sh` rc 3: "no usage source is reachable here... The driver will ask you for explicit limits instead of inventing one — that is the design, not a degradation." **Correct behaviour** per anvil rule 8; recorded positively, not as a finding. |
+| 08:52Z | 1 | ORACLE | `PHASE=ORACLE BASE=run/web REASON=evidence UNCITED=BL-14`. Dispatched one oracle worker via `spawn-worker.sh --role oracle --engine claude --base run/web`. |
