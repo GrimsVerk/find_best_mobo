@@ -20,6 +20,7 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T10:29:05Z | RESTART/CLEANUP | driver refused on 3 leftover worktrees; 1 stranded commit salvaged; cleaned |
 | 2026-08-20T10:27:31Z | RESTART/UPDATE | v0.4.39 -> v0.4.41 via update-from-template.sh --base run/local; 5 files, 0 conflicts |
 | 2026-08-20T10:27:31Z | RESTART/READY | both lanes at v0.4.41 and gated; readiness exit 0 incl. the ESC-72 clear-base line |
 | 2026-08-20T09:36:06Z | RESTART/UPDATE | v0.4.37 -> v0.4.39, 7 files, 0 conflicts, 0 .rej; F1/F10/F13/F14 fixes verified present |
@@ -594,4 +595,45 @@ Second restart, ordered by the owner. Findings F1-F18 stand as written.
 - This is Part 3's closing action 1, satisfied on the template-update pull
   requests rather than on an acceptance one.
 - **Severity:** none — first live observation.
+
+### F24 — the driver refused to start on leftover worktrees, correctly, and nothing said to clean them
+- **Where:** restart, driver start
+- **What happened:** the first start attempt refused outright:
+
+  ```
+  deliver-loop: leftover worktrees under .worktrees/ — a previous run did not
+  finish assembling; inspect and remove them first
+  ```
+
+  Three worktrees survived the v0.4.37 run being killed:
+  `oracle-20260820085541`, `oracle-20260820090923`, `steward-od-6`.
+- **The refusal is right and the message is right** — it says what is wrong,
+  where, and what to do. No finding against it. Recorded for two other reasons.
+- **First: the readiness check does not know about it.**
+  `RUN_BASE=run/local .github/scripts/unattended-ready.sh` returned **exit 0,
+  every line ready**, minutes before the driver refused to start. Readiness is
+  the step the plan puts immediately before "start your driver", and it passes a
+  repository the driver will not run in. ESC-72 just added a clear-base check to
+  exactly this script for exactly this class of problem — a precondition the
+  driver enforces that readiness cannot see. Leftover worktrees belong in the
+  same list.
+  **Severity: bug** — a green readiness check that is not a green light.
+- **Second: one worktree held unmerged work.** `worker/steward-od-6` carried a
+  commit that is on no other branch —
+  `35cceee Plan OD-6 and OD-15: caption-split aliases match within a cue,
+  cross-cue splits are counted`. The steward wrote a real plan on its last
+  dispatch before the run was killed; it never reached a pull request. The two
+  oracle worktrees held nothing unmerged (0 commits each), and `BL-16` — the
+  uncertainty the steward filed during the livelock — **did** land on the lane
+  base, so that part was not lost.
+- **Secured before cleanup**, per the stop rule: the commit is saved as
+  `docs/runs/operator/salvage/steward-od-6-stranded-plan.patch` on this ledger
+  branch, 562 lines, and can be replayed with `git am`. The branch was then
+  deleted so the restarted run cannot collide with a `worker/steward-od-6` name
+  it will create itself.
+- **Not a `TEMPLATE SELF-RECORDING FAILURE`.** The template's evidence trap had
+  already landed the run report, reviews and worker logs (F16); this commit is
+  work-in-flight at the moment of the kill, which the trap does not claim to
+  capture. Salvaged by hand because it was real work, not because a promise
+  broke.
 

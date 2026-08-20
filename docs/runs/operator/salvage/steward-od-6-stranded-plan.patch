@@ -1,0 +1,562 @@
+From 35cceee4286146f17da66d24791620a2df5c4abd Mon Sep 17 00:00:00 2001
+From: GrimsVerk <github@grimsverk.com>
+Date: Thu, 20 Aug 2026 11:27:05 +0200
+Subject: [PATCH] Plan OD-6 and OD-15: caption-split aliases match within a
+ cue, cross-cue splits are counted
+
+Files BL-17: the cross-cue counter's arithmetic at a boundary normalization fuses (LOW, proceeded on the default).
+---
+ docs/BACKLOG.md                            |  17 +
+ docs/plans/oracle/caption-split-aliases.md | 515 +++++++++++++++++++++
+ 2 files changed, 532 insertions(+)
+ create mode 100644 docs/plans/oracle/caption-split-aliases.md
+
+diff --git a/docs/BACKLOG.md b/docs/BACKLOG.md
+index 438cf67..04bc8e3 100644
+--- a/docs/BACKLOG.md
++++ b/docs/BACKLOG.md
+@@ -313,3 +313,20 @@ _why that class, and `— filed by: plan`.)_
+   expensive to reverse. Ruling this way or that also decides whether OD-6 needs
+   a fourth slice. — filed by: steward (OD-6 plan; the same question the closed
+   PR #85 draft self-ruled on, preserved at `docs/oracle/od-6-plan-draft.md`)
++- **BL-17** — What does R1010's cross-cue counter count when joining two cues
++  *changes* a match instead of creating one? R1010 describes the case twice —
++  "matches that exist only in the normalized concatenation of adjacent cues"
++  and "a match that starts in one cue's text and ends in the next's" — and the
++  two agree everywhere except one shape: a cue ending `...b650` followed by one
++  beginning `e board` joins to `b650e board`, turning one B650 mention into one
++  B650E mention. The first reading counts 0 (no mention was lost), the second
++  counts 1. Offsets cannot arbitrate, because normalization fuses the boundary
++  and leaves no boundary position in the joined text to test a span against.
++  Proposed default: the first reading, as **mentions lost** — per adjacent
++  pair, matches in the joined normalized text minus matches in each cue's own
++  normalized text, floored at zero, summed over pairs. **LOW**: the signature
++  is `-> int` either way, the slice boundary is unchanged, the number is a
++  diagnostic that gates nothing, and reversing it is an edit inside one
++  function. Proceeded on the default; the plan
++  `docs/plans/oracle/caption-split-aliases.md` records it as such.
++  — filed by: steward (OD-6/OD-15 plan)
+diff --git a/docs/plans/oracle/caption-split-aliases.md b/docs/plans/oracle/caption-split-aliases.md
+new file mode 100644
+index 0000000..edb4519
+--- /dev/null
++++ b/docs/plans/oracle/caption-split-aliases.md
+@@ -0,0 +1,515 @@
++---
++slug: caption-split-aliases
++status: draft
++created: 2026-08-20
++design: MVP — Corpus and the cost checkpoint (no inference)
++covers: [R1002, R1010]
++---
++
++# A caption-split alias still matches, within one cue — Plan
++
++Implements **OD-6** (`docs/DESIGN.oracle.md`), which adds **R1002** from the
++evidence in **BL-8**, together with **OD-15**, which adds **R1010** from the
++evidence in **BL-16** and fixes the text R1002's rule runs over. Measured
++offline against the shipped table, `toma hawk`, `aor us master` and
++`air us elite` matched nothing at all — three boards invisible in the corpus
++every later stage is built from. OD-15 then scoped the rule to one cue's text
++and required the scoped-out case to be counted rather than lost.
++
++This plan is re-cut from the draft preserved at `docs/oracle/od-6-plan-draft.md`
++(closed PR #85), used as raw material and not as authority, per that file's own
++header and the 2026-08-20 run-2 handoff.
++
++## Summary
++
++Three mechanical changes to the space the matcher works in, a counter for the
++case the rule deliberately does not reach, and BL-8's variant set as a fixture.
++
++- **The hyphen stops being a kept character.** `normalize` folds it to a space,
++  so `steel-legend` meets the table's `steel legend`. Two shipped `normalize`
++  tests assert the retired rule and are rewritten. Only hyphens fold.
++- **Each surface form compiles to a split-tolerant pattern** — an optional space
++  between adjacent characters inside a word, a *required* space where the form
++  itself has one. `tomahawk` matches `toma hawk`, `aorus master` matches
++  `aor us master`. Still one pattern, longest form first, so R22 and R23 hold.
++- **A fused token is never matched into.** `b650` is not found in `theb650` and
++  `aorus master` does not match `aorusmaster`. Pinned as negative cases.
++- **The rule runs over one cue at a time (R1010).** `find_mentions` keeps its
++  shape and its `start_seconds`. A split across a cue boundary yields **no**
++  mention — and is counted: `select`'s report gains a per-run line, zero
++  included, for matches that exist only in the join of two adjacent cues.
++- **That counter costs the owner one thing:** `data/selected.jsonl` gains a key
++  (`Selection` and `ThresholdReport` each gain an integer), and a file written
++  before this plan is refused with "re-run `select`" rather than read as zero.
++- **The table gains `airus elite` and `airus master`, and loses `pro-rs`** —
++  `air us` for `aorus` is a mishearing no join recovers, and `pro-rs` folds onto
++  the `pro rs` beside it once slice 1 lands.
++- **The 52-variant set is reconstructed, not recovered.** BL-8's list was never
++  committed; the fixture rebuilds 52 from the shipped table by BL-8's own damage
++  classes, its three failures verbatim, and says in the file that it is one.
++- **Not done here:** OD-7/R1003's ITX rule, cross-cue *matching* (counted only,
++  per OD-15), OD-11/R1007's move of the table, separators beyond the hyphen.
++
++Four slices, ~710 lines, **sequential**; no new dependency, no gate change, and
++nothing here touches the network. Three uncertainties, all LOW, all proceeded
++on; one is filed as **BL-17**.
++
++**What I need you to rule on:**
++
++1. **The reconstructed 52.** R1002 asks for BL-8's set by that number and the
++   set is not in the repository. If a fixture of the observed failures alone is
++   honester, slice 4 shrinks to those.
++2. **The counter's arithmetic at a fused boundary** — filed as BL-17, built on
++   the default below. It moves a diagnostic, nothing that gates.
++3. **Merge order.** OD-7 (R1003) edits the same matcher and OD-11 (R1007) moves
++   the same table file; whichever lands second carries the rebase.
++
++## Uncertainties
++
++Three, all **LOW**, all proceeded on and recorded here. One (the counter's
++arithmetic) is new to this plan and is filed as **BL-17** under "Uncertainties
++awaiting oracle ruling" in `docs/BACKLOG.md`, in this same commit. Two are
++restated from the preserved draft: the 2026-08-20 run-2 handoff records that
++this oracle read both defaults and found them sound, and directed that they
++travel in the plan without `BL-<n>` ids — so they are reviewed, not silent, and
++filing them again would ask for a ruling that was already given.
++
++- **Q:** What exactly does the cross-cue counter count when the join *changes*
++  an existing match rather than creating one? R1010 describes the case two ways
++  — "matches that exist only in the normalized concatenation of adjacent cues"
++  and "a match that starts in one cue's text and ends in the next's" — which
++  agree everywhere except one shape: a cue ending `...b650` followed by one
++  beginning `e board`, where the join normalizes to `b650e board` and turns one
++  B650 mention into one B650E mention. The first reading counts 0 (no mention
++  was lost), the second counts 1. Offsets cannot arbitrate: normalization fuses
++  the boundary, so there is no boundary position left in the joined text to test
++  a span against. — **risk:** LOW — the signature is `-> int` either way, the
++  slice boundary is the same, the number is a diagnostic that gates nothing, and
++  reversing it is an edit inside one function. — **proposed:** the first
++  reading, as **mentions lost**: per adjacent pair, matches in the joined
++  normalized text minus matches in each cue's own normalized text, floored at
++  zero. It is computable, it is what "what this ruling scoped out" means, and it
++  makes a nonzero count directly comparable with the mentions that were emitted.
++  **Ruling:** proceeded on the default (LOW); filed as **BL-17**.
++- **Q:** What are BL-8's 52 variants? The backlog entry records the count, the
++  three failures and the damage classes, not the list; nothing in the tree, the
++  journal or `docs/runs/` holds it. — **risk:** LOW — fixture content; no
++  signature, slice boundary or external format turns on it. — **proposed:**
++  reconstruct 52 from the shipped table's own canonicals across BL-8's damage
++  classes, with the named failures verbatim, and say in the fixture that it is a
++  reconstruction.
++  **Ruling:** proceeded on the default (LOW); endorsed in
++  `docs/oracle/handoff-2026-08-20-2.md`, left for the owner's review. Two facts
++  the owner should see: BL-8's arithmetic (49 matched + 3 failures = 52) does
++  not leave room for the hyphenated `steel-legend` it also reports failing, and
++  the reconstruction has five failing variants, not three.
++- **Q:** Does the table gain `airus master` as well as the observed
++  `airus elite`? R1002 says the table gains "the observed spoken forms", and
++  only the Elite spelling was heard. — **risk:** LOW — one line of data, and
++  deleting the line is the whole reversal. — **proposed:** add it. The
++  mishearing is of `aorus`, the token both family names share, so a table that
++  recovers the Elite and not the Master is inconsistent in a way nothing in the
++  pipeline would ever report.
++  **Ruling:** proceeded on the default (LOW); endorsed in
++  `docs/oracle/handoff-2026-08-20-2.md`, left for the owner's review.
++
++Everything else was **derived**, and the six worth showing rather than asserting:
++
++- **The text the rule runs over.** R1010 settles it: within one cue's normalized
++  text, never across a boundary. This was the HIGH question that stopped the
++  draft; it is answered, so `find_mentions` keeps its one-cue-at-a-time shape
++  and no timestamp question arises — `start_seconds` is always the containing
++  cue's start, which is what R5 cuts windows from and R14 links to.
++- **The required-space reading.** R1002 says "every space inside the alias
++  aligns with a token boundary", which is a *required* boundary, not a tolerated
++  one — otherwise `aorusmaster` would match and the rule would have no floor.
++- **The hyphen-only fold.** R1002 names hyphens and nothing else. Widening to
++  slashes or plus signs would be a fresh reading of R3, which is the design's,
++  not this plan's.
++- **One regex per form, not a token-scanning matcher.** R22 (a channel's worth
++  of captions, one pass) and R23 (byte-identical reruns) both point at the
++  single compiled pattern the built system already has; a rewrite would put both
++  properties back in play for no requirement's benefit.
++- **Where the counter lives.** R1010 asks for a per-run count in the selection
++  report, and R22 forbids holding the corpus in memory — so the count is taken
++  per video, while its transcript is in hand, and summed in
++  `threshold_report`. Persisting it in `selected.jsonl` is then forced rather
++  than chosen: `write_selected`/`read_selected` are contracted to round-trip a
++  `Selection` exactly (`tests/test_select.py`), so a field that did not survive
++  the write would break an existing test.
++- **A stale `selected.jsonl` is an error, not a zero.** R1005 (OD-9) settles the
++  shape: absence and emptiness are different facts and must read differently, and
++  the number the checkpoint is spent against must never quietly understate. A
++  record with no `cross_cue_splits` key is refused, naming the file and the
++  command that rewrites it.
++- **The table's path stays `data/aliases.toml`.** OD-11/R1007 moves it and says
++  the migration is one change of its own — the file and its config default
++  together — so this plan edits the table where it lives and the move carries
++  this content along.
++
++## The work, sliced
++
++Four slices, and they are **sequential**: slice 2's join rule is stated over the
++space slice 1 produces, slice 3's counter is defined in terms of slice 2's
++matcher, and slice 4's variant set is green only once all three have landed.
++They share files for that reason, which is safe because none of them runs
++beside another.
++
++## Slice 1 — A hyphen no longer hides a family name
++
++- **Delivers:** `steel-legend` in a caption or a title matches the table's
++  `Steel Legend`, and `x670e-plus` still matches `X670E`. Observable in
++  `find-best-mobo aliases --check`, where the hyphenated spelling appears in a
++  canonical's `forms:` list instead of being absent. Covers R1002 in part.
++- **Files:** `src/find_best_mobo/normalize.py`, `tests/test_normalize.py`, `tests/test_aliases.py`, `docs/architecture.md`
++- **Estimate:** ~70 lines
++
++### Signatures
++
++```python
++def normalize(text: str) -> str: ...
++```
++
++Unchanged, and deliberately: this is a behaviour change inside a pure function
++every caller already routes through. Nothing else in the module is public, and
++per **OD-12** there is no shared type to place — `src/find_best_mobo/normalize.py`
++defines none and this slice adds none.
++
++### Behaviour the signature cannot carry
++
++- **A hyphen becomes a space** during cleaning, before the joining pass —
++  `normalize("steel-legend") == "steel legend"`, `normalize("The X670E-PLUS
++  board") == "the x670e plus board"`.
++- **The joining rule is unaffected.** `x-670-e` still folds to `x670e`: the
++  hyphen was already a member of `_SEPARATORS`, so a gap that joined before
++  joins now. `_SEPARATORS` collapses to a single space and may be simplified or
++  removed at the coder's discretion, provided the fold cases here hold.
++- **`normalize` stays pure, total and idempotent.** `normalize("")` is `""`, it
++  never raises, and `normalize(normalize(t)) == normalize(t)` — the existing
++  property tests hold unchanged, which is the reason to state it.
++- **The two tests that assert the retired rule are rewritten**, not deleted:
++  `test_hyphen_survives_as_a_character` and
++  `test_hyphenated_model_name_is_left_intact` become the assertions above, and
++  the commit message says why (`AGENTS.md`, the blind-tests rule — editing a
++  test is allowed and must be visible).
++- **`tests/test_aliases.py` is listed only as a contingency.** The hyphen cases
++  there (`the b650e-plus board`, the `X870E-Nova` surface form) normalize on
++  both sides and are expected to pass untouched; if one does not, correcting it
++  belongs to this slice with the reason stated.
++- **`docs/architecture.md`** loses the claim that normalization keeps hyphens —
++  the module's own docstring states it twice and the Components table's
++  normalization row implies it — citing OD-6.
++
++## Slice 2 — A name the captions split in half is still one name
++
++- **Delivers:** `mag tomahawk` matches `the mag toma hawk vrm`, `aorus master`
++  matches `aor us master`, and `b650` still finds nothing in `theb650`. The
++  `aliases --check` report shows the split spelling as the form that fired, and
++  R4's selection counts move for every video whose only mentions were split.
++  Covers R1002.
++- **Files:** `src/find_best_mobo/aliases.py`, `tests/test_aliases.py`, `docs/architecture.md`
++- **Estimate:** ~230 lines
++
++### Signatures
++
++```python
++def alias_pattern(form: str) -> str: ...
++def compile_matcher(aliases: Sequence[Alias]) -> re.Pattern[str]: ...
++```
++
++`alias_pattern` is new and public, in `src/find_best_mobo/aliases.py` alongside
++`compile_matcher`, so the rule has a unit the tests can reach without asserting
++on the shape of the whole table's pattern. `load_aliases`, `find_mentions` and
++`find_title_hits` keep the signatures they have.
++
++Per **OD-12**, the module of every shared type this slice touches, none of which
++changes shape: `Alias` and `Mention` in `src/find_best_mobo/aliases.py`;
++`Transcript` and `Cue` in `src/find_best_mobo/transcripts.py`; `Video` in
++`src/find_best_mobo/index.py`.
++
++### Behaviour the signatures cannot carry
++
++- **`alias_pattern` takes an already-normalized form** and returns regex source
++  for it — no group wrapper and no lookarounds, both of which stay
++  `compile_matcher`'s. Between every pair of adjacent characters inside one word
++  of the form it emits an optional single space; where the form itself has a
++  space it emits a required single space. Every literal character goes through
++  `re.escape`, and no quantifier is nested inside another, so matching stays
++  linear.
++- **`alias_pattern("")` raises `ValueError`.** `compile_matcher` already drops
++  forms that normalize to empty, so it is unreachable from there; an empty
++  pattern would match at every position, which is the failure worth naming.
++- **Tests exercise it by compiling and matching, never by string equality with
++  the regex source.** The source is an implementation detail; the language it
++  accepts is the contract.
++- **What must match**, over normalized text: `toma hawk` → `MAG Tomahawk`;
++  `aor us master` → `Aorus Master`; `tom a hawk` → `MAG Tomahawk` (a split may
++  fall anywhere); `steel leg end` → `Steel Legend` (the alias's space lands on
++  the boundary between `steel` and `leg`); and every form that matched before,
++  unchanged.
++- **What must not match:** `theb650` and `xb650e` (the alias would start inside
++  a token); `b650ex` and `x870ese` (it would end inside one); `aorusmaster` and
++  `steellegend` (the alias's own space has no boundary to land on); `verb 650`
++  (`b650` would start mid-token). These are R1002's "never a proper substring of
++  a fused token", and they are what makes the rule safe rather than merely wide.
++- **Longest-form-first is unchanged**, and still sorts on the length of the
++  *normalized form*, not of its pattern — a stable sort on negated length, file
++  order among equals. `mag tomahawk` therefore still wins over `tomahawk` at the
++  same position, and the compiled pattern stays byte-identical for a given table
++  (R23).
++- **`matched_form` stays `match.group(0)`** — the text as the caption spelled
++  it, so `aliases --check` reports `toma hawk` as the spelling that did the
++  work. That report is R1002's stated measurement; it measures nothing unless
++  the split form survives into it.
++- **Global de-duplication is unchanged.** Two canonicals claiming one normalized
++  form still resolve to the first declared, and the loser still surfaces as a
++  zero-match canonical in the report.
++- **A form's own spaces are single spaces.** Normalized text has no runs and no
++  tabs, so the pattern needs no `+` and gains none — one more thing that cannot
++  drift between two runs.
++- **`docs/architecture.md`**'s "Inspecting the alias table" section gains the
++  join rule beside the longest-first rule, and the alias-table component row
++  says the pattern tolerates caption splits, citing OD-6.
++
++## Slice 3 — The split the rule does not reach is counted, not lost
++
++- **Delivers:** `find-best-mobo select` prints one more line — how many alias
++  matches exist only in the join of two adjacent cues and were therefore *not*
++  emitted as mentions — on every run, zero included. A name broken at a cue
++  break still produces no mention and no excerpt window, and the number saying
++  how often that happened lands in the run records under `docs/runs/` with the
++  rest of the selection report. Covers R1010.
++- **Files:** `src/find_best_mobo/aliases.py`, `src/find_best_mobo/select.py`, `src/find_best_mobo/commands/select.py`, `tests/test_aliases.py`, `tests/test_select.py`, `docs/architecture.md`
++- **Estimate:** ~210 lines
++
++### Signatures
++
++```python
++def count_cross_cue_splits(transcript: Transcript, matcher: re.Pattern[str]) -> int: ...
++
++
++@dataclass(frozen=True)
++class Selection:
++    video: Video
++    reason: str  # "title_hit" | "threshold" | "excluded_below_threshold"
++    mentions: tuple[Mention, ...]
++    distinct_canonicals: int
++    cross_cue_splits: int
++
++
++@dataclass(frozen=True)
++class ThresholdReport:
++    threshold: int
++    title_hits: int
++    threshold_passes: int
++    excluded: int
++    would_include_at_minus_one: int
++    would_exclude_at_plus_one: int
++    cross_cue_splits: int
++```
++
++Per **OD-12**: `count_cross_cue_splits` and `Mention` live in
++`src/find_best_mobo/aliases.py`; `Selection` and `ThresholdReport` in
++`src/find_best_mobo/select.py`, where they are defined today; `Transcript` and
++`Cue` in `src/find_best_mobo/transcripts.py`; `Video` in
++`src/find_best_mobo/index.py`. `select_video`, `select_all`, `threshold_report`,
++`write_selected` and `read_selected` keep the signatures they have — the new
++field travels inside the records they already carry.
++
++### Behaviour the signatures cannot carry
++
++- **The count is over adjacent pairs.** For each pair of consecutive cues
++  `(a, b)`, the joined text is `normalize(a.text + " " + b.text)` — the same
++  single-space join the excerpt cutter uses, so the two stages agree on what
++  "the cues run together" means. The pair contributes
++  `max(0, matches(joined) - matches(normalize(a.text)) - matches(normalize(b.text)))`,
++  and the video's count is the sum over its pairs. A transcript with fewer than
++  two cues counts 0. This is the LOW default filed as **BL-17**; see the
++  Uncertainties.
++- **It never emits a mention, and never changes one.** `find_mentions` is
++  untouched — same shape, same one-cue scan, same `start_seconds`. Nothing
++  downstream of the matcher sees a different mention set because of this slice;
++  the only new output is a number.
++- **It is offline and cheap.** One extra normalize-and-scan per cue boundary,
++  no network and no model spend, exactly as OD-15's rationale assumes. The
++  per-cue match counts may be reused from the work `find_mentions` already did,
++  at the implementer's discretion — the contract is the number, not how often
++  the scan runs.
++- **`select_video` fills the field** for every video, including title hits and
++  exclusions: the count is a property of the transcript, not of the decision
++  taken about it, and a video excluded below the threshold is exactly where a
++  lost mention would matter most.
++- **`threshold_report` sums it** across all selections, excluded ones included.
++  Zero selections is a report with `cross_cue_splits=0`.
++- **The printed line always prints**, including at zero, and says what it means
++  rather than only a number — that these matches were found across a cue
++  boundary and deliberately not counted as mentions, citing R1010. A silent zero
++  and an absent counter must not look alike; that is the whole reason R1010 asks
++  for it.
++- **`selected.jsonl` gains the key `cross_cue_splits`** on each record, written
++  by the same deterministic rules as the rest (sorted keys, compact separators).
++  R23's byte-identical rerun holds: the count is a pure function of the cached
++  transcript and the table.
++- **A record without the key is refused**, not defaulted: `read_selected` raises
++  `ValueError` naming the file and telling the reader to re-run
++  `find-best-mobo select`. This is R1005's rule — absence is an error, and a
++  number the checkpoint is spent against never quietly understates — applied to
++  a stale artifact rather than a missing one. `estimate` surfaces the message
++  rather than crashing on it.
++- **The distinguishing pair R1010 asks for**, in `tests/test_select.py` and
++  `tests/test_aliases.py`: a transcript whose cues break `toma` / `hawk` at the
++  boundary yields **no** mention and a count of 1, and the same text inside one
++  cue yields a mention and a count of 0. Both against the same table, so the
++  only difference is where the cue boundary falls.
++- **`docs/architecture.md`**: the "Narrowing the corpus" path gains the counter
++  as a numbered step, and "Known rough edges" gains the scoping — a name broken
++  at a cue break is not found, on purpose, and the count is how the project will
++  know whether that ever mattered — citing OD-15 and R1010.
++
++## Slice 4 — The measured recall is pinned, and a split-spelled video is selected
++
++- **Delivers:** a fixture of the 52 mangled spellings BL-8 tested, each with the
++  canonical it must reach, run against the shipped table; every one matches, the
++  `air us` mishearings because the table now carries them. And the end of the
++  path OD-6 names as its measurement: a video titled with a split form is
++  selected on its title hit, and one whose only body evidence is split spellings
++  passes the mention threshold instead of being excluded. Covers R1002.
++- **Files:** `tests/fixtures/caption_variants.json`, `tests/test_aliases.py`, `tests/test_select.py`, `data/aliases.toml`, `docs/architecture.md`
++- **Estimate:** ~200 lines
++
++### The fixture
++
++`tests/fixtures/caption_variants.json`, one object:
++
++```json
++{
++  "note": "Reconstructed from BL-8 (OD-6/R1002); see docs/plans/oracle/caption-split-aliases.md",
++  "variants": [{"text": "toma hawk", "canonical": "MAG Tomahawk", "damage": "split"}],
++  "never_match": ["theb650"]
++}
++```
++
++`damage` is one of `spacing`, `digit-split`, `hyphen`, `split`, `spelled-out`,
++`mishearing`, `plural`, `partial` — descriptive, never asserted on, and there so
++a future reader can tell which class a regression belongs to.
++
++**The 52 variants, verbatim.** Each is matched inside a carrier sentence (`the
++<text> board`) as well as bare, so a match at a text boundary and a match
++mid-sentence are both covered. `†` marks the five that fail against the shipped
++table today.
++
++Chipsets (15): `x 870 e`→X870E, `x870 e`→X870E, `x-870-e`→X870E,
++`x 8 70 e`→X870E, `x 870`→X870, `b 850`→B850, `b 840`→B840, `x 670 e`→X670E,
++`x 6 70 e`→X670E, `670 e`→X670E, `x 670`→X670, `b 650 e`→B650E,
++`b650 e`→B650E, `b 650`→B650, `a 620`→A620.
++
++Vendors (10): `as rock`→ASRock, `az rock`→ASRock, `ass rock`→ASRock,
++`as-rock`†→ASRock, `a sus`→ASUS, `assus`→ASUS, `giga byte`→Gigabyte,
++`m s i`→MSI, `em es eye`→MSI, `bio star`→Biostar.
++
++Families (22): `tai chi`→Taichi, `ty chi`→Taichi, `steel legends`→Steel Legend,
++`steal legend`→Steel Legend, `steel-legend`†→Steel Legend,
++`cross hair`→ROG Crosshair, `r o g crosshair`→ROG Crosshair, `stryx`→ROG Strix,
++`r o g strix`→ROG Strix, `tough gaming`→TUF Gaming, `orus master`→Aorus Master,
++`aorus masters`→Aorus Master, `aor us master`†→Aorus Master,
++`orus elite`→Aorus Elite, `air us elite`†→Aorus Elite,
++`m p g carbon`→MPG Carbon, `carbon wifi`→MPG Carbon,
++`m a g tomahawk`→MAG Tomahawk, `tomohawk`→MAG Tomahawk, `toma hawk`†→MAG
++Tomahawk, `pro r s`→Pro RS, `pro-rs`→Pro RS.
++
++CPUs (5): `7800 x 3 d`→7800X3D, `78 00 x 3 d`→7800X3D, `9800 x 3 d`→9800X3D,
++`9950 x 3 d`→9950X3D, `7950 x`→7950X.
++
++`never_match` (6): `theb650`, `verb 650 watts`, `steellegend`, `aorusmaster`,
++`x870ese`, `b650ex` — none of them may produce any mention at all, not merely
++not the obvious one.
++
++### Assertions
++
++- every variant's canonical is in `find_title_hits` for a video titled with the
++  carrier sentence, and in `find_mentions` for a single cue holding it — one
++  cue, because R1010 scopes the rule there and a fixture spread over two cues
++  would be asserting the case this plan deliberately does not implement;
++- `len(variants) >= 52`, with the count's provenance in the test's docstring —
++  a later addition is welcome, a loss is a regression;
++- the five named failures are present by exact text, so no future tidy-up can
++  drop the cases the evidence was written about;
++- nothing in `never_match` yields a mention against the shipped table.
++
++### The selection effect
++
++In `tests/test_select.py`, against a table and transcripts written into
++`tmp_path` as that module already does:
++
++- a video titled `MSI MAG toma hawk MAX WIFI review` is selected with the
++  title-hit reason, where the same video is excluded before this plan;
++- a video whose body spells three distinct canonicals only in split forms
++  passes the mention threshold and is counted as a threshold pass rather than an
++  exclusion in the selection report.
++
++These are the counts OD-6 names as its measurement. Nothing here changes
++`select.py`; the slice asserts that the matcher change reaches the number the
++checkpoint is spent against.
++
++### The table changes
++
++`Aorus Elite` gains `airus elite` and `Aorus Master` gains `airus master`. One
++form covers both spoken shapes: under slice 2's rule `airus elite` matches
++`air us elite`, `airus elite` and (after slice 1) `air-us elite`, so the split
++spelling needs no second entry. `air us` for `aorus` is the observed mishearing;
++`air us master` is the same mishearing on the other family, added with it rather
++than waiting for a second sighting — the LOW uncertainty above.
++
++`Pro RS` loses `pro-rs`, and it is the only removal: after slice 1 it normalizes
++to the `pro rs` sitting beside it, and global de-duplication drops the second
++claimant silently. A line the matcher can never use is worse than absent — it
++reads as coverage. The variant `pro-rs` stays in the fixture and still matches,
++through `pro rs`. Every other form the join rule makes redundant — `cross hair`,
++`giga byte`, `tai chi`, `bio star`, `a 620` — **stays**: those are distinct
++normalized forms that still fire on their own, and deleting them would move
++`aliases --check`'s per-form counts for reasons unrelated to this change.
++
++`docs/architecture.md` needs no new flow here; the alias-table row already says
++the table is hand-authored input.
++
++## What this makes partly wrong
++
++`docs/plans/corpus-and-checkpoint.md` is merged and built, and this plan
++supersedes three things it specified. Slice 3 there states normalization as
++keeping the hyphen and compiles surface forms as plain literals; slice 4's
++Signatures block declares `Selection` and `ThresholdReport` without
++`cross_cue_splits`. That plan is `CODEOWNERS`-owned and is revised on its own
++pull request — the same revision **OD-12** already asks for, which the plan-rework
++agenda in `docs/BACKLOG.md` (BL-3, and BL-2 with it) is the queue for. Nothing
++here edits it.
++
++No other plan is affected: `recut-merged-excerpts`, `capped-whole-transcript-path`
++and `whole-transcript-threshold` are all downstream of the mention set and see
++this change only as more mentions in the same shape.
++
++## Out of scope
++
++- **Cross-cue *matching*.** OD-15 authorises the counter and nothing more; the
++  matcher does not cross a cue boundary and no mention is ever synthesized from
++  two cues' text. If the first real corpus run's count is material, that is
++  logged evidence for a future ruling — filed, not built ahead of.
++- **OD-7 / R1003, the ITX variant rule.** A chipset matching `b850i` is a
++  different decision with its own requirement, landing in the same
++  `compile_matcher`. Nothing here relaxes the right boundary, which is the rule
++  that decision has to work with.
++- **Separators other than the hyphen.** `x670e/plus` and `steel+legend` still
++  block a join. R1002 names hyphens; anything wider is a fresh reading of R3.
++- **OD-11 / R1007's move of the alias table** to a tracked root path, and the
++  configured-path loading with it. This plan edits the table where it lives.
++- **OD-8 / R1004's description matching.** A new field to match against is
++  independent of how a form is matched; the two meet only in the selection
++  report.
++- **The counter in `aliases --check`.** R1010 names the selection report and
++  that is where it goes. A second report of the same number is a second thing to
++  keep in step for no requirement's benefit.
++- **Widening the table beyond the `air us` mishearings.** The table is data and
++  the owner extends it from the recall report; this plan adds only what R1002
++  names.
++- **Any change to `Mention`, `Excerpt`, the index, or the bundle format.**
++  Nothing downstream of the matcher sees this change except as more mentions
++  and one more integer in the selection record.
+-- 
+2.55.0
+
