@@ -720,6 +720,50 @@ an impression.
 - Severity: friction
 
 
+### F21 — the run hit the engine's usage allowance, and the web driver has no way to see it coming or to name it afterwards
+- Where: `spawn-worker.sh` dispatch of `steward-od-11`, 2026-08-20T13:44:15Z
+- What happened: the first worker failure of the entire run — **21 iterations and
+  13 merged pull requests with no failure of any kind before it**. The result
+  line and the log:
+  ```
+  WORKER_RESULT id=steward-od-11 branch=worker/steward-od-11 engine=claude exit=1 commits=0
+  spawn-worker[steward-od-11]: engine exited 1 (see .claude/orchestration-logs/steward-od-11.log)
+  ```
+  ```
+  You've hit your session limit · resets 3:20pm (UTC)
+  ```
+  Seven lines of log, one of which is the real cause. **This is the environment's
+  allowance, not a template defect** — but three template-relevant things follow
+  from it.
+- **(a) The allowance is invisible until something dies.** Anvil rule 8 says the
+  weekly-budget ceiling "is the limit the owner will actually rely on", and the
+  web lane has no gauge **by design** (`budget-probe.sh` rc 3, correctly
+  documented). So on this lane the allowance cannot be anticipated at all: the
+  run learns about it by a worker exiting 1, mid-dispatch, with the plan it was
+  writing lost. That is the countable-limits design working exactly as
+  documented and still leaving a real hole — the countable limits the owner set
+  (30 pull requests, 12 hours, 60 iterations) cannot express "engine tokens".
+- **(b) `spawn-worker.sh` reports the symptom, not the cause.** Its own doc says
+  a failing engine should say "engine X is installed but not usable" rather than
+  fail obscurely, and it does that for the **preflight** probe. A mid-run
+  allowance exhaustion gets only `engine exited 1`. The distinguishing string is
+  in the log, one `grep` away, and the driver is not told to look. A driver that
+  did not read the log would see an unexplained exit 1.
+- **(c) Nothing tells the web driver what to do about it.** `.claude/commands/deliver-loop.md`
+  covers a red check (compute a failure signature, three strikes ends the run)
+  and says nothing about a **worker** that fails. The local `deliver-loop.sh`
+  calls `run_worker ... || true`, so the loop would simply come round and
+  dispatch again — straight back into the same exhausted allowance, repeatedly,
+  with no signature counted and no stop. On this lane the driver stopped because
+  a human was reading; unattended and unread, it would have spun.
+- Suggested ratchet: have `spawn-worker.sh` grep its own log for the allowance
+  string and exit a distinct code, and have both frontends treat that code as a
+  documented stop — "stopped on the engine allowance, resets at <time>" — which
+  is precisely the "stop that is never reported as success unless it earned it"
+  ESC-75 asks for, applied to the one stop this lane actually hit.
+- Severity: bug
+
+
 ---
 
 ## ROUND 4 — update to v0.4.42, and a stop pending on the owner
@@ -1108,4 +1152,7 @@ demanded.
 
 Six entries down to one, monotonically, with no id ever returning. Every step is
 mechanical output from the detector rather than a claim by the driver.
+| 13:44:15Z | 8 | STEWARD | **First worker failure of the run**: `exit=1 commits=0`, cause `You've hit your session limit · resets 3:20pm (UTC)`. See **F21**. Twenty-one iterations and thirteen merges had passed without a single failure before this. |
+| 15:23:23Z | 8 | STEWARD | Allowance window passed (reset 15:20Z). Lane verified clean: `origin/run/web` at `8dd8807`, **no pull request open anywhere**, nothing lost — both leftover worktrees read before removal showed `commits-ahead=0`, and the one uncommitted file in `steward-od-11` was the worktree the dead worker never wrote a plan into. |
+| 15:23Z | 8 | - | **Resuming rather than declaring a stop, and saying why.** Anvil rule 7 forbids restarting a *stopped* run. This run reached none of its own limits — 13 of 30 pull requests, 21 of 60 iterations, ~4 hours of 12 — and never wrote a stop report; it was interrupted by an environment allowance outside the run's own accounting, and the owner explicitly directed continuation. Recorded here so the judgement is visible rather than silent. |
 
