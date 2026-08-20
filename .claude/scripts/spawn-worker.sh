@@ -209,22 +209,26 @@ PERM_MODE="acceptEdits"
 # never as the thing standing between an agent and a document.
 ORACLE_TOOLS=(
   "Read" "Grep" "Glob"
-  # Every Write() carries an Edit() twin, and the twin is the half that
-  # BINDS: the engine matches file grants against Edit(path) rules only and
-  # rejects Write(path) with a warning (anvil F7 — docs/oracle/** had no
-  # twin, so the oracle held NO effective grant for its own handoff path).
-  "Write(docs/DESIGN.oracle.md)" "Edit(docs/DESIGN.oracle.md)"
-  "Write(docs/oracle/**)" "Edit(docs/oracle/**)"
+  # Edit(path) ONLY — no Write(path) twin. The engine matches file grants
+  # against Edit() rules (which cover writing a new file as well as changing
+  # one) and answers every Write(path) rule with "is not matched by file
+  # permission checks", so a Write() grant is inert noise. Two of them printed
+  # a rejection warning on every single worker start for four rounds, and in
+  # the round that mattered they were the two lines immediately above the
+  # engine's own "Execution error" — camouflage over the one line worth
+  # reading (anvil F7, ESC-77).
+  "Edit(docs/DESIGN.oracle.md)"
+  "Edit(docs/oracle/**)"
   "${GIT_TOOLS[@]}"
 )
 STEWARD_TOOLS=(
   "Read" "Grep" "Glob"
-  "Write(docs/plans/oracle/**)" "Edit(docs/plans/oracle/**)"
+  "Edit(docs/plans/oracle/**)"
   # The backlog is in the steward's reach for two documented duties: an
   # objection to a decision goes to docs/BACKLOG.md (steward.md), and the
   # unattended planner — which runs under this role — files uncertainties
   # there as BL-<n> items for the oracle to rule on (plan.md, the gate).
-  "Write(docs/BACKLOG.md)" "Edit(docs/BACKLOG.md)"
+  "Edit(docs/BACKLOG.md)"
   # The gate scripts this role's own prompts tell it to run. Without them the
   # instruction is unfollowable: plan.md and steward.md point at
   # oracle-decisions.sh, and a planner that cannot parse or lint its own plan
