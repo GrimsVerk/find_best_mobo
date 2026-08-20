@@ -20,18 +20,27 @@
 # you decide rather than a script guessing.
 #
 # Options:
-#   --ref <ref>   update to a specific template ref instead of its latest tag.
-#                 Use this to test a template change that has merged but is not
-#                 tagged yet: --ref HEAD
-#   --no-pr       do everything except open the pull request.
+#   --ref <ref>    update to a specific template ref instead of its latest tag.
+#                  Use this to test a template change that has merged but is not
+#                  tagged yet: --ref HEAD
+#   --base <b>     update a run's base branch instead of the default branch
+#                  (the same flag deliver-loop.sh and setup-github.sh take).
+#                  The checkout must BE on that branch; the update branches off
+#                  it, carries its lane suffix, and the pull request targets it.
+#                  Without this, every step assumed the default branch and a
+#                  lane could be driven but never updated (anvil mobo F1).
+#   --no-pr        do everything except open the pull request.
 
 set -euo pipefail
 
 REF=""
 OPEN_PR=1
+BASE_FLAG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ref)    REF="${2:-}"; shift 2 ;;
+    --base)   [[ -n "${2:-}" ]] || { echo "update-from-template: --base needs a branch name" >&2; exit 2; }
+              BASE_FLAG="$2"; shift 2 ;;
     --no-pr)  OPEN_PR=0; shift ;;
     -h|--help)
       sed -n '2,26p' "$0" | sed -n 's/^# \{0,1\}//p'
@@ -83,28 +92,39 @@ if [[ -z "$DEFAULT_BRANCH" ]]; then
   done
 fi
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+# The update's base: the default branch, or the run base named with --base —
+# the same per-base lane isolation the driver and the setup script already
+# have. A lane branch gets the driver's own suffix on the update branch so
+# twin runs updating to the same version cannot collide on its name.
+BASE="${BASE_FLAG:-$DEFAULT_BRANCH}"
+LANE=""
+if [[ "$BASE" != "$DEFAULT_BRANCH" ]]; then
+  LANE="--$(printf '%s' "$BASE" | tr -c 'A-Za-z0-9._-' '-')"
+fi
 CURRENT="$(git rev-parse --abbrev-ref HEAD)"
-[[ "$CURRENT" == "$DEFAULT_BRANCH" ]] || die "you are on '$CURRENT', not '$DEFAULT_BRANCH'.
+[[ "$CURRENT" == "$BASE" ]] || die "you are on '$CURRENT', not '$BASE'.
 
-A template update branches off the default branch, so that the pull request
-contains the update and nothing else."
+A template update branches off its base branch, so that the pull request
+contains the update and nothing else. Updating a run's base branch instead of
+the default one? Name it: --base <branch>."
 
 # Refresh from the remote if there is one. A failure here is worth a warning
 # rather than a stop: it means the base may be a little old, which makes the
 # pull request slightly stale but never wrong — template-sync compares against
 # whatever base the pull request actually has.
 if git remote get-url origin >/dev/null 2>&1; then
-  echo "update-from-template: refreshing $DEFAULT_BRANCH"
-  git pull --ff-only origin "$DEFAULT_BRANCH" \
-    || echo "update-from-template: could not refresh from origin; continuing on the local $DEFAULT_BRANCH" >&2
+  echo "update-from-template: refreshing $BASE"
+  git pull --ff-only origin "$BASE" \
+    || echo "update-from-template: could not refresh from origin; continuing on the local $BASE" >&2
 else
-  echo "update-from-template: no 'origin' remote; working from the local $DEFAULT_BRANCH"
+  echo "update-from-template: no 'origin' remote; working from the local $BASE"
 fi
 
 BEFORE="$(awk '/^_commit:/ { print $2; exit }' "$ANSWERS" | tr -d '"'"'"'')"
 echo "update-from-template: currently on template ${BEFORE:-<unknown>}"
 
 echo "update-from-template: running copier update"
+echo "update-from-template: (copier may print 'Make sure Git >= 2.24 is installed' — that is copier's stock advisory, not a real prerequisite failure; any modern git satisfies it)"
 if [[ -n "$REF" ]]; then
   copier update --defaults --trust --vcs-ref="$REF"
 else
@@ -144,7 +164,7 @@ EOF
   exit 1
 fi
 
-BRANCH="template/${AFTER}"
+BRANCH="template/${AFTER}${LANE}"
 if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
   die "branch '$BRANCH' already exists.
 
@@ -164,34 +184,71 @@ if ! git remote get-url origin >/dev/null 2>&1; then
   exit 0
 fi
 
+# WHO OPENS THE PULL REQUEST (ESC-63), decided BEFORE the push because one of
+# the answers must ride in it. Never the ambient login: an update touches
+# CODEOWNERS-owned gate paths, so its pull request NEEDS the owner's review —
+# and GitHub refuses an author's approval of their own pull request, so an
+# owner-authored update was unapprovable by construction (this script's old
+# ending demanded both at once). The App authors it instead, one of two ways —
+# the driver's credential rule, in script form:
+#   1. the App mints here -> open directly with the minted token;
+#   2. minting is impossible but gh still answers (a hosted session whose
+#      platform owns the credential) -> commit .pr-request.json as this
+#      branch's last commit; the push fires open-pr.yml server-side and the
+#      pull request arrives App-authored;
+#   3. neither -> push, and say exactly what remains.
+PR_VIA="none"
+APP_TOKEN=""
+if [[ "$OPEN_PR" -eq 1 ]] && command -v gh >/dev/null 2>&1; then
+  if [[ -x .claude/scripts/app-token.sh ]]; then
+    APP_TOKEN="$(.claude/scripts/app-token.sh 2>/dev/null || true)"
+  fi
+  if [[ -n "$APP_TOKEN" ]]; then
+    PR_VIA="direct"
+  elif gh api user >/dev/null 2>&1 && [[ -f .github/workflows/open-pr.yml ]]; then
+    PR_VIA="marker"
+    printf '{"base": "%s", "title": "Update from template %s", "body": "Mechanical update from the project template, %s to %s, produced by scripts/update-from-template.sh. The template-sync check verifies this branch is byte-for-byte copier update output, which is what lets it skip the plan check. Expect to approve it: it touches CODEOWNERS-owned gate paths."}\n' \
+      "$BASE" "$AFTER" "${BEFORE:-unknown}" "$AFTER" > .pr-request.json
+    git add .pr-request.json
+    git commit -m "Request the pull request"
+  fi
+fi
+
 git push -u origin "$BRANCH"
 
-if [[ "$OPEN_PR" -eq 0 ]]; then
-  echo "update-from-template: pushed $BRANCH. Open the pull request when ready."
-  exit 0
-fi
-
-if ! command -v gh >/dev/null 2>&1; then
-  echo "update-from-template: pushed $BRANCH, but the GitHub CLI is not installed,"
-  echo "update-from-template: so open the pull request yourself. Install it with:"
-  echo "    brew install gh      # macOS"
-  echo "    sudo pacman -S github-cli   # Arch"
-  exit 0
-fi
-
-gh pr create \
-  --base "$DEFAULT_BRANCH" \
-  --head "$BRANCH" \
-  --title "Update from template ${AFTER}" \
-  --body "Mechanical update from the project template, ${BEFORE:-<unknown>} to ${AFTER}.
+case "$PR_VIA" in
+  direct)
+    GH_TOKEN="$APP_TOKEN" gh pr create \
+      --base "$BASE" \
+      --head "$BRANCH" \
+      --title "Update from template ${AFTER}" \
+      --body "Mechanical update from the project template, ${BEFORE:-<unknown>} to ${AFTER}.
 
 Produced by \`scripts/update-from-template.sh\`. The \`template-sync\` check
 verifies that this branch is byte-for-byte \`copier update\` output and carries
-nothing hand-written, which is what allows it to skip the \`plan\` check.
-
-Expect to approve this yourself: a template update usually touches gate paths
-that \`CODEOWNERS\` owns, and GitHub will not accept an approval from a pull
-request's own author."
+nothing hand-written, which is what allows it to skip the \`plan\` check." ;;
+  marker)
+    echo "update-from-template: pushed $BRANCH with a .pr-request.json aboard —"
+    echo "update-from-template: the push fires open-pr.yml and the pull request"
+    echo "update-from-template: arrives authored by the App within a minute or two." ;;
+  none)
+    if [[ "$OPEN_PR" -eq 0 ]]; then
+      echo "update-from-template: pushed $BRANCH. Open the pull request when ready."
+    elif ! command -v gh >/dev/null 2>&1; then
+      echo "update-from-template: pushed $BRANCH, but the GitHub CLI is not installed,"
+      echo "update-from-template: so open the pull request yourself. Install it with:"
+      echo "    brew install gh      # macOS"
+      echo "    sudo pacman -S github-cli   # Arch"
+    else
+      echo "update-from-template: pushed $BRANCH, but no credential here can author"
+      echo "update-from-template: the pull request AS THE APP (the mint failed and no"
+      echo "update-from-template: server-side opener is available). Open it yourself —"
+      echo "update-from-template: and note an author cannot approve their own pull"
+      echo "update-from-template: request, so an owner-authored one needs another"
+      echo "update-from-template: reviewer for its CODEOWNERS paths."
+    fi
+    exit 0 ;;
+esac
 
 cat <<EOF
 
@@ -202,7 +259,7 @@ The pipeline takes it from here. Two things to expect:
   - template-sync must go green. If it fails, this branch has something in it
     that copier did not produce.
   - You will have to approve it. A template update touches CODEOWNERS-owned
-    paths, and GitHub does not accept an author's approval of their own pull
-    request. That is deliberate: a change to this project's gates is exactly
-    what a person should look at.
+    paths, and the App authored the pull request precisely so that your
+    approval counts — GitHub refuses an author's approval of their own pull
+    request, which is why this script no longer opens it as you.
 EOF

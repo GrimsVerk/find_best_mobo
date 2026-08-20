@@ -168,13 +168,26 @@ fi
 # Compare content, not diffs: `git write-tree` hashes the whole tree, so equal
 # hashes mean every tracked path matches exactly. Anything the author added,
 # removed, or edited by hand alongside the sync changes this hash.
+#
+# ONE path is dropped from both sides first: `.pr-request.json`, the opener's
+# request marker (ESC-63). A driver that cannot author pull requests as the
+# App commits it as the branch's last commit — it is pull-request machinery
+# riding with the update, not a hand edit to the update, and it can never be
+# copier output. Removing it from both trees keeps the comparison exact for
+# every other byte.
 git -C "$WORKTREE" add -A
+git -C "$WORKTREE" rm -q --cached --ignore-unmatch .pr-request.json
 REPLAYED_TREE="$(git -C "$WORKTREE" write-tree)"
-HEAD_TREE="$(git -C "$ROOT" rev-parse "${HEAD_SHA}^{tree}")"
+HEAD_INDEX="$(mktemp)"
+GIT_INDEX_FILE="$HEAD_INDEX" git -C "$ROOT" read-tree "${HEAD_SHA}^{tree}"
+GIT_INDEX_FILE="$HEAD_INDEX" git -C "$ROOT" rm -q --cached --ignore-unmatch .pr-request.json
+HEAD_TREE="$(GIT_INDEX_FILE="$HEAD_INDEX" git -C "$ROOT" write-tree)"
+rm -f "$HEAD_INDEX"
 
 if [[ "$REPLAYED_TREE" == "$HEAD_TREE" ]]; then
   echo "template-sync: PASS — the diff is exactly \`copier update\` to ${TARGET_REF}."
-  echo "template-sync: nothing hand-written rode along with it."
+  echo "template-sync: nothing hand-written rode along with it (the opener's"
+  echo "template-sync: .pr-request.json marker, if present, is machinery and exempt)."
   exit 0
 fi
 
