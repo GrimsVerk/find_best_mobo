@@ -20,6 +20,7 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T08:35:37Z | RIG/BLOCKED | gates ruleset = default branch only; run/local ungated; setup-github.sh refused by sandbox |
 | 2026-08-20T08:31:00Z | SETUP/UPDATE | v0.4.27 -> v0.4.37 · 23 files · 0 conflicts · 0 .rej · run/local pushed |
 
 ---
@@ -107,4 +108,41 @@ Register values are never written here. They appear as `<repos_root>`,
   round — the ruleset here already names the default branch only.
 - **Severity:** none — recorded so the two lanes' step-6 behaviour can be
   compared, and so a later rejection is known to be new rather than stale.
+
+### F5 — the lane branch is UNGATED, and the operator cannot gate it
+- **Where:** Part 1 step 6a (rig duties), `scripts/setup-github.sh --app`
+- **What happened:** the command was refused by the operator's own harness
+  permission layer before it could run:
+
+  ```
+  $ scripts/setup-github.sh --app
+  Permission for this action was denied by the auto mode classifier.
+  ```
+
+- **State it was meant to change**, read back through the API:
+
+  ```
+  $ gh api repos/GrimsVerk/find_best_mobo/rulesets/<id> --jq ...
+  {"name":"grimsverk-gates",
+   "conditions":{"include":["~DEFAULT_BRANCH"],"exclude":[]},
+   "checks":["checks","secrets","plan","template-sync","test-the-tests",
+             "acceptance-criteria","review"],
+   "strict":[true]}
+  ```
+
+  The gates ruleset names the **default branch only**. `run/local` carries no
+  required checks at all, which is also why the step-6 push was accepted
+  without argument (F4).
+- **Expected:** step 6a-4 runs
+  `scripts/setup-github.sh --app --gate-branch run/local --gate-branch run/web`
+  so every pipeline pull request into a lane base must pass all seven checks.
+- **Consequence if unresolved:** the driver would run against an ungated base.
+  Its pull requests would merge with nothing required — no review, no
+  acceptance, no plan gate. That is not a degraded run, it is a different test.
+- **Not a template defect.** The script is correct and available; the refusal
+  comes from the operator's sandbox, which declines repository-administration
+  calls. Recorded because it is a real obstacle to running this test
+  unattended on this machine, and because the fix is the owner's to grant.
+- **Severity:** blocker (rig, not template)
+- **Lane state:** stopped before starting the driver. Nothing dispatched.
 
