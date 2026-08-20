@@ -33,6 +33,10 @@ Times are UTC.
 | 2026-08-20T08:26Z | `copier update --defaults --trust` succeeded: "Updating to template version 0.4.37". `_commit` moved v0.4.27 -> v0.4.37. **Zero conflict markers.** 21 files modified, 1 added (`.github/workflows/open-pr.yml`); every one of them template machinery, no project content touched. See F3. |
 | 2026-08-20T08:27Z | `uv sync` OK (adds `pre-commit==4.6.2` as a dev dependency, ESC-55). `uv run pre-commit install` OK. Full gate green: `ruff check`, `ruff format --check`, `mypy` (33 files), `pytest` **474 passed**. |
 | 2026-08-20T08:27Z | Committed the update on `run/web` and pushed. Push **accepted on the first attempt** — no ruleset yet names this lane, so the bounded retry of TESTPLAN step 6 was not exercised. |
+| 2026-08-20T08:28:10Z | `RUN_BASE=run/web .github/scripts/unattended-ready.sh --runtime` REFUSED, 1 missing item: "no rules bind the run's base branch 'run/web'". Everything else green or correctly deferred to the owner's full check. The `--runtime` identity note names ESC-50 explicitly and says the ambient login drives while pull requests open via the `open-pr` workflow — correct for this session. |
+| 2026-08-20T08:28:10Z | Bounded wait armed: 15 attempts, 3 minutes apart, 45 minutes total, logging each attempt. |
+| 2026-08-20T08:28:37Z | Attempt 1/15: still ungated. Remote heads now `chore/test-report-local chore/test-report-web main run/web` — the LOCAL lane's ledger branch exists, so the local agent is alive; `run/local` has not appeared yet. |
+| 2026-08-20T08:29Z | Phase detector (read-only, before any dispatch): `PHASE=ORACLE BASE=run/web REASON=evidence UNCITED=BL-14`. The detector reports this run's base back correctly. |
 
 ---
 
