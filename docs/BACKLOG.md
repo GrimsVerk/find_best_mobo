@@ -239,3 +239,17 @@ _why that class, and `— filed by: plan`.)_
   hyphenated `steel-legend` it also reports failing, and the reconstruction has
   five failing variants rather than three.
   — filed by: steward
+- **BL-17** — What title does OD-7/R1003's regression case use? R1003 says "the
+  real B850I review's title auto-includes on its chipset", and that title is not
+  in the repository: BL-9 records the board (MSI MPG B850I Edge TI) and the
+  video's duration, while no index, fixture, journal entry or `docs/runs/`
+  artifact holds the video's id or its title. Proposed default, proceeded on in
+  `docs/plans/oracle/itx-chipset-variant.md`: use a declared reconstruction,
+  `MSI MPG B850I Edge TI review`, with the test's docstring naming BL-9 as its
+  provenance and stating that it is rebuilt rather than recorded, and assert
+  that the video is admitted on `B850` by its title rather than asserting the
+  string itself. **LOW**: it is fixture text only — no signature, slice boundary
+  or external format turns on it, and substituting the real title later is a
+  one-line edit. OD-15 ruled the same shape of question for R1002's fixture, so
+  the default follows it: the reconstruction is declared, never quiet.
+  — filed by: steward
