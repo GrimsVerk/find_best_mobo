@@ -1,0 +1,17 @@
+## Review
+
+**Scope of the diff:** the entire change is a single addition to `docs/BACKLOG.md` — a new `### BL-22` entry, 44 added lines, no other files touched.
+
+**Criterion 1 — plan conformance.** No plan resolved; branch is `docs/oracle-plan-od-5--run-local`, which carries the `docs/` prefix exempt from the `plan` check. More importantly, the diff's *entire* content sits inside `docs/BACKLOG.md`, which `AGENTS.md` names explicitly as one of the documents "the process itself demands" and lists as exempt from the 50-line cap at any size ("a branch whose entire diff sits inside ... `docs/BACKLOG.md` ... passes at any size"). So this is not a case of a `docs/` branch being used to sneak in unplanned work — it is precisely the kind of change that exemption exists for: a backlog filing accompanying steward/oracle activity. 44 lines would pass the cap anyway even without the full exemption.
+
+**Content check.** BL-22 records that a steward was dispatched to plan OD-5, found OD-5's only requirement (R1001) already superseded by R1008 (OD-13) and design-history per OD-20, that naming R1001 in a `covers:` would be the over-claim OD-20 forbids, and so wrote no plan — instead filing this backlog item describing a livelock in `.claude/scripts/deliver-phase.sh` (it maps `coverage.sh`'s R≥1000 gaps back to decisions and re-dispatches a steward for OD-5 forever, since R1001's gap never closes). This is consistent with OD-13, OD-19, and OD-20 as written in the base-commit oracle ledger — it doesn't invent new design claims, doesn't contradict any landed decision, and correctly avoids writing a plan for superseded work (OD-19's standing prohibition covers the sibling case; this is the same failure mode OD-20 anticipated for the driver generally). The entry only appends; it doesn't edit or reorder any existing backlog content, consistent with the backlog's append-only convention (OD-2).
+
+**Criterion 5 — gate tampering.** No file under `.github/workflows/`, `.claude/`, `CODEOWNERS`, `AGENTS.md`, `docs/DESIGN.md`, `docs/VISION.md`, or `docs/plans/` is touched. `docs/BACKLOG.md` is not on that protected list. Bot-authorship (`autogrims[bot]`) is irrelevant here since neither `docs/DESIGN.md` nor `docs/VISION.md` is touched.
+
+**Criteria 2–4, 6–9.** No code or tests, so blind-test authorship, dependency, and test-the-tests checks are correctly inert (facts block confirms). No security surface. Nothing to simplify or that harms legibility — the entry is verbose but that matches the existing BL-20/BL-21 style in the same file.
+
+**Minor, non-blocking observation:** the PR title ("Plan for OD-5") doesn't match what the diff actually does (no plan was written; a backlog item documenting why was filed instead). The body of BL-22 makes this fully transparent, so it's not misleading in substance, but a clearer title would have helped a human skimming the PR list.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

@@ -1,0 +1,10 @@
+base:      e042049d767a686da4b843e6a81411ccd4c3f0e8
+head:      7bceb30f83973d970c3242fb3910c4dbbe2faece
+branch:    docs/oracle-plan-od-5--run-local
+author:    autogrims[bot]
+title:     Plan for OD-5
+engine:    claude
+model:     (engine default)
+plan:      (none)
+truncated: 0
+diff_bytes: 3428

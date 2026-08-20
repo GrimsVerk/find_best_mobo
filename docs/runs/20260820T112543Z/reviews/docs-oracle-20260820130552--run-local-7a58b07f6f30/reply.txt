@@ -1,0 +1,24 @@
+## Review
+
+**Branch/context.** `docs/oracle-20260820130552--run-local`, opened by `autogrims[bot]` (the unattended oracle skill). Diff touches only `docs/DESIGN.oracle.md` (append) and adds `docs/oracle/handoff-2026-08-20-8.md`. No plan resolved — expected, since this is `docs/`-prefixed and both touched paths (`docs/DESIGN.oracle.md`, `docs/oracle/`) are on `AGENTS.md`'s explicit size-cap-exemption list, so the 126-line total is not a scope signal here.
+
+**Criterion 5 (gate tampering / owner-authored).** The diff does **not** touch `docs/DESIGN.md` or `docs/VISION.md` — only `docs/DESIGN.oracle.md`, which `AGENTS.md` and `docs/DESIGN.oracle.md` itself explicitly say is *not* owner-owned and is exactly what the oracle is meant to write unattended. A bot-opened PR is fine here; the owner-authored block only fires for the two owner-owned documents, neither of which appears. No `.github/`, `.claude/`, or `CODEOWNERS` paths touched.
+
+**Schema conformance (OD-22).** Checked against the eight-field schema in `docs/DESIGN.oracle.md`: Date, Evidence (`BL-23`), Requirements added (`R1011` — correctly the next unused id after R1010), Requirements superseded (`(none)`), Vision statement relied on, Vision statements against, Alternatives considered, Rationale — all present and non-empty. Decision id `OD-22` is next after `OD-21`, strictly increasing, and the entry is appended (nothing earlier edited).
+
+**Vision quotes verified verbatim.** Both quoted sentences were checked character-for-character against the supplied `docs/VISION.md`:
+- "Vision statement relied on" (the durable-evidence sentence) matches exactly.
+- "Vision statements against" (V13) matches exactly, including the bolded lead.
+Both are full sentences, not fragments, satisfying the anti-inversion rule in `docs/DESIGN.oracle.md`.
+
+**Evidence citation.** Cites `BL-23` only, which the git log confirms landed at the base commit ("File BL-23: build Stage B (extraction), approved by the owner (#131)"). The oracle rules only on logged evidence per its own constitution — consistent here.
+
+**Scope discipline.** OD-22 explicitly commissions *one steward plan* downstream but does not write it, and does not touch any implementation or plan file itself — consistent with the established pattern (OD-19/OD-20/OD-21) of the oracle deciding without building. The requirement (R1011) is narrowly about committing calibration/spend evidence to disk, tied to R8/R26 already in `docs/DESIGN.md`, and doesn't invent new product scope.
+
+**Mechanical facts.** No test/implementation files touched (test-the-tests correctly did not run — this is a docs-only change, not a "real code with no tests" situation). No new dependencies. No blind-test trailers, expected for a `docs/` branch. No other open PRs from this author to worry about ordering against.
+
+**Minor, non-blocking observation.** The review has no visibility into `docs/BACKLOG.md`'s actual `BL-23` text, so the fidelity of OD-22's characterization of BL-23's boundary rests on trusting the mechanical `oracle-decisions.sh` citation-existence check (which the facts block gives no reason to doubt) rather than something this review verified directly. Not a blocking concern given everything else checks out.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

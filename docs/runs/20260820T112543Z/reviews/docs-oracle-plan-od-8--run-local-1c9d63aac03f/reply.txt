@@ -1,0 +1,17 @@
+Reviewed the diff — it's a single new file, `docs/plans/oracle/description-signal.md` (403 lines), on a `docs/`-prefixed branch opened by `autogrims[bot]`. No implementation code, no test files, no dependency changes.
+
+**Branch exemption (criterion 1).** The whole diff sits inside `docs/plans/`, which AGENTS.md lists among the paths exempt from the exempt-branch size cap ("a branch whose entire diff sits inside `docs/plans/`... passes at any size"). This is exactly what that carve-out is for — landing a plan document — so the branch prefix and size are correct, and "no plan resolved" here reflects the exemption working as designed, not a broken gate.
+
+**Gate/doc tampering (criterion 5).** The diff touches only a brand-new file under `docs/plans/oracle/`; it does not modify `AGENTS.md`, `docs/DESIGN.md`, `docs/VISION.md`, or any existing plan. Per AGENTS.md, plans are "written AND opened by agents," and a PR whose entire purpose is landing a new plan with no implementation riding along is the explicit exception to the docs-tampering block. A bot-opened plan PR is fine — the owner-authored restriction applies only to `docs/DESIGN.md`/`docs/VISION.md`, neither of which is touched here.
+
+**Plan conformance against OD-8/R1004.** The plan implements exactly what OD-8 (already landed at base commit) and R1004 specify: description recorded at fetch with no extra network call, treated as an automatic include like a title hit, own inclusion reason, no forced refetch on stale cache entries, no mentions/timestamps conjured from a description. The plan is under `docs/plans/oracle/` and cites a landed decision (OD-8) and only requirement ids that already exist (R1004) — satisfying `oracle-decisions.sh`'s constraint on oracle plans. Signatures include per-slice module placement per OD-12. `covers: [R1004]` matches exactly what OD-8 added — no adequacy gap.
+
+One place worth noting rather than blocking: the plan reconciles R1004's phrase "the index and the selection report" with the as-built system, concluding the new reason lives only in `Selection`/`data/selected.jsonl`, not `data/index.jsonl`, because the index is written before fetch runs and description doesn't exist yet. That's argued explicitly and is architecturally sound (index precedes fetch in the pipeline), not a silent narrowing.
+
+**Minor nit (non-blocking).** The `## Summary` section runs to roughly 50 lines against AGENTS.md's "~40 lines, a hard ceiling" guidance for plan summaries. It's substantive (decision-completeness, not padding) and the overrun is modest, so I don't think it rises to blocking, but it's worth a note for the next revision.
+
+No blind-test trailer is expected and present-as-expected for a `docs/` plan-only PR (no code, no tests). No new dependencies, no excluded lockfile changes, no security concerns, no prompt-injection attempts in the diff text.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

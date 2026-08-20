@@ -1,0 +1,21 @@
+Preparing worktree (new branch 'worker/steward-od-13')
+HEAD is now at a9df72d Plan for OD-11 (#125)
+=== spawn-worker[steward-od-13] engine=claude branch=worker/steward-od-13 base=run/local (a9df72df1d31a6b078ad53aa97b0f78b4e0a6c5b) bypass=0 ===
+=== 2026-08-20T12:23:26Z ===
+Plan written and committed.
+
+**Plan:** `docs/plans/oracle/capped-whole-transcript-path.md`, slug `capped-whole-transcript-path` — implements **OD-13** (supersedes R1001, adds R1008), `covers: [R28, R1008]`.
+
+It is a full rewrite of that file, not a new plan. OD-13 named it partly wrong, and its cap, its `EXCERPTS_OVER_CAP` route, its no-block-over-the-cap invariant and its `videos_over_cap` count are all gone. What it now specifies: routing on R28's 80% ratio with size never consulted; an over-cap transcript split at cue boundaries into consecutive parts, each within `bundle_token_cap`, landing in sequential bundles; `form`/`part`/`parts` on the bundle XML so a reader knows it holds part 2 of 4; and R1008's per-path counts, characters and tokens plus the per-video bundle span, cross-checked between what the router intended and what the bundles actually did. Three sequential slices, ~810 lines.
+
+**I preferred a new slug and could not take it.** `capped-` names the one thing the plan no longer does, and a slug sorting after `recut-merged-excerpts` would have made the driver's own dispatch order enforce OD-13's sequencing instead of contradicting it. Replacing means deleting the old file, and this role's tool grant has no deletion or rename — `git rm`, `rm`, `git mv` and `mv` were all refused. So: in-place rewrite, which is what the handoff called the simplest shape anyway, with the mismatch stated at the top of the document and the residual hazard stated in the Summary and in Sequencing — the orchestrator must decline the driver's first offer of this plan until R1000's re-cut has landed.
+
+**Guessed at: nothing.** Six decisions came close and are recorded as derivations, each citing what delegates them — the in-place/replace choice (handoff, verbatim: "That choice is yours"), where the split falls and how a part is marked (R28: "the mechanics are the implementing plan's to specify"), which plan's `covers:` names R28, what supersession does to the coverage report, whether parts may cross a batch boundary, and a single cue larger than the cap.
+
+**Made partly wrong, by name:** `docs/plans/whole-transcript-threshold.md` (owner's, `CODEOWNERS`-held) — its slice 1 builds this routing without the clustering or the sequential bundles, its "pending" ceiling uncertainty is answered, and its out-of-scope line about the ceiling is stale. I left it alone as the handoff directs.
+
+**Two backlog items filed under Proposed**, both found while planning: **BL-20** — `deliver-phase.sh` dispatches every plan with no merged `feat/<slug>` branch, so it will eventually commission that superseded slice, and nothing an agent may write closes it; **BL-21** — `coverage.sh` reads `Requirements added:` and not `Requirements superseded:`, so R1001 stays in its universe forever, reports NOT PLANNED, and the cheapest way to green it is exactly the over-claim the adequacy note exists to expose.
+
+One loose end I could not clear: `docs/plans/oracle/whole-transcript-sequential-bundles.md` is an untracked draft from the abandoned rename that I cannot delete or move. It is **not** committed, and I overwrote it with a header saying it is not a plan and should be deleted; it carries no front matter, so if it were ever committed by accident `plan-lint.sh` fails loudly rather than a second plan quietly claiming the same routing.
+
+WORK_ON_BRANCH worker/steward-od-13

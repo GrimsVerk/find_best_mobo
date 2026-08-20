@@ -1,0 +1,21 @@
+## Review
+
+**Branch prefix check.** `docs/oracle-plan-od-13--run-local` is `docs/`-prefixed, which exempts it from the `plan` check. The entire diff sits inside `docs/BACKLOG.md` and `docs/plans/oracle/capped-whole-transcript-path.md` — both named explicitly in `AGENTS.md`'s exemption list (`docs/plans/` unqualified, and `docs/BACKLOG.md`), so this branch is legitimately exempt from both the plan requirement and the 50-line size cap, not exploiting a loophole. No src/ files are touched (confirmed by the `DID NOT RUN` note and the diff itself), so this is genuinely a document-only change matching its branch name — the scrutiny AGENTS.md asks for on an exempt branch doesn't turn up unplanned code riding along.
+
+**Criterion 5 (owner-authored gate).** Opened by `autogrims[bot]`, but neither `docs/DESIGN.md` nor `docs/VISION.md` is touched — only a plan under `docs/plans/oracle/` and `docs/BACKLOG.md`, both of which `AGENTS.md` explicitly says are "written AND opened by agents." No violation.
+
+**Design/plan conformance.** The revision correctly implements OD-13: `covers:` moves from `[R1001, R28]` to `[R28, R1008]`, matching OD-13's supersession of R1001 by R1008. Both quoted R28 and R1008 excerpts are verbatim matches against `docs/DESIGN.md` and `docs/DESIGN.oracle.md`. The removed `EXCERPTS_OVER_CAP` path, the removed cap check, and the removed `videos_over_cap` count are exactly what OD-13's "Downstream" note said must not be built. The sequencing note (build `recut-merged-excerpts` first) is preserved from OD-13 as required. The plan explicitly declines to also implement R1000's re-cut, keeping scope aligned with the single decision it's chartered to carry.
+
+**Uncertainties section.** All six borderline decisions are argued as derivations rather than guesses, and the one that touches an external format (cue-boundary splitting, new XML attributes) is explicitly delegated to "the implementing plan" by R28's own text ("the mechanics are the implementing plan's to specify") — so it isn't a HIGH-risk guess requiring a fresh oracle ruling.
+
+**New backlog items (BL-20, BL-21).** Both are filed correctly as text under Proposed/awaiting-owner sections, not coded, with clear directions for the owner (mark the stale plan `merged`/delete it/edit it; teach `coverage.sh` about supersession or accept the permanent `NOT PLANNED`). This is the correct venue per AGENTS.md's work-queue rule and mirrors how OD-13 itself flagged the stale-plan risk.
+
+**Gate tampering / dependencies / escapes.** No `.github/`, `.claude/`, `CODEOWNERS`, `AGENTS.md`, `docs/DESIGN.md`, `docs/DESIGN.oracle.md`, or `docs/VISION.md` changes. No dependencies added, no excluded lockfile movement. No `docs/escapes.md` row added, so the ratchet check doesn't apply.
+
+**Blind-test authorship / test-the-tests.** Both absent, and both expected — this is a docs-only PR with no implementation.
+
+**Author's open queue.** Empty; no ordering concern.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS

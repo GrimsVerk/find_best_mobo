@@ -1,0 +1,19 @@
+Preparing worktree (new branch 'worker/oracle-20260820124249')
+HEAD is now at 2709dfa Plan for OD-13 (#126)
+=== spawn-worker[oracle-20260820124249] engine=claude branch=worker/oracle-20260820124249 base=run/local (2709dfa7c73bbeead2e02149ff39d193a5aecd60) bypass=0 ===
+=== 2026-08-20T12:42:49Z ===
+Committed on the branch. Report follows.
+
+**Decisions written**
+
+- **OD-19** (resolves BL-20, with BL-14): `whole-transcript-threshold` slice 1 is superseded work no agent may build; the prohibition now lives in the design layer, which the review gate reads at every pull request's base commit and which survives across runs — unlike the handoff notes that previously carried it. I verified the hazard against the tree before ruling: the plan is `status: draft`, `deliver-phase.sh` skips only on `status: merged` or a merged `feat/<slug>` branch, and the plan sorts last in the walk, so the dispatch happens exactly when the queue drains. The decision makes that dispatch harmless (the dispatched orchestrator builds nothing, reports OD-19, stops) rather than pretending to prevent it. Closing the plan document itself is the owner's edit — any of BL-20's three, with one timing nuance recorded: `status: merged` is honest only after `feat/capped-whole-transcript-path` merges; deletion or cutting slice 1 is honest now, and the 80% ruling survives in `docs/DECISIONS.md` either way. No new requirement; the run report and review gate already observe everything this changes.
+
+- **OD-20** (resolves BL-21, with BL-14): a superseded requirement id is design history, not unscheduled work. Verified by inspection: `coverage.sh` reads only column-anchored `**Requirements added:**` lines, nothing reads `**Requirements superseded:**`, and the re-cut plan honestly covers `[R28, R1008]` — so `R1001 NOT PLANNED`, exit 1, forever. The ruling: the done-definition quantifies over surviving requirements; no plan may claim a superseded id in `covers:` (the over-claim pressure BL-21 warns of); a coverage exit 1 whose only gaps are superseded ids reads as "no gap". The ledger binds one rule on itself — every superseding requirement's text names the id it retires, which R1008 already does — and records the recommended script shape for the owner/template: subtract superseded ids and report them as their own excused class, never silent subtraction (V12's "silence has to read as silence" did real work here, ruling out the cheap silent form).
+
+**Not decided:** BL-1 and BL-2 — outside the commissioned scope, unchanged from prior runs; handed to the next cycle.
+
+**Handoff:** `docs/oracle/handoff-2026-08-20-6.md`. Nothing needs planning; both decisions add zero requirements. The owner has two items surfaced: the closing edit on `whole-transcript-threshold.md`, and the upstream `coverage.sh` supersession fix.
+
+**Vision feedback:** nothing ambiguous this run. The no-vision class carried OD-19 (process mechanics, consistent with OD-1/OD-2/OD-10/OD-12/OD-18), and V12 proved load-bearing one level down in OD-20, as it did in OD-16 — that sentence keeps earning its place.
+
+WORK_ON_BRANCH worker/oracle-20260820124249

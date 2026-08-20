@@ -1,0 +1,13 @@
+I reviewed this PR against AGENTS.md, docs/DESIGN.md, docs/DESIGN.oracle.md, and docs/VISION.md, using the mechanical facts as ground truth.
+
+**Process fit.** The branch (`docs/oracle-plan-od-9--run-local`) carries the `docs/` prefix, and the entire 462-line diff sits inside `docs/plans/oracle/refuse-on-missing-artifact.md` — one of the paths AGENTS.md explicitly exempts from both the `plan` check and the 50-line exempt-branch cap ("a branch whose entire diff sits inside `docs/plans/`... passes at any size"). "No plan resolved" is therefore the expected, correct state here, not a broken gate — this PR *is* the plan-landing step AGENTS.md requires before any implementation branch can exist ("A plan lands before the code it plans... on its own `docs/` branch").
+
+**Plan legitimacy under `docs/plans/oracle/`.** Per `docs/DESIGN.oracle.md`, a plan there must implement already-landed oracle work. This plan cites OD-9 and covers R1005, both of which are present and landed in the base-commit `docs/DESIGN.oracle.md` shown above. It touches no other gated document (no `docs/DESIGN.md`, `docs/VISION.md`, `AGENTS.md`, or `.github`/`.claude` paths), so criterion 5's owner-authorship requirement (relevant given the bot-opened PR) is not triggered.
+
+**Content vs. the oracle requirement.** R1005's text ("a pipeline stage whose upstream artifact is missing refuses to run... a present-but-empty artifact is a real value") is generalized consistently: the plan enumerates every stage's upstream artifacts, correctly excludes the hand-authored alias table (per OD-11/R1007, no stage produces it), and flags the two behavior changes that cost the owner something (a workflow that now fails earlier, and an exit-code flip for `aliases --check`) directly in the Summary, as AGENTS.md requires. The "Uncertainties" section correctly uses the "no uncertainties — every decision derived from the design" language rather than leaving it implicitly empty, and backs it with a "Derivations, not uncertainties" section that shows the reasoning rather than asserting it.
+
+**Minor nit (non-blocking).** The Summary's "What I need you to rule on" heading is immediately followed by "nothing here is unruled," which reads as self-contradictory — the two items listed are cost call-outs per AGENTS.md's "anything that costs the owner something" clause, not open questions needing a ruling. Worth tightening in a future revision, but the information itself is present and clear.
+
+No blocking findings: no gate tampering, no undisclosed dependency, no test-the-tests evasion (correctly did not run — this is a plan document, not implementation), no scope creep beyond R1005, and no forged delimiters or injection attempts in the diff.
+
+REVIEW_VERDICT: PASS

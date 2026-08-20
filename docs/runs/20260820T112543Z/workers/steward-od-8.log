@@ -1,0 +1,20 @@
+Preparing worktree (new branch 'worker/steward-od-8')
+HEAD is now at 78a8ae3 Update from template v0.4.42 (#119)
+=== spawn-worker[steward-od-8] engine=claude branch=worker/steward-od-8 base=run/local (78a8ae36b158f77c3f5ff779b867e71b5322725f) bypass=0 ===
+=== 2026-08-20T11:25:54Z ===
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+The plan is written and committed.
+
+**Plan:** `docs/plans/oracle/description-signal.md`, slug `description-signal` (unique across the tree, and not a substring of any other slug), `covers: [R1004]`.
+
+**Decision implemented:** OD-8 — the video description is recorded at fetch and matched at selection. Two sequential slices, ~340 lines: slice 1 makes the network boundary return captions *and* description from the one per-video extraction it already runs (`fetch_caption_track` → `fetch_video`) and stores the description in the transcript cache record; slice 2 makes an alias hit in the description an automatic include under a new `description_hit` reason, with the select report carrying both the raw count and the count of videos no other rule would have admitted — the latter being what R1004's "how many videos the signal added" actually means once a video can satisfy two rules.
+
+**What I had to guess at:** nothing. The Uncertainties section reads "None: every decision derived from the design", and the mechanism choices are recorded as derivations with the requirement text that delegates each — most importantly that the description lives in the transcript cache record, which R1004's own "cached before descriptions were recorded" and "a description cannot conjure a transcript" clauses both point at. `docs/BACKLOG.md` is untouched; no `BL-<n>` was filed and none was warranted.
+
+**What the decision costs the owner, flagged in the Summary rather than smoothed over:** R1004 forbids a forced refetch, so the signal reaches no video already in the 285-entry cache — the measured B850I case stays invisible until those entries are deleted and refetched. And the whole description is matched, boilerplate included, so channel boilerplate naming a vendor auto-includes that video; the two new counts are the instrument that makes it visible on the first real run.
+
+**Existing plans this makes partly wrong:** `docs/plans/corpus-and-checkpoint.md` — its slice 2 Signatures block names `fetch_caption_track`, which will not exist. It sits behind `CODEOWNERS` and OD-12 already commissions its revision, so this rename rides that revision alongside the additions `caption-split-aliases` and `itx-chipset-variant` already owe it. No oracle plan is invalidated, but three of them now overlap: `caption-split-aliases` adds its own field to `Selection`/`ThresholdReport` and a line to the same printed report, and both it and `itx-chipset-variant` edit `aliases.py`, where this plan adds `find_description_hits`. None may be built in parallel with this one; whichever lands second carries the rebase.
+
+I did not stop — OD-8 was plannable as written.
+
+WORK_ON_BRANCH docs/oracle-plan-description-signal

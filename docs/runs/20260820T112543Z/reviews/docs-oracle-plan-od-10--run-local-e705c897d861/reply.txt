@@ -1,0 +1,19 @@
+Consistent with the sibling plan for OD-9 that already landed the same way (`status: draft`, same `design:` milestone label). This confirms the format matches established convention in this repo.
+
+I've verified the diff against the repo's actual state (cli.py, commands/aliases.py, test_index.py) and against sibling plans (OD-9's already-merged plan uses the identical shape). Findings:
+
+**Plan conformance.** The plan correctly implements OD-10/R1006: dispatcher forwards unrecognized args via `parse_known_args`, no central subcommand table, per-module `parse_args` hook, `subcommand_parser` helper placed in `commands/__init__.py` per OD-12's module-naming rule. Its claims about current behavior (`cli.py`'s strict `parse_args`, `aliases.py`'s `getattr(args, "check", False)`, the settled `run(config, Namespace())` contract in `tests/test_index.py`) all check out against the actual files at HEAD.
+
+**Branch/size exemption.** `docs/oracle-plan-od-10--run-local` is `docs/`-prefixed, and the entire diff sits inside `docs/plans/oracle/` and `docs/BACKLOG.md` — both named in AGENTS.md's uncapped-exemption list — so the ~50-line cap doesn't apply despite 442 added lines. This is exactly the "plan lands before the code it plans" pattern; no implementation rides along (mechanical facts confirm zero src/ or test files touched).
+
+**BL-19 filing.** The plan surfaces one LOW-risk uncertainty (whether `--help` after a subcommand should forward), proceeds on the stated default per AGENTS.md's unattended-LOW rule, and files `BL-19` in the same commit under "Uncertainties awaiting oracle ruling" — same section and format as the immediately preceding BL-16/17/18 entries. Numbering is correctly the next unused integer.
+
+**Summary block.** Comes in right at ~40 lines, the stated hard ceiling — worth a light note but not a violation.
+
+**Gate/doc tampering.** No `.github/`, `.claude/`, `AGENTS.md`, `docs/DESIGN.md`, or `docs/VISION.md` touched, so the bot-authorship (`autogrims[bot]`) of this PR is not disqualifying.
+
+**Facts block.** Empty/no-implementation facts are honest here — not a "gate stopped working" case, since a plan-only PR is expected to show no test/impl deltas and no blind-test trailer.
+
+No blocking findings.
+
+REVIEW_VERDICT: PASS
