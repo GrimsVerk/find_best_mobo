@@ -606,3 +606,28 @@ entry records that an all-never-matched report over an empty cache is honest
 and looks like a broken table, with the remedy named. Those are existing
 mechanisms carrying the new behaviour, which is what the durable-evidence
 section of `docs/VISION.md` asks for.
+
+## OD-18 — After a subcommand name, `-h/--help` stays the dispatcher's; a subcommand parser never advertises it
+
+- **Date:** 2026-08-20
+- **Evidence:** BL-19, BL-5
+- **Requirements added:** (none)
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** (none — no statement in docs/VISION.md tells against this; help-flag routing is CLI mechanics, below the vision's altitude, exactly as OD-10 found for the defect this question grew out of)
+- **Alternatives considered:** (1) Route `-h/--help` to the subcommand once a command name has been seen — rejected: the dispatcher must then special-case help on whether a positional was already consumed, because `find-best-mobo --help` alone must still print the top-level help — dispatcher complexity R1006 did not ask for; and it buys nothing today, since no subcommand documents `--help`, so the only text a forwarded help flag could print is the usage line the subcommand already prints when its arguments are wrong. (2) Give every subcommand real argparse help (`add_help` left at its default) and forward the flag — rejected: new user-facing surface for five commands that neither BL-5 nor R1006 asked for; if the top-level help ever proves insufficient, that is future logged evidence, not this ruling's to anticipate. (3) The dispatcher keeps `-h/--help`, and each subcommand's parser is built with `add_help=False` so it never advertises a flag that cannot reach it — chosen, BL-19's proposed default, which the plan proceeded on.
+- **Rationale:** R1006's clause is "every flag a subcommand documents is reachable from the CLI", and no subcommand documents `--help`, so the requirement neither grants nor refuses the flag — BL-19 asks which reading is decided. `-h/--help` is a flag the dispatcher itself documents, so under R1006's own wording it is not among the "arguments it does not recognise" that must be forwarded: the default is the requirement read literally, not an exception carved out of it. The honesty constraint travels with the choice — a subcommand parser left at argparse's default would advertise `-h` in its usage while the dispatcher consumes the flag before it can ever arrive, which is a documented-but-unreachable flag, the exact shape R1006 exists to forbid; `add_help=False` keeps each command's advertised surface equal to its reachable surface. BL-19's LOW classification holds: one constructor argument, no slice boundary moves, no shared signature changes, and reversing the ruling is restoring argparse's default plus the routing branch the rejected alternative describes.
+
+The ruling, stated for the plan that proceeded on the default
+(`docs/plans/oracle/subcommand-flag-forwarding.md`): the plan is confirmed as
+drafted and needs no re-cut. `find-best-mobo <command> --help` prints the
+top-level help; a subcommand's usage stays what it prints today when its
+arguments are wrong; `flag_parser` passes `add_help=False`.
+
+Measurement: following OD-14's shape, the decided ownership is pinned in the
+suite rather than left implicit — one case in `tests/test_cli.py` (already in
+slice 1's file list, so no re-cut) drives `main` with a subcommand name
+followed by `--help` and asserts the top-level help is what prints, making any
+future change of ownership a visible test edit instead of drift. The
+`docs/architecture.md` "Known rough edges" entry the plan already specifies
+records the same fact for readers.
