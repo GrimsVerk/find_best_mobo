@@ -1066,4 +1066,29 @@ instructions. **It is the owner's to arrange, or it stays unobserved.**
 | --- | --- | --- | --- |
 | 13:22:59Z | 5 | WAIT | **PR #136 MERGED** by `autogrims[bot]`, head unchanged. ESC-21: branch deleted, thirteenth confirmation. |
 | 13:23Z | 6 | STEWARD | Detector: `PHASE=STEWARD ODS=OD-10 OD-11`. **OD-9 cleared** — fourth decision retired this round. Steward dispatched for OD-10. Counters: **11 of 30 pull requests** (all merged), **19 of 60 iterations**, ~116 minutes of 12 hours. |
+| 13:34:08Z | 6 | STEWARD | Plan `docs/plans/oracle/subcommand-flag-forwarding.md`, slug `subcommand-flag-forwarding`, `covers: [R1006]`, 309 lines, one **LOW** filing. The requirement: every subcommand flag must be reachable from the CLI — a flag the code accepts but the parser never forwards is a capability that exists and cannot be used. Contamination probe: clean. No slug collision. This worker did **not** relocate its branch, so ESC-68 had nothing to report — the honest negative alongside its five positives. |
+| 13:36:30Z | 6 | WAIT | **PR #137 MERGED** by `autogrims[bot]`. Twelfth App-authored pipeline pull request, twelfth merge. |
+| 13:37Z | 7 | ORACLE | Detector: `PHASE=ORACLE REASON=evidence UNCITED=BL-19`. **OD-10 cleared** — fifth decision retired this round. Oracle dispatched for BL-19. Counters: **12 of 30 pull requests** (all merged), **20 of 60 iterations**, ~130 minutes of 12 hours. |
+
+### The rhythm, twenty iterations in
+
+Five decisions have now been retired on this lane — OD-6, OD-7, OD-8, OD-9,
+OD-10 — and four of the five went through the identical shape without a human:
+
+1. steward plans the decision;
+2. it meets something the design under-specifies, judges it **LOW**, proceeds on
+   a recorded default and files a `BL-<n>` in the same commit;
+3. the plan merges;
+4. the detector routes that `BL-<n>` to the **oracle on the very next cycle**;
+5. the oracle ratifies, the decision leaves the queue.
+
+OD-8 is the exception, and it is the useful one: it had nothing to escalate and
+**said so in words** rather than leaving the section blank. OD-6 is the other
+exception at the top end: its first attempt hit a **HIGH** uncertainty and
+stopped dead until `OD-14` ruled.
+
+So all three planning routes are exercised, the queue only ever shrinks, and no
+`BL-<n>` has been raised twice. Twelve pull requests, twelve merges, zero red
+checks, zero human interventions except the one approval the gate correctly
+demanded.
 
