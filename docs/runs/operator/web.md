@@ -887,4 +887,42 @@ simply too fast. Both merge inside two minutes of opening, so overlap needs the
 two to be dispatched within roughly ninety seconds of each other. Worth saying to
 the owner as a **test-rig** limitation rather than a template one: if ESC-17 and
 ESC-71 are to be observed at all, one lane has to be deliberately held open.
+| 12:46:42Z | 2 | WAIT | **Review gate `PASS`** on `8fb9f463`. It checked the exemption paths, the ownership carve-out, gate tampering, OD-16's schema fields, the `V11` quotation verbatim, and append-only-ness (OD-16 added without touching OD-1..OD-15). |
+| 12:46:47Z | 2 | WAIT | **PR #127 MERGED** by `autogrims[bot]`; head branch deleted 12:46:48Z — **1 second after. ESC-21 confirmed a tenth time.** |
+| 12:47Z | 3 | STEWARD | Detector: `PHASE=STEWARD ODS=OD-8 OD-9 OD-10 OD-11`. **OD-7 has now dropped off the queue too.** Steward dispatched for OD-8. Counters: **8 of 30 pull requests** (all merged), **14 of 60 iterations**, ~80 minutes of 12 hours. |
+
+### The pipeline diagnosed its own recurring failure, unprompted
+
+The review gate's verdict on `#127` picked out something this ledger should
+record loudly, because it is the pipeline turning its evidence machinery on
+itself:
+
+> The handoff usefully flags, **unprompted**, that the vision opt-out class is
+> now being used for a recurring category (fixture/process provenance questions)
+> and that a **durable-evidence gap — measurements not landing with the backlog
+> entries that cite them — caused both BL-16 and BL-17** [...] exactly the kind
+> of note the process wants surfaced to the owner rather than silently absorbed.
+
+Both `BL-16` and `BL-17` are the same defect wearing different clothes: a
+requirement cites a measurement (`BL-8`'s 52 variants, `BL-9`'s regression
+title) that was never committed alongside the backlog entry citing it. The
+oracle did not merely rule each one and move on — it noticed the **pattern
+across two rulings** and named the systemic cause in the handoff, where the next
+role reads it.
+
+That is AGENTS.md's ratchet applied by an agent to the process rather than to a
+bug, without anyone asking. Recorded as the strongest positive observation of
+the run so far, and worth the owner's attention as a real finding about the
+**project**: measurements cited by `BL-<n>` entries need to land with them.
+
+### Decision queue, five iterations of round 4
+
+| Iteration | `ODS` reported | Change |
+| --- | --- | --- |
+| 1 | `OD-7 OD-8 OD-9 OD-10 OD-11` | resumed from round 3 |
+| 3 | `OD-8 OD-9 OD-10 OD-11` | **OD-7 cleared** |
+
+Each of OD-6 and OD-7 took the same three-step shape — steward plans, hits an
+under-specified fixture, files LOW and proceeds; oracle ratifies next cycle;
+decision leaves the queue. Two decisions, six merged pull requests, no repeats.
 
