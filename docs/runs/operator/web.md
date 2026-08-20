@@ -983,4 +983,31 @@ rather than trust it.
 | 13:13:22Z | 4 | WAIT | **PR #134 MERGED** by `autogrims[bot]`; head branch deleted 13:13:23Z — **1 second after. ESC-21 confirmed a twelfth time.** |
 | 13:13Z | 5 | ORACLE | Detector: `PHASE=ORACLE REASON=evidence UNCITED=BL-18`. Oracle dispatched. Counters: **10 of 30 pull requests** (all merged), **17 of 60 iterations**, ~106 minutes of 12 hours. |
 | 13:13Z | 5 | ORACLE | **ESC-17 window may be live for the first time**: `#133 base=run/local` is open on the other lane right now, and this lane is about to open its own. `run/web` tip recorded as **`fb49f92`** before dispatch, so a cross-lane rewrite would be detectable. |
+| 13:20:59Z | 5 | ORACLE | Worker returned `exit=0 commits=1`. Ruling **OD-17**: `R1005` binds `aliases --check` — an **absent** cache refuses, an **empty** cache is reported as an empty corpus. Evidence `BL-18`, `BL-7`. No requirement added or superseded; it ratifies the LOW default the OD-9 plan proceeded on. The distinction it draws is the substance: "nothing was looked at" and "nothing was found" must not read alike downstream. Contamination probe: clean. |
+| 13:21:5xZ | 5 | WAIT | **PR #136 opened by `autogrims[bot]`**, base `run/web`, head `ba65b302`. Eleventh App-authored pipeline pull request. |
+
+### ESC-17 / ESC-71 — the window is OPEN for the first time in five rounds
+
+Both lanes hold a pull request simultaneously, verified in one call:
+
+```
+#136 base=run/web    head=docs/oracle-bl18-131350--run-web  sha=ba65b302   <- mine
+#133 base=run/local  head=docs/r26-fifteen-percent          sha=7d571cdf   <- other lane
+```
+
+The measurement is armed rather than left to impression. My head SHA is recorded
+in full — **`ba65b3028f563ed091bd980d42bca6bf653580eb`** — and a watcher polls
+both pull requests every 15 seconds for up to ten minutes to catch which of three
+things happens:
+
+- the other lane merges **while mine is still open**, and my head is unchanged ->
+  **ESC-71 PASS**, the behaviour observed for the first time;
+- the other lane merges while mine is open and my head **changed** -> ESC-71
+  FAIL, a real finding;
+- mine merges first -> the window shuts again with nothing learned, which is the
+  outcome of the previous three attempts.
+
+Whichever occurs is recorded verbatim. This lane has now spent five rounds unable
+to reach this test, so the negative outcomes are worth reporting as carefully as
+the positive one.
 
