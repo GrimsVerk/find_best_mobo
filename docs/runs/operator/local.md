@@ -20,6 +20,8 @@ Register values are never written here. They appear as `<repos_root>`,
 
 | Timestamp (UTC) | Phase | Key fields |
 | --- | --- | --- |
+| 2026-08-20T10:27:31Z | RESTART/UPDATE | v0.4.39 -> v0.4.41 via update-from-template.sh --base run/local; 5 files, 0 conflicts |
+| 2026-08-20T10:27:31Z | RESTART/READY | both lanes at v0.4.41 and gated; readiness exit 0 incl. the ESC-72 clear-base line |
 | 2026-08-20T09:36:06Z | RESTART/UPDATE | v0.4.37 -> v0.4.39, 7 files, 0 conflicts, 0 .rej; F1/F10/F13/F14 fixes verified present |
 | 2026-08-20T09:36:06Z | RESTART/BLOCKED | PR #105 all checks green, auto-merge armed, BLOCKED on CODEOWNERS review |
 | 2026-08-20T09:28:11Z | RUN STOPPED | v0.4.37 run 20260820T085531Z: 6 clean iterations, PRs #100-#103 merged, then steward livelock |
@@ -505,4 +507,91 @@ scheduler reads the same value.
   request. ESC-35 predicted this works and nothing has ever observed it. The
   owner's approval here is that observation.
 - **Severity:** none — expected, and blocking the restart until approved.
+
+---
+
+## RESTART — v0.4.41
+
+Second restart, ordered by the owner. Findings F1-F18 stand as written.
+
+### F19 — F1 and F3 confirmed fixed, observed in use (not just read)
+- **Where:** restart step 2, `scripts/update-from-template.sh --base run/local --no-pr`
+- The updater this lane could not use at all in F1 ran the whole update:
+
+  ```
+  update-from-template: refreshing run/local
+  update-from-template: currently on template v0.4.39
+  update-from-template: (copier may print 'Make sure Git >= 2.24 is installed' —
+    that is copier's stock advisory, not a real prerequisite failure; any
+    modern git satisfies it)
+  update-from-template: v0.4.39 -> v0.4.41
+  Switched to a new branch 'template/v0.4.41--run-local'
+  ```
+
+- **F1 closed.** It refreshed `run/local`, not `main`, and cut a **lane-suffixed**
+  branch `template/v0.4.41--run-local`. Both are the behaviours F1 asked for.
+- **F3 closed.** The copier advisory is now annotated inline, one line before
+  copier prints it, saying in plain words that it is not a real failure.
+- **Severity:** none — two closures, both observed rather than inferred.
+
+### F20 — F10's fix verified in the tree, not observed live
+- `scripts/setup-github.sh` now runs `git add` then `git commit -q -m "Record the
+  setup-github transcript"` on its own log (lines 126-127), and its header says
+  it "records its own transcript under docs/runs/setup/".
+- **Honest limit:** no setup run was needed this restart (see F22), so the fix is
+  read in the source, not watched working. Recorded as verified-by-reading.
+- **Severity:** none
+
+### F21 — F15 confirmed fixed, both halves
+- **The inert grants (this lane's F15).** Every `Write(path)` in
+  `spawn-worker.sh` now carries an `Edit(path)` twin, with the reason written
+  beside it: "Every Write() carries an Edit() twin, and the twin is the half
+  that … rejects Write(path) with a warning". The steward's two ungranted
+  targets, `docs/plans/oracle/**` and `docs/BACKLOG.md`, both have twins.
+  Note the template credits the anvil's F7 for this; the two lanes filed the
+  same defect independently.
+- **Lane-scoped `update-open-prs`.** The job now reports
+  `update-open-prs: base $BASE_REF — updated N, M conflicted, K skipped`, so a
+  merge in this lane no longer churns `run/web`'s pull requests.
+- **Severity:** none — closure.
+
+### F22 — ESC-72's new readiness line passes, and the rig duties were already met
+- **The new line, green:**
+
+  ```
+  ready    no pull request is open against 'run/local' — the run starts on a clear base
+  ```
+
+  This is the check for the exact condition that stranded this lane at v0.4.37,
+  where the run's first act would have been to wait on a pull request needing a
+  human review no unattended actor can give.
+- **Rig duties, checked rather than repeated.** `setup-github.sh` was NOT re-run,
+  deliberately. Its three purposes were each verified already satisfied, by API
+  read: App identity proves out (`app-token.sh` exit 0); the `grimsverk-gates`
+  ruleset already includes `~DEFAULT_BRANCH`, `refs/heads/run/local` **and**
+  `refs/heads/run/web`, active, with all seven checks; and readiness returns
+  exit 0. Re-running it would have reset the ruleset to the default branch only
+  before re-gating, opening a window in which both lanes were ungated, to reach
+  a state already held. Recorded as a judgment, not an omission.
+- **`run/web` needed no waiting** — it was already at `_commit: v0.4.41`, and its
+  own `unattended-ready --runtime` returns exit 0 including the same clear-base
+  line. The bounded 45-minute poll was not entered.
+- **Severity:** none
+
+### F23 — ESC-35 observed live, twice: the owner CAN approve an App-authored pull request
+- **Where:** PRs #105 and #107, both `author: app/autogrims`
+- GitHub refuses an author's approval of their own pull request, so this only
+  works because the pipeline's pull requests are opened by the App and not by
+  the owner. ESC-35 predicted it; nothing had ever observed it.
+
+  | PR | approved by | approved at | merged at | gap |
+  | --- | --- | --- | --- | --- |
+  | #105 | `GrimsVerk` | 10:12:52Z | 10:12:54Z | 2s |
+  | #107 | `GrimsVerk` | 10:24:33Z | 10:25:39Z | 66s |
+
+- Both merged by `app/autogrims` under armed auto-merge, with every required
+  check already green — the approval was the last gate in each case.
+- This is Part 3's closing action 1, satisfied on the template-update pull
+  requests rather than on an acceptance one.
+- **Severity:** none — first live observation.
 
