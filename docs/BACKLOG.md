@@ -313,3 +313,21 @@ _why that class, and `— filed by: plan`.)_
   expensive to reverse. Ruling this way or that also decides whether OD-6 needs
   a fourth slice. — filed by: steward (OD-6 plan; the same question the closed
   PR #85 draft self-ruled on, preserved at `docs/oracle/od-6-plan-draft.md`)
+- **BL-17** — What are BL-8's 52 measured caption variants? R1002 (OD-6) says
+  "BL-8's measured 52-variant set lands as a fixture", but BL-8 records only the
+  count, the three named failures (`toma hawk`, `aor us master`,
+  `air us elite`) and the damage classes — the list itself is in no commit, no
+  journal entry and no run record, so the fixture R1002 asks for cannot be
+  recovered, only rebuilt. Proposed default: reconstruct 52 variants from the
+  shipped table's own canonicals across BL-8's damage classes, with the named
+  failures verbatim plus a `never_match` reject set, and state inside the
+  fixture that it is a reconstruction rather than the original measurement.
+  **LOW**: it is fixture content only — no signature, slice boundary or external
+  format turns on it, and the alternative (pin the observed failures alone) is a
+  smaller fixture in the same file. Two facts worth a ruling anyway: BL-8's
+  arithmetic (49 matched + 3 failures = 52) leaves no room for the hyphenated
+  `steel-legend` it also reports failing, and the preserved draft's
+  reconstruction had five failing variants rather than three — so a
+  reconstruction asserting "52" carries a number the evidence does not quite
+  support. — filed by: steward (OD-6/OD-15 plan `caption-split-aliases`;
+  proceeded on the default)
