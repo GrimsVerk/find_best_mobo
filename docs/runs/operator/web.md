@@ -522,4 +522,6 @@ the driver pushed the right branch because the script told it the truth.
 (`arm-auto-merge -1s`, `delete-merged-branch -5s`, `plan -7s`). This is a
 GitHub artifact on skipped jobs, not a template defect — recorded only so the
 duration figures above are not read as sloppy arithmetic.
-
+| 10:47:17Z | 3 | ORACLE | Worker returned `exit=0 commits=1`; ESC-69 compliance confirmed (`WORK_ON_BRANCH worker/oracle-bl15-104223` present in the log). Ruling **OD-14**: `R1002`'s caption-split matching is **per-cue**; a split straddling two cues stays out of scope — the proposed default BL-15 was filed with. No requirement added, none superseded. Contamination probe: clean. |
+| 10:47:17Z | 3 | ORACLE | Two things in this ruling are worth the owner's eye, both marks of an honest decision rather than a confident one: it records **"(no vision statement decided this)"** rather than reaching for support it does not have, and it argues *against* `V1` — the tenet that pushes toward recovering every mention — instead of ignoring it. It also states the limit of its own evidence: BL-8's three failures were **measured**, whereas no cue-spanning miss has ever been observed, so the population it rules out of scope is **hypothesized**. |
+| 10:48Z | 3 | WAIT | **PR #112 opened by `autogrims[bot]`**, base `run/web`. Fifth App-authored pipeline pull request. Detector: `PHASE=WAIT PR=112`. Subscribed; turn ended. Counters: **3 of 30 pull requests, 4 of 60 iterations**, ~21 minutes of 12 hours. |
