@@ -289,3 +289,27 @@ _why that class, and `— filed by: plan`.)_
   plan's slice boundaries and an external routing behaviour, and building the
   capped path as merged would implement a decision the owner has reversed.
   — filed by: owner (recorded from chat by the postmortem session)
+- **BL-16** — Does R1002 (OD-6) have to recover an alias split across a **cue
+  boundary** — `toma` ending one cue and `hawk` beginning the next — or only a
+  split inside one cue's text? R1002 fixes the rule ("the concatenation of
+  adjacent whole tokens", every alias space landing on a token boundary) but
+  never says what text the rule is applied over, and today
+  `find_mentions` normalizes and scans **one cue at a time**
+  (`src/find_best_mobo/aliases.py`), so a name the captions break at a cue
+  break stays invisible after the token-join rule lands. The evidence does not
+  settle it either: BL-8's three measured failures — `toma hawk`,
+  `aor us master`, `air us elite` — were all tested as within-cue text, and no
+  cross-cue case has been measured. The shipped VTT fixture shows auto-caption
+  cues breaking mid-phrase (`...Taichi board` / `has a twelve phase...`), so
+  the case is plausible but unquantified. Proposed default: **no cross-cue
+  joining** — the rule applies within one cue's normalized text, and the plan
+  scopes cue-spanning splits out with that stated. **HIGH**: the other answer
+  changes `find_mentions`'s shape and therefore the plan's slice boundaries —
+  it would have to scan cue-joined text and map every match offset back to the
+  cue it started in — and it puts a second question on the table that OD-6
+  does not answer, namely which `start_seconds` a mention spanning two cues
+  carries. That field is not cosmetic: R5 cuts every excerpt window from it and
+  the report's timestamped links are built on it, so a wrong answer is
+  expensive to reverse. Ruling this way or that also decides whether OD-6 needs
+  a fourth slice. — filed by: steward (OD-6 plan; the same question the closed
+  PR #85 draft self-ruled on, preserved at `docs/oracle/od-6-plan-draft.md`)
