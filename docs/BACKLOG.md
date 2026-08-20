@@ -348,3 +348,22 @@ _why that class, and `— filed by: plan`.)_
   reconstruction declares itself, and only what was observed claims measured
   provenance. — filed by: steward (OD-7 plan `itx-chipset-variant`; proceeded on
   the default)
+- **BL-19** — When `--help` follows a subcommand — `find-best-mobo aliases
+  --help` — whose help prints, the subcommand's or the dispatcher's? R1006
+  (OD-10) says every flag a subcommand *documents* is reachable from the CLI
+  and that the dispatcher forwards arguments it does not recognise, but
+  `-h/--help` is the one token the top-level parser owns today: argparse
+  registers it automatically and consumes it before dispatch, so the rule and
+  the shipped behaviour disagree on exactly this argument. It matters because
+  `--check` is documented nowhere else — a subcommand whose help is
+  unreachable documents its flags only in source. Proposed default: **forward
+  it** — the top-level parser stops registering help automatically, prints its
+  own help only when no subcommand was named, and otherwise passes `--help`
+  through, so `find-best-mobo aliases --help` prints the `aliases` parser's
+  help; `find-best-mobo --help` and a bare `find-best-mobo` keep today's output
+  and exit codes. **LOW**: it changes one console output and nothing else — no
+  slice boundary, no Signatures block, no external format, and reversing it is
+  deleting one branch in `cli.py`. Filed rather than assumed because it is a
+  deliberate divergence from what the CLI does today, and the owner may prefer
+  the top-level help to stay reachable after a command name. — filed by:
+  steward (OD-10 plan `subcommand-flag-forwarding`; proceeded on the default)
