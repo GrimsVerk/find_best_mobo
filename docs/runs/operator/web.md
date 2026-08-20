@@ -525,3 +525,28 @@ duration figures above are not read as sloppy arithmetic.
 | 10:47:17Z | 3 | ORACLE | Worker returned `exit=0 commits=1`; ESC-69 compliance confirmed (`WORK_ON_BRANCH worker/oracle-bl15-104223` present in the log). Ruling **OD-14**: `R1002`'s caption-split matching is **per-cue**; a split straddling two cues stays out of scope — the proposed default BL-15 was filed with. No requirement added, none superseded. Contamination probe: clean. |
 | 10:47:17Z | 3 | ORACLE | Two things in this ruling are worth the owner's eye, both marks of an honest decision rather than a confident one: it records **"(no vision statement decided this)"** rather than reaching for support it does not have, and it argues *against* `V1` — the tenet that pushes toward recovering every mention — instead of ignoring it. It also states the limit of its own evidence: BL-8's three failures were **measured**, whereas no cue-spanning miss has ever been observed, so the population it rules out of scope is **hypothesized**. |
 | 10:48Z | 3 | WAIT | **PR #112 opened by `autogrims[bot]`**, base `run/web`. Fifth App-authored pipeline pull request. Detector: `PHASE=WAIT PR=112`. Subscribed; turn ended. Counters: **3 of 30 pull requests, 4 of 60 iterations**, ~21 minutes of 12 hours. |
+| 10:49:05Z | 3 | WAIT | **Review gate `PASS`** on `924fe14c`. The most thorough verdict of the run: it checked the exemption-path claim, confirmed `BL-15` existed at the base commit by finding its merge in the git log, verified OD-14's schema fields, checked that the `V1` quotation is the **complete first sentence and matches `docs/VISION.md` word for word** rather than a truncated fragment, confirmed the ledger is append-only with monotonically increasing ids, confirmed the handoff file is new rather than modified, and ran an injection check on the pull-request body. |
+| 10:49:08Z | 3 | WAIT | **PR #112 MERGED** by `autogrims[bot]`. Head branch deleted 10:49:09Z — **1 second after. ESC-21 confirmed a fifth time.** |
+| 10:49Z | 4 | STEWARD | Detector: `PHASE=STEWARD ODS=OD-6 ...`. OD-6 comes back around, now unblocked by OD-14. Steward dispatched again with the full ESC-69 contract. Counters: **3 of 30 pull requests** (all merged), **5 of 60 iterations**, ~22 minutes of 12 hours. |
+
+### The review gate is doing real work, and this is the evidence for it
+
+Three review verdicts have landed on this lane, at 87s, 71s and ~50s. None is a
+rubber stamp. Across them the reviewer has independently:
+
+- read the **base tree** to confirm a plan file exists as the pull request claims;
+- confirmed a cited `BL-<n>` was filed **and merged before** the document citing
+  it, by finding the merge commit in the log — the entry-before-citation ordering
+  AGENTS.md makes a hard rule;
+- checked a quoted vision tenet **word for word** against `docs/VISION.md`, and
+  specifically that it was quoted in full rather than truncated to a convenient
+  fragment;
+- confirmed the oracle ledger stayed append-only with increasing ids;
+- confirmed no gate path, owner-owned document or plan directory was touched;
+- run an explicit **prompt-injection check** on the pull-request body, which the
+  driver itself composes.
+
+That last one matters for this test: the driver writes the pull-request body, and
+the reviewer treats it as untrusted input rather than as instructions. Recorded as
+a positive observation of the one load-bearing gate that has no fixtures.
+
