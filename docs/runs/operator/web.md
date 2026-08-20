@@ -571,4 +571,26 @@ iterations: a loop that keeps finding **new** questions is the design working; a
 loop that re-raises the **same** question would be the failure mode
 `record_dismissed_evidence` exists to prevent. Watching for the second across the
 remaining iterations, and it will be called out by name if it appears.
+| 11:03:57Z | 5 | ORACLE | Worker returned `exit=0 commits=1`; ESC-69 line present. Ruling **OD-15**: `R1002`'s 52-variant fixture **is the declared reconstruction**, and the reconstruction is the reference set — ratifying the default the steward proceeded on, so the merged plan stands as written. No requirement added or superseded. Contamination probe: clean. |
+| 11:05Z | 5 | WAIT | **PR #115 opened by `autogrius[bot]`** — correction: `autogrims[bot]`. Base `run/web`. Seventh App-authored pipeline pull request. Detector: `PHASE=WAIT PR=115`. Counters: **5 of 30 pull requests, 8 of 60 iterations**, ~38 minutes of 12 hours. |
+
+### The LOW-uncertainty route completed end to end
+
+`BL-16` is the first uncertainty this lane has watched travel the **whole** LOW
+path, and every step happened without a human:
+
+1. The steward hit an under-specified point (`R1002` cites a 52-variant set that
+   was never committed), judged it LOW, **proceeded on a recorded default**, and
+   filed `BL-16` saying so.
+2. The plan built on that default and shipped a fixture that **declares itself a
+   reconstruction** rather than passing as the original measurement.
+3. The plan merged.
+4. The detector routed `BL-16` to the oracle on the **very next cycle**.
+5. `OD-15` ratified the default and settled the two numeric discrepancies the
+   steward had reported rather than smoothed over.
+
+The alternative — a worker quietly inventing 52 variants and calling them BL-8's
+measurement — is the exact failure this machinery exists to prevent, and it did
+not happen. Recorded as a positive observation of the LOW route, matching the
+HIGH route already recorded at BL-15.
 
