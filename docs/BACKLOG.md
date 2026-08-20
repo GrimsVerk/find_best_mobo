@@ -331,3 +331,20 @@ _why that class, and `— filed by: plan`.)_
   reconstruction asserting "52" carries a number the evidence does not quite
   support. — filed by: steward (OD-6/OD-15 plan `caption-split-aliases`;
   proceeded on the default)
+- **BL-18** — What is the real B850I review's title? R1003 (OD-7) names the
+  regression as "the real B850I review's title auto-includes on its chipset",
+  and that title is in no commit, no journal entry and no run record. BL-9
+  records the board (`MSI MPG B850I Edge TI`), the 33-minute duration and the
+  measured zero `B850` matches in title and body — not the title as YouTube
+  spells it — and `data/index.jsonl`, which would hold it, is gitignored and
+  absent from a fresh clone. Proposed default: carry BL-9's board name verbatim
+  inside a plainly-labelled reconstructed title, with the test's docstring
+  stating that the original is unrecoverable, that only the board name has
+  measured provenance, and that nothing asserts on the invented wording.
+  **LOW**: it is test-fixture content — no signature, slice boundary or external
+  format turns on it, and the alternative (assert on the board-name token alone,
+  with no surrounding title) is the same test one string shorter. The provenance
+  rule applied is the one OD-16 already set for R1002's fixture: a
+  reconstruction declares itself, and only what was observed claims measured
+  provenance. — filed by: steward (OD-7 plan `itx-chipset-variant`; proceeded on
+  the default)
