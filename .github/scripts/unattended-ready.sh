@@ -134,6 +134,18 @@ else
   else
     note "'Automatically delete head branches' is off — the workflow and sweep still clean up; scripts/setup-github.sh sets it"
   fi
+  # DO THE GATES ACTUALLY BIND? (ESC-73.) Rulesets are enforced on public
+  # repositories and on private ones under a paid plan; on a private repository
+  # without one they can be CREATED and read back exactly as configured while
+  # enforcing nothing. Every check above reads configuration, so all of them
+  # pass — and pull requests merge with no review, no required check, and no
+  # sign anything is wrong. Observed: a real project's template updates
+  # auto-merged for weeks with zero approvals against a ruleset demanding code
+  # owner review, and the first merge ever refused was the day the repository
+  # went public and the gates began to bind.
+  if grep -q '"private"[[:space:]]*:[[:space:]]*true' <<<"$SETTINGS"; then
+    note "this repository is PRIVATE — rulesets enforce only under a paid plan there. If yours is not paid, every gate above is configured and NOT binding: pull requests merge unreviewed and unchecked. Make it public, or confirm the plan covers rulesets"
+  fi
 fi
 
 # ------------------------------------------------------------------ rulesets
@@ -197,6 +209,9 @@ DEFAULT_BRANCH="$(grep -oE '"default_branch"[[:space:]]*:[[:space:]]*"[^"]+"' <<
 if [[ "$RUNTIME" -eq 1 && -z "${RUN_BASE:-}" ]]; then
   RUN_BASE="$DEFAULT_BRANCH"
 fi
+# The base this run will actually use, for the checks below that need a name
+# whether or not the caller supplied one.
+RUN_BASE_EFF="${RUN_BASE:-$DEFAULT_BRANCH}"
 if [[ -n "${RUN_BASE:-}" ]]; then
   if [[ "$RUNTIME" -eq 1 ]] \
      || [[ -n "$DEFAULT_BRANCH" && "$RUN_BASE" != "$DEFAULT_BRANCH" ]]; then
@@ -348,6 +363,27 @@ else
   else
     refuse "$VISION has unfilled section(s): $(tr '\n' ',' <<<"$EMPTY_SECTIONS" | sed 's/,$//; s/,/, /g') — the oracle quotes this file on every ruling; fill them or delete them"
   fi
+fi
+
+# ---------------------------------------------- an open pull request on the base
+# A run cannot start into a base that already has a pull request open: the
+# one-PR-per-base rule means the driver's first act is to WAIT on somebody
+# else's change, and if that change needs the owner's review — a template
+# update does, always, because it edits the gates themselves — the run stalls
+# on a condition no unattended actor can clear, then stops at exit 4 having
+# built nothing. Observed live on a real project: an update pull request left
+# open at setup derailed the run that followed it.
+#
+# Caught HERE rather than mid-flight, because that is this check's whole job:
+# a refusal costs a click, a mid-run stall costs the run. Merge it (a template
+# update is yours to approve — template-sync proves the diff is exactly copier
+# output, so the reading is quick) or close it, then start the run.
+OPEN_ON_BASE="$("$GH" api "repos/$REPO/pulls?state=open&base=$RUN_BASE_EFF&per_page=10" \
+  --jq '.[] | "#\(.number) \(.head.ref)"' 2>/dev/null || true)"
+if [[ -n "$OPEN_ON_BASE" ]]; then
+  refuse "a pull request is already open against '$RUN_BASE_EFF' ($(printf '%s' "$OPEN_ON_BASE" | tr '\n' ' ')) — the run's first act would be to wait on it, and a template update waits for YOUR review, which no unattended actor can give. Merge or close it first"
+else
+  ok "no pull request is open against '$RUN_BASE_EFF' — the run starts on a clear base"
 fi
 
 # ------------------------------------------------------------------- verdict

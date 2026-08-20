@@ -272,6 +272,7 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ github.repository }}
           MERGED: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -uo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
@@ -289,7 +290,14 @@ jobs:
           OWNER="${REPO%%/*}"
 
           # This repository's branches only: a fork's branch is not ours to push.
-          gh pr list --repo "$REPO" --state open --limit 200 \
+          # BASE-SCOPED (ESC-71). "Up to date" is a fact about ONE base
+          # branch: a merge into run/local leaves a pull request targeting
+          # run/web exactly as current as it was. Updating it anyway rewrites
+          # another lane's head, re-runs its whole CI, and can hand that lane a
+          # conflict its own run never created — the twin-run isolation every
+          # other part of this pipeline keeps, broken by the one job that
+          # sweeps repo-wide.
+          gh pr list --repo "$REPO" --state open --limit 200 --base "$BASE_REF" \
             --json number,headRefName,headRepositoryOwner \
             --jq ".[] | select(.headRepositoryOwner.login == \"$OWNER\") | \"\(.number)\t\(.headRefName)\"" \
             > /tmp/open-prs.txt || : > /tmp/open-prs.txt
@@ -312,7 +320,7 @@ jobs:
             fi
           done < /tmp/open-prs.txt
 
-          echo "update-open-prs: updated $updated, $conflicted conflicted, $other skipped." \
+          echo "update-open-prs: base $BASE_REF — updated $updated, $conflicted conflicted, $other skipped." \
             >> "$GITHUB_STEP_SUMMARY"
           exit 0
 

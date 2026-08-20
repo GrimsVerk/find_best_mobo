@@ -550,9 +550,24 @@ land_evidence() {
   # ONE exit path, and it switches back. A stop that left the checkout sitting
   # on docs/run-<id> would make the next run refuse ("not on the default
   # branch") — the recorder breaking the thing it records.
-  local ref="docs/run-$RUN_ID$LANE" token
+  # CUT FROM THE REMOTE TIP, NOT THE LOCAL ONE (ESC-70). The gates ruleset sets
+  # strict_required_status_checks_policy, so a pull request must be up to date
+  # with its base to merge. The evidence branch is cut at the STOP, from a
+  # checkout that is two or three merges old by then, so it was born BEHIND —
+  # and the only job that brings stale branches up to date, update-open-prs,
+  # fires on a merge. The evidence pull request is by construction the LAST
+  # pull request of a run, so no further merge happens on that base and nothing
+  # ever updates it: eleven green checks, auto-merge armed by the App, waiting
+  # for ever on a condition that cannot change. Observed live, and it is the
+  # answer to ESC-40 — the evidence pull request never merged because it could
+  # not. Fetching first costs one network call at a stop that is already
+  # talking to the remote.
+  local ref="docs/run-$RUN_ID$LANE" token base_point="$RUN_BASE"
+  git fetch -q origin "$RUN_BASE" 2>/dev/null \
+    && git rev-parse -q --verify FETCH_HEAD >/dev/null 2>&1 \
+    && base_point="FETCH_HEAD"
   git switch -q "$RUN_BASE" 2>/dev/null || true
-  if git switch -qc "$ref" 2>/dev/null || git switch -q "$ref" 2>/dev/null; then
+  if git switch -qc "$ref" "$base_point" 2>/dev/null || git switch -q "$ref" 2>/dev/null; then
     git add "$RUN_DIR" 2>/dev/null || true
     if git diff --cached --quiet 2>/dev/null; then
       echo "deliver-loop: nothing to land."
@@ -758,16 +773,53 @@ mechanical_pr() { # mechanical_pr <source-branch> <head-ref> <title>
   PR_COUNT=$((PR_COUNT + 1))
 }
 
+# Appended to EVERY unattended worker prompt (ESC-69). A headless worker
+# asked a human to approve its push and ended with a numbered menu — in a run
+# that is unattended by construction, where nobody can pick. Two faults in one
+# log: it tried to push at all (pushing is the driver's job, and the worker's
+# grant correctly denies it), and once denied it addressed a person instead of
+# reporting to the machine that commissioned it. The marker alone did not say
+# so; now it does.
+UNATTENDED_ADDENDUM='
+UNATTENDED CONTRACT — read this before you finish.
+- NOBODY IS WATCHING. This session is headless and commissioned by a script.
+  Never address a human, never offer a menu or numbered choices, never ask for
+  approval or confirmation, and never wait for one. There is no one to answer.
+- DO NOT PUSH, and do not ask to. Pushing and opening the pull request are the
+  driver'"'"'s job, and your tool grant excludes them deliberately. Commit your
+  work on your branch and stop there.
+- FINISH BY STATING WHERE THE WORK IS, on the last line, exactly:
+      WORK_ON_BRANCH <branch-name>
+  If you created or switched to a branch of your own, that is the one to name.
+  A driver reads this line; a paragraph addressed to a person it cannot.
+- If you are blocked, say what blocked you in one plain sentence and stop.
+  A blocked worker that reports the blocker is useful; one that waits is not.'
+
 run_worker() { # run_worker <id> <role> <prompt> <docs-ref> <pr-title>
   local id="$1" role="$2" prompt="$3" ref="$4" title="$5"
   log "dispatch $role worker ($id)"
+  local out_file="$STATE_DIR/worker-$id.out"
   if ! timeout "$SESSION_TIMEOUT" "$SPAWN" --id "$id" --role "$role" \
        --engine "$ENGINE" --base "$RUN_BASE" --prompt "$prompt" \
-       >> "$STATE_DIR/run.md" 2>&1; then
+       > "$out_file" 2>&1; then
+    cat "$out_file" >> "$STATE_DIR/run.md"; rm -f "$out_file"
     log "$role worker failed — see .claude/orchestration-logs/$id.log"
     return 1
   fi
-  mechanical_pr "worker/$id" "$ref" "$title"
+  cat "$out_file" >> "$STATE_DIR/run.md"
+  # PUSH THE BRANCH THE WORKER SAYS IT USED, not the one this driver assumed
+  # (ESC-68). A worker may create and switch to a branch of its own inside its
+  # worktree; spawn-worker reports whichever branch carries the commits, and
+  # pushing the assumed name instead sends an empty ref — a pull request with
+  # no content, recorded as a successful iteration.
+  local src
+  src="$(sed -n 's/.*WORKER_RESULT .*[[:space:]]branch=\([^[:space:]]*\).*/\1/p' "$out_file" | tail -1)"
+  rm -f "$out_file"
+  if [[ -n "$src" && "$src" != "worker/$id" ]]; then
+    log "the worker's work is on '$src', not 'worker/$id' — pushing what it reported"
+  fi
+  [[ -n "$src" ]] || src="worker/$id"
+  mechanical_pr "$src" "$ref" "$title"
 }
 
 # Consecutive dispatches that produced no pull request. A run whose worker
@@ -982,7 +1034,8 @@ while :; do
       run_worker "oracle-$(date -u +%Y%m%d%H%M%S)" oracle \
         "$(command_prompt .claude/commands/oracle.md)
 
-UNATTENDED RUN. The delivery driver commissioned this session. $scope" \
+UNATTENDED RUN. The delivery driver commissioned this session. $scope
+$UNATTENDED_ADDENDUM" \
         "docs/oracle-$(date -u +%Y%m%d%H%M%S)$LANE" \
         "Oracle: rulings and handoff" && rc=0 || rc=$?
       record_dismissed_evidence
@@ -992,7 +1045,8 @@ UNATTENDED RUN. The delivery driver commissioned this session. $scope" \
       run_worker "steward-${od,,}" steward \
         "$(command_prompt .claude/commands/steward.md)
 
-UNATTENDED RUN. The decision to plan: $od" \
+UNATTENDED RUN. The decision to plan: $od
+$UNATTENDED_ADDENDUM" \
         "docs/oracle-plan-${od,,}$LANE" \
         "Plan for $od" && rc=0 || rc=$?
       note_dispatch_outcome "$rc" ;;
@@ -1003,7 +1057,8 @@ UNATTENDED RUN. The decision to plan: $od" \
 UNATTENDED. The delivery driver commissioned this session; follow the
 unattended branches of the gate above. Requirements still unplanned: $REQS.
 Plan the next milestone of docs/DESIGN.md that delivers them (or file the
-uncertainties that block it)." \
+uncertainties that block it).
+$UNATTENDED_ADDENDUM" \
         "docs/plan-$(date -u +%Y%m%d%H%M%S)$LANE" \
         "Plan: next milestone ($REQS)" && rc=0 || rc=$?
       note_dispatch_outcome "$rc" ;;
