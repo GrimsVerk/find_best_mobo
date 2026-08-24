@@ -12,7 +12,7 @@ data_dir = "data"
 # must not move the table with it (docs/DESIGN.oracle.md OD-11, R1007). A full
 # path to the file, relative to the working directory, like every other path
 # here.
-alias_table_path = "data/aliases.toml"
+alias_table_path = "aliases.toml"
 
 # Classification: at or below this duration a video is a Short, and excluded.
 shorts_max_seconds = 120

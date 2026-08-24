@@ -83,8 +83,9 @@ def test_load_config_empty_file_yields_in_code_defaults(tmp_path: Path) -> None:
     assert config.shorts_max_seconds > 0
     assert "youtube.com" in config.channel_url
     assert config.data_dir == Path("data")
-    # R1007: the alias table is a configured path, and its default is a FILE.
-    assert config.alias_table_path == DEFAULT_ALIAS_TABLE
+    # R1007: the alias table is a configured path, its default is a FILE, and
+    # that file sits OUTSIDE the gitignored corpus directory.
+    assert config.alias_table_path == DEFAULT_ALIAS_TABLE == Path("aliases.toml")
 
 
 def test_load_config_overrides_only_present_keys(tmp_path: Path) -> None:
