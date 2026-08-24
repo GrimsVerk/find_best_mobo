@@ -301,6 +301,30 @@ def find_title_hits(video: Video, matcher: re.Pattern[str]) -> frozenset[str]:
     )
 
 
+def find_description_hits(description: str, matcher: re.Pattern[str]) -> frozenset[str]:
+    """The canonicals named in a video's description (OD-8, R1004).
+
+    `find_title_hits` over another string, and deliberately taking a plain `str`
+    rather than a `Transcript`: it is testable without a cache entry, and it does
+    not tie this module to where the field happens to be stored.
+
+    The description is author-written, short, and unmangled by speech-to-text —
+    the highest-signal field the corpus has. BL-11's measured case is a B850I
+    review invisible to title and transcript matching both, whose description
+    carries `#B850`.
+
+    The WHOLE description is matched, boilerplate and links included: R1004 says
+    "a normalized alias hit in the description", unqualified. If boilerplate
+    names a vendor, that video auto-includes — which is what the selection
+    report's two new counts make visible at the checkpoint.
+    """
+    return frozenset(
+        _canonical_of(match.lastgroup)
+        for match in matcher.finditer(normalize(description))
+        if match.lastgroup is not None
+    )
+
+
 def _group_name(canonical: str, position: int) -> str:
     """A valid, unique, reversible identifier for one surface form's group.
 

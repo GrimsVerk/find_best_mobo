@@ -37,7 +37,7 @@ excerpting and no model involvement — those are the last slice of the
 | `index` subcommand (`commands/index.py`) | The stage itself: enumerate, write `data/index.jsonl`, print the summary counts. |
 | Transcripts (`transcripts.py`) | Parsing WebVTT into timed cues, and owning the on-disk transcript cache. Fetching and caching are deliberately separate: the fetch never consults the cache, so "reruns never refetch" lives in exactly one place. |
 | Failure ledger (`ledger.py`) | Recording every fetch failure with its class, carrying attempt counts across runs, and deciding when the run must halt. It is rewritten on every record, so evidence is on disk even when the run stops abruptly. |
-| `fetch` subcommand (`commands/fetch.py`) | The stage itself: read the index, fetch what is pending and uncached, print the summary — or, on a halt, the trigger and the ledger. |
+| `fetch` subcommand (`commands/fetch.py`) | The stage itself: read the index, fetch what is pending and uncached, print the summary — or, on a halt, the trigger and the ledger. The per-video extraction it already runs also yields the DESCRIPTION, stored in the cache record at no extra request (OD-8, R1004). |
 | Normalization (`normalize.py`) | Folding caption text and titles into one comparable form: case, scattered punctuation, hyphens (which fold to a space, so the table's `steel legend` meets a caption's `steel-legend` — OD-6, R1002), and above all the spacing damage that renders `X670E` as `x 670 e`. Pure and total. |
 | Alias table (`aliases.py`, path from `alias_table_path`) | Mapping many surface forms onto one canonical entity, and finding those entities in normalized text with a single compiled pattern. Each form compiles split-tolerantly (OD-6, R1002): an optional space between adjacent characters inside a word, a required one where the form itself has a space — so `toma hawk` matches `tomahawk` while `aorusmaster` never matches `aorus master`, because the alias's own space needs a real token boundary to land on. Matching is scoped to ONE cue's text (OD-15, R1010): a name the captions break across a cue boundary is COUNTED and never matched, because a mention spanning two cues has no single cue start and R5 cuts every excerpt window from that field. A `kind = "chipset"` alias additionally contributes its ITX form — every declared form plus a trailing `i`, so `b850i` finds B850 without relaxing the right boundary (OD-7, R1003). The table is hand-authored input, not derived data, and every loader takes its path from configuration rather than building one (OD-11, R1007). |
 | `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. Requires the table, the index and the transcript-cache DIRECTORY; an empty cache yields a report of zeros rather than a refusal (OD-9, R1005). |
@@ -180,13 +180,21 @@ parsing.
 2. An alias hit in the **title** is an automatic include. He titles videos after
    what they are about, so a title hit is the strongest signal available and it
    does not need corroborating.
-3. Otherwise the video must mention at least N **distinct** canonicals in the
+3. Otherwise, an alias hit in the **description** is an automatic include too —
+   author-written, short and unmangled by speech-to-text, which makes it the
+   highest-signal field the corpus has (OD-8, R1004). It yields no mentions and
+   moves no distinct-canonical count: a description has no cue, so it has no
+   timestamp, and R5 cuts every excerpt window from one. The report says how
+   many videos came in that way and how many of those nothing else would have
+   admitted — the second being what reads as the signal's ADDITION, since a
+   video can satisfy two rules at once.
+4. Otherwise the video must mention at least N **distinct** canonicals in the
    body. Distinct, not total: ten mentions of one board is one board being
    discussed, while three different boards is the comparison passage the
    shortlist actually needs. N is configuration and defaults to 3.
-4. Every video gets a record, excluded ones included — exclusions are recorded,
+5. Every video gets a record, excluded ones included — exclusions are recorded,
    never implied, the same rule the index follows.
-5. The report says what the threshold is currently costing: how many came in on
+6. The report says what the threshold is currently costing: how many came in on
    a title, how many on the count, how many were excluded, and — stated as
    directions rather than bare numbers — how many MORE would enter if it were
    one lower and how many would DROP if it were one higher. Title hits are
@@ -245,7 +253,10 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
 - `data/index.jsonl` — one JSON record per video. Local-only, gitignored, as
   the whole `data/` tree will be: the corpus never enters git.
 - `data/transcripts/<video_id>.json` — one cached transcript per video, timed
-  cues in file order. The cache is the resumability story: it is what a rerun
+  cues in file order, and the video's description verbatim (OD-8, R1004). A
+  record written before descriptions were stored has no such key and loads with
+  an empty one — R1004 forbids a forced refetch, so the existing cache keeps
+  working and simply carries no description signal. The cache is the resumability story: it is what a rerun
   reads instead of refetching. **The DIRECTORY is itself an artifact.** `fetch`
   creates it whether or not it caches anything, so its absence means fetch has
   not run and `select` and `estimate` refuse; an empty directory means fetch ran

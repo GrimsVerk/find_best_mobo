@@ -3,13 +3,14 @@
 `yt-dlp` is imported as a library, never shelled out to, and one client is
 reused for the whole run (owner rulings in `docs/DECISIONS.md`). Everything
 else in the pipeline talks to YouTube exclusively through
-`list_channel_entries` and `fetch_caption_track`, which are also the only
+`list_channel_entries` and `fetch_video`, which are also the only
 surfaces a test may fake.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -69,8 +70,23 @@ def _walk(info: dict[str, Any], client: Any) -> Iterator[dict[str, object]]:
             yield entry
 
 
-def fetch_caption_track(video_id: str, config: Config) -> str | None:
-    """Return one video's captions as raw WebVTT, or None if it has none.
+@dataclass(frozen=True)
+class VideoFetch:
+    """What one per-video extraction yields: the captions, and the description.
+
+    Both come from the SAME `extract_info` call. That is OD-8's whole answer to
+    BL-11's cost objection — BL-11 weighed reading descriptions as "an extra
+    request per video", and in the built system that premise is false: the
+    extraction already runs for every pending video at fetch, and the
+    description arrives in it and was thrown away.
+    """
+
+    captions: str | None
+    description: str
+
+
+def fetch_video(video_id: str, config: Config) -> VideoFetch:
+    """Return one video's captions as raw WebVTT, and its description text.
 
     Both manual and automatic captions are requested — Buildzoid's uploads are
     overwhelmingly auto-captioned, so a manual-only fetch would class almost
@@ -78,10 +94,15 @@ def fetch_caption_track(video_id: str, config: Config) -> str | None:
     first run. Manual tracks are preferred where they exist because they are
     not guesses at the audio.
 
-    Returns None only when the video genuinely offers no English caption track.
-    Anything that goes wrong reaching YouTube raises, so that the caller can
-    tell "there is nothing to fetch" from "we could not fetch it" — they are
+    `captions` is None only when the video genuinely offers no English caption
+    track. Anything that goes wrong reaching YouTube raises, so that the caller
+    can tell "there is nothing to fetch" from "we could not fetch it" — they are
     different rows in the failure ledger and different halt triggers.
+
+    `description` is never None: a missing key, a null, or a non-string all
+    become `""`. It is taken verbatim — no stripping, no truncation, no parsing
+    of hashtags or links. Whatever normalization matching needs is matching's
+    business, one stage later.
     """
     # `config` is unused: it is in the declared signature because the plan put
     # it there, and every lever this function needs is a yt-dlp concern rather
@@ -91,14 +112,16 @@ def fetch_caption_track(video_id: str, config: Config) -> str | None:
     client = _caption_client()
     url = f"https://www.youtube.com/watch?v={video_id}"
     info = client.extract_info(url, download=False)
+    description = info.get("description") if isinstance(info, dict) else None
+    text = description if isinstance(description, str) else ""
     track_url = _caption_url(info)
     if track_url is None:
-        return None
+        return VideoFetch(captions=None, description=text)
     # `urlopen` on the client rather than a bare HTTP call: it carries the
     # same cookies, headers and proxy settings the extraction used, and a
     # caption URL fetched without them is frequently rejected.
     raw: bytes = client.urlopen(track_url).read()
-    return raw.decode("utf-8", errors="replace")
+    return VideoFetch(captions=raw.decode("utf-8", errors="replace"), description=text)
 
 
 # One client for every caption fetch in a run, built on first use.
