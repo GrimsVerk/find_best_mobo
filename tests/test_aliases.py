@@ -77,7 +77,11 @@ SPLIT_TABLE: tuple[Mapping[str, object], ...] = (
 # R1002's reject set: in each of these the alias would have to start or end
 # inside a fused token, or land its own space where there is no boundary. None
 # of them may produce a mention at all — not merely not the obvious one.
-NEVER_MATCH = (
+# Named apart from the fixture's `never_match` list below: this one is the
+# inline reject set for the PATTERN rule (R1002 slice 2), the other is the
+# reconstructed variant fixture's (slice 3). Two blind authors wrote them
+# independently and both are wanted.
+REJECT_SET = (
     "theb650",
     "xb650e",
     "b650ex",
@@ -1410,21 +1414,21 @@ class TestSplitFormsMatch:
 class TestFusedTokensAreStillNeverMatched:
     """R1002's reject set — the half of the rule that makes it safe, not wide."""
 
-    @pytest.mark.parametrize("text", NEVER_MATCH)
+    @pytest.mark.parametrize("text", REJECT_SET)
     def test_nothing_in_the_reject_set_yields_a_mention(self, tmp_path: Path, text: str) -> None:
         matcher = matcher_for(SPLIT_TABLE, tmp_path)
         transcript = make_transcript("vid1", (0.0, text))
 
         assert find_mentions(transcript, matcher) == (), f"{text!r} must produce no mention at all"
 
-    @pytest.mark.parametrize("text", NEVER_MATCH)
+    @pytest.mark.parametrize("text", REJECT_SET)
     def test_nothing_in_the_reject_set_yields_a_title_hit(self, tmp_path: Path, text: str) -> None:
         matcher = matcher_for(SPLIT_TABLE, tmp_path)
 
         assert find_title_hits(make_video("v", text), matcher) == frozenset()
         assert find_title_hits(make_video("v", f"the {text} board"), matcher) == frozenset()
 
-    @pytest.mark.parametrize("text", NEVER_MATCH)
+    @pytest.mark.parametrize("text", REJECT_SET)
     def test_the_compiled_matcher_finds_nothing_in_the_reject_set(
         self, tmp_path: Path, text: str
     ) -> None:
