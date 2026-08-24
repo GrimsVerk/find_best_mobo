@@ -196,6 +196,13 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
 ## State and storage
 
 - `config.toml` (repository root) — every pipeline lever, flat keys. In git.
+- `aliases.toml` (repository root) — the hand-authored alias table. **Input,
+  not cache**, which is why it sits beside `config.toml` rather than under
+  `data/`: tracked normally, carried by a fresh clone, and reached through the
+  `alias_table_path` lever so it never follows `data_dir` (OD-11, R1007). It
+  lived at `data/aliases.toml` until 2026-08-24, kept in git by a `git add -f`
+  that every ignore-respecting tool misread; `tests/test_alias_table_location.py`
+  is what stops it drifting back.
 - `data/index.jsonl` — one JSON record per video. Local-only, gitignored, as
   the whole `data/` tree will be: the corpus never enters git.
 - `data/transcripts/<video_id>.json` — one cached transcript per video, timed
@@ -207,13 +214,6 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
   included or excluded, its body mentions, and its distinct-canonical count.
 - `data/bundles/batch-N/bundle-NNN.xml` — the work bundles, one file each,
   byte-identical across runs given the same cache and configuration.
-- `data/aliases.toml` — the hand-authored alias table, and the one file under
-  `data/` that is **input rather than cache**: it is tracked in git (still
-  forced past the ignore rule today) because a fresh clone with no alias table
-  would match nothing. Its path is now a configuration lever,
-  `alias_table_path`, and no loader builds one — so it no longer follows
-  `data_dir`. Moving it out of the gitignored tree and retiring the `git add
-  -f` is slice 2 of `docs/plans/oracle/tracked-alias-table.md` (OD-11, R1007).
 
 ## Known rough edges
 

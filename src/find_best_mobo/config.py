@@ -20,7 +20,7 @@ from typing import Any
 # re-create the "assume the filename" half of BL-6 one level up. Used twice —
 # as the field default below and as `load_config`'s fallback — so the two can
 # never drift; `tests/test_config.py` pins them equal.
-DEFAULT_ALIAS_TABLE = Path("data/aliases.toml")
+DEFAULT_ALIAS_TABLE = Path("aliases.toml")
 
 
 @dataclass(frozen=True)
