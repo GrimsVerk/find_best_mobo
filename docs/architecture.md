@@ -137,11 +137,12 @@ memory, so a 1000-video channel costs no more than one video's worth.
 
 Ordering is deterministic, so two runs over the same cache print identically.
 
-**This stage is not reachable from the command line yet.** The top-level parser
-rejects `--check` before dispatch, because the dispatcher deliberately holds no
-subcommand table and this slice does not touch it. The stage works and is
-tested through its entry point; the wiring is an open plan question recorded in
-`docs/BACKLOG.md`.
+**The stage runs as `uv run find-best-mobo aliases --check`.** It was
+unreachable from the command line until 2026-08-24: the top-level parser
+rejected `--check` before dispatch, because the dispatcher deliberately holds
+no subcommand table (BL-5). OD-10/R1006 fixed that without adding one — the
+dispatcher forwards what it does not recognise, and the stage owns its own
+parsing.
 
 ### Narrowing the corpus
 
