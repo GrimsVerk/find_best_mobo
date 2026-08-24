@@ -160,8 +160,16 @@ def _canonical(index: int) -> str:
     return f"BOARD-{index}"
 
 
-def make_selection(reason: str, distinct: int, video_id: str = "vid") -> Selection:
-    """A selection whose `mentions` are consistent with its distinct count."""
+def make_selection(
+    reason: str, distinct: int, video_id: str = "vid", *, has_transcript: bool = True
+) -> Selection:
+    """A selection whose `mentions` are consistent with its distinct count.
+
+    `has_transcript` defaults to True because every caller here is describing a
+    video whose transcript was read — that is what having mentions means. The
+    tests about coverage pass it explicitly, which is the only way the flag
+    should ever be false in a fixture (R1012).
+    """
     mentions = tuple(
         make_mention(_canonical(index), video_id, float(index)) for index in range(distinct)
     )
@@ -170,6 +178,7 @@ def make_selection(reason: str, distinct: int, video_id: str = "vid") -> Selecti
         reason=reason,
         mentions=mentions,
         distinct_canonicals=distinct,
+        has_transcript=has_transcript,
     )
 
 
@@ -1058,7 +1067,17 @@ class TestWriteAndReadSelected:
         for line in text.splitlines():
             assert line == line.rstrip(), f"trailing whitespace on {line!r}"
             record = json.loads(line)
-            assert set(record) == {"video", "reason", "mentions", "distinct_canonicals"}
+            # `has_transcript` is the key R1012 adds. The set is asserted
+            # exactly, not as a subset, so the schema stays pinned: this is the
+            # test that would catch a stray key, and widening it to a subset
+            # check to accommodate one addition would retire it.
+            assert set(record) == {
+                "video",
+                "reason",
+                "mentions",
+                "distinct_canonicals",
+                "has_transcript",
+            }
 
     def test_the_record_nests_the_video_and_its_mentions(self, tmp_path: Path) -> None:
         config = make_config(tmp_path / "data", mention_threshold=3)
