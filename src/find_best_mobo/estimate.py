@@ -21,6 +21,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from find_best_mobo.artifacts import require_file
 from find_best_mobo.bundle import Bundle
 from find_best_mobo.config import Config
 from find_best_mobo.index import read_index
@@ -46,21 +47,20 @@ def project(
     `videos_indexed` is read back off `data/index.jsonl` rather than derived from
     the selections, because the two answer different questions — how much there
     was, against how much survived — and a reader comparing them is doing exactly
-    what the funnel is printed for. A missing index counts as zero rather than
-    raising: by the time this runs the selections have already been read, and
-    losing the whole projection over one absent denominator helps nobody.
+    what the funnel is printed for. A missing index RAISES (R1005, OD-9): this
+    number is the denominator of the one figure the owner spends against, and a
+    projection must never understate itself because an input was absent. An
+    index that is present and empty is a real value — a channel with nothing in
+    range — and projects a real zero. That distinction is the whole point; the
+    forgiving branch that used to sit here erased it.
 
     `tokens_per_batch` is positional, batch 1 first, and keeps a zero for every
     batch that got no bundles. A short tuple would make "batch 3 is empty" and
     "there is no batch 3" the same reading, which is the one thing the owner
     would misread when deciding what to pay for next.
     """
-    index_path = config.data_dir / "index.jsonl"
-    videos_indexed = (
-        sum(1 for video in read_index(index_path) if video.inclusion == "pending")
-        if index_path.exists()
-        else 0
-    )
+    index_path = require_file(config.data_dir / "index.jsonl", "index", "index")
+    videos_indexed = sum(1 for video in read_index(index_path) if video.inclusion == "pending")
     excerpts = [excerpt for bundle in bundles for excerpt in bundle.excerpts]
 
     batch_count = max(1 + max(config.batch_count, 0), *(bundle.batch for bundle in bundles), 1)
