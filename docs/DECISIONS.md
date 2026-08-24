@@ -480,3 +480,33 @@ because chat is not storage. Four parts:
    larger than one bundle's token cap is delivered across sequential bundles
    rather than falling back to excerpts; the mechanics are the implementing
    plan's to specify.
+
+## 2026-08-24 — Restart rulings: BL-15 approved; BL-24/25/26 ruled
+
+Owner's rulings, given in chat and recorded here because chat is not storage.
+The test-run branches are frozen for a post-mortem; work continues from
+`claude/template-lessons-merge-26dxdn`, branched from `run/local`'s tip and
+gated by the same ruleset.
+
+1. **BL-15 is approved** (the indexer's zero-duration warning fires on all
+   eight legitimate Shorts, burying any real silent drop). Fix it.
+2. **BL-24 (usage readings):** locally the run may read usage itself —
+   `omarchy-agent-usage-claude --limits-only --force` first, `claude -p
+   "/usage"` as the fallback when it fails. A web session has neither and
+   relies on other means (time, pull-request counts, or similar). And before
+   EVERY unattended run the agent asks the owner which limit governs the run
+   and what value to use — the owner prefers that confirmation even where a
+   default exists.
+3. **BL-25 (units):** record both quantities and keep them apart, as the filed
+   default proposes — and additionally build a best-effort token-to-points
+   conversion estimate, with every assumption behind it written down
+   explicitly so the reasoning can be investigated later.
+4. **BL-26 (the factor's home):** the filed default stands —
+   `data/calibration.json` written by the calibration stage, preferred by
+   `estimate` over `config.chars_per_token`, the source and its
+   measured-or-guess status printed, the configuration key never rewritten by
+   a stage.
+
+The BL-25 ruling bears on what R8 and S3 mean; `docs/DESIGN.md` is
+owner-landed, so that design-text correction waits for the owner's own pull
+request.
