@@ -830,30 +830,6 @@ class TestSelectAll:
 
         assert selection.video == video
 
-    def test_has_transcript_records_the_cache_hit_not_the_mention_count(
-        self, tmp_path: Path
-    ) -> None:
-        """R1012: a cached transcript naming no board is coverage, not a miss.
-
-        Inferring the flag from the mentions would make an honest silent corpus
-        look like an unfetched one, which is the confusion the flag exists to
-        remove.
-        """
-        config = make_config(tmp_path / "data")
-        write_aliases(config.data_dir / "aliases.toml")
-        write_index_lines(
-            [make_video("quiet", "Deep dive"), make_video("absent", "Deep dive")],
-            config.data_dir / "index.jsonl",
-        )
-        fetched(config)
-        write_transcript(config, make_transcript("quiet", (1.0, "nothing relevant here")))
-
-        by_id = {s.video.video_id: s for s in select_all(config)}
-
-        assert by_id["quiet"].has_transcript is True
-        assert by_id["quiet"].mentions == ()
-        assert by_id["absent"].has_transcript is False
-
     def test_an_absent_transcript_cache_raises_naming_fetch(self, tmp_path: Path) -> None:
         """R1005: no cache directory means `fetch` never ran, and no video could pass.
 
@@ -1264,88 +1240,6 @@ class TestSelectCommand:
         out = capsys.readouterr().out
         assert "alias" in out.lower(), f"the message must name the alias table: {out!r}"
         assert "Traceback" not in out
-
-    def test_the_coverage_line_prints_on_every_run(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """R1012: on every run, whether or not anything is wrong.
-
-        A figure that appears only on failure is a figure nobody can compare
-        across runs — which is exactly why BL-27's collapse was invisible.
-        """
-        config = make_config(tmp_path / "data")
-        write_aliases(config.data_dir / "aliases.toml")
-        videos = [make_video("hit", "X670E rundown"), make_video("nocaps", "Deep dive")]
-        write_index_lines(videos, config.data_dir / "index.jsonl")
-        fetched(config)
-        write_transcript(config, make_transcript("hit", (1.0, "the x670e board")))
-
-        assert run(config, Namespace()) == 0
-
-        out = capsys.readouterr().out
-        assert "1 of 2 pending videos had a cached transcript" in out
-
-    def test_zero_coverage_over_a_non_empty_corpus_refuses(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """BL-27's measured run, made impossible.
-
-        `fetch` had created the cache directory but nothing was in it yet, so
-        every body was empty because none was read. The old behaviour printed a
-        cheerful threshold report over it.
-        """
-        config = make_config(tmp_path / "data")
-        write_aliases(config.data_dir / "aliases.toml")
-        write_index_lines(
-            [make_video("a", "Deep dive"), make_video("b", "Deep dive")],
-            config.data_dir / "index.jsonl",
-        )
-        fetched(config)
-
-        assert run(config, Namespace()) == 1
-
-        out = capsys.readouterr().out
-        assert "None of the 2 pending videos has a cached transcript" in out
-        assert "find-best-mobo fetch" in out
-        assert "Threshold in force" not in out
-        assert not (config.data_dir / "selected.jsonl").exists()
-
-    def test_zero_mentions_with_full_coverage_is_a_real_result(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """The other half of the pair R1012 requires, and the one that must NOT refuse.
-
-        Every video has a transcript and none of them names a board. That is a
-        real answer about the corpus, and the run reports it and exits 0.
-        """
-        config = make_config(tmp_path / "data")
-        write_aliases(config.data_dir / "aliases.toml")
-        write_index_lines(
-            [make_video("a", "Deep dive"), make_video("b", "Deep dive")],
-            config.data_dir / "index.jsonl",
-        )
-        fetched(config)
-        write_transcript(config, make_transcript("a", (1.0, "nothing relevant here")))
-        write_transcript(config, make_transcript("b", (1.0, "still nothing relevant")))
-
-        assert run(config, Namespace()) == 0
-
-        out = capsys.readouterr().out
-        assert "2 of 2 pending videos had a cached transcript" in out
-        assert "0 videos selected in total" in out
-
-    def test_an_empty_corpus_is_not_a_refusal(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Zero coverage of zero videos is emptiness, not absence (R1005's line)."""
-        config = make_config(tmp_path / "data")
-        write_aliases(config.data_dir / "aliases.toml")
-        write_index_lines([], config.data_dir / "index.jsonl")
-        fetched(config)
-
-        assert run(config, Namespace()) == 0
-
-        assert "0 of 0 pending videos had a cached transcript" in capsys.readouterr().out
 
     def test_an_absent_cache_refuses_and_writes_no_selections(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

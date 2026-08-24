@@ -14,6 +14,14 @@ table compiles to ONE regex with a group per surface form, so a two-hour
 transcript is scanned once rather than once per entity — the difference between
 a table that can grow and a table that cannot.
 
+Third, a `kind = "chipset"` alias also contributes its ITX form — every declared
+surface form plus a trailing `i`, so `b850i` finds B850 (OD-7, R1003). It is
+DERIVED in code rather than listed in the table, so a spelling added later gets
+its variant for free; it applies to chipsets only, because a vendor deriving
+`asrocki` would be inventing a word; and an explicitly declared form always wins,
+because declared forms are enumerated before any derived one and the
+de-duplication below is first-declared-wins.
+
 De-duplication is global: if two canonicals claim the same normalized form, the
 one declared first wins and the other never fires. That is not hidden — it
 surfaces as a zero-match canonical in `find-best-mobo aliases --check`, which is
