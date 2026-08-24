@@ -509,6 +509,41 @@ class TestFetchCommand:
         assert "index" in out.lower(), f"the message must point at the index command: {out!r}"
         assert boundary.calls == []
 
+    def test_a_halted_run_still_leaves_the_cache_directory(
+        self, boundary: Boundary, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """R1005: "fetch never ran" and "fetch ran and got nothing" must differ on disk.
+
+        Before this, `data/transcripts/` appeared only on the first successful
+        write, so a run whose every video had no captions — halting on R24's
+        missing-caption trigger before caching anything — left the same tree as
+        a run nobody had started. Every stage downstream reads that directory as
+        its precondition, so the two states must not be one.
+        """
+        config = make_config(tmp_path / "data", missing_caption_rate_limit=0.5)
+        self.write_index_file(config, [make_video("vid1"), make_video("vid2")])
+        boundary.set_map({"vid1": None, "vid2": None})
+
+        assert run(config, Namespace()) == 1, "the missing-caption trigger should have halted this"
+        capsys.readouterr()
+
+        cache_dir = config.data_dir / "transcripts"
+        assert cache_dir.is_dir(), "fetch ran, halted, and left no cache directory"
+        assert list(cache_dir.glob("*.json")) == []
+
+    def test_a_run_with_no_pending_videos_still_leaves_the_cache_directory(
+        self, boundary: Boundary, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An empty corpus is a real result, and it has to look like one downstream."""
+        config = make_config(tmp_path / "data")
+        self.write_index_file(config, [])
+
+        assert run(config, Namespace()) == 0
+        capsys.readouterr()
+
+        assert (config.data_dir / "transcripts").is_dir()
+        assert boundary.calls == []
+
     def test_normal_run_prints_the_summary_and_returns_zero(
         self, boundary: Boundary, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

@@ -28,6 +28,7 @@ from __future__ import annotations
 from argparse import Namespace
 from collections.abc import Sequence
 
+from find_best_mobo.artifacts import MissingArtifact, require_directory, require_file
 from find_best_mobo.bundle import assign_batches, pack_bundles, write_bundles
 from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
@@ -46,12 +47,18 @@ def parse_args(argv: Sequence[str]) -> Namespace:
 
 def run(config: Config, args: Namespace) -> int:
     """Build the bundles, print the projection, and stop."""
-    path = config.data_dir / "selected.jsonl"
+    # Every upstream artifact, in pipeline order, BEFORE anything is cut — so a
+    # refusal never leaves a half-written `data/bundles/` behind, and so the
+    # stage named is the earliest one that has not run rather than the last
+    # thing this stage happened to open (R1005, OD-9).
     try:
-        selections = tuple(read_selected(path))
-    except FileNotFoundError:
-        print(f"No selections at {path}. Run `find-best-mobo select` first.")
+        require_file(config.data_dir / "index.jsonl", "index", "index")
+        require_directory(config.data_dir / "transcripts", "cached transcripts", "fetch")
+        path = require_file(config.data_dir / "selected.jsonl", "selections", "select")
+    except MissingArtifact as error:
+        print(error.message())
         return 1
+    selections = tuple(read_selected(path))
 
     excerpts: list[Excerpt] = []
     for selection in _included_recent_first(selections):

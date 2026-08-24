@@ -33,6 +33,7 @@ from pathlib import Path
 
 import pytest
 
+from find_best_mobo.artifacts import MissingArtifact
 from find_best_mobo.aliases import Mention
 from find_best_mobo.bundle import Bundle
 from find_best_mobo.commands.estimate import run
@@ -558,6 +559,11 @@ class TestEstimateCommand:
         config = corpus_config(tmp_path)
         video = make_video("nocaps", "Deep dive", upload_date=date(2025, 5, 5))
         write_index_lines([video], config.data_dir / "index.jsonl")
+        # A `fetch` run leaves this directory whether or not it cached anything
+        # (R1005), and this test is about a state where fetch HAS run. Creating
+        # it restores exactly the state the test was always about; nothing is
+        # weakened.
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
         write_selected(
             [make_selection(video, THRESHOLD, (make_mention("B650E", "nocaps", 100.0),))],
             config.data_dir / "selected.jsonl",
@@ -632,11 +638,84 @@ class TestEstimateCommand:
         assert {path: path.read_bytes() for path in bundle_files(config)} == before
         assert before != {}
 
+    def test_a_missing_index_refuses_and_names_the_index_stage(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """BL-7's measured defect: the projection used to print with a silent zero.
+
+        `videos_indexed` is the denominator of the one figure the owner spends
+        against. Absent is not zero (R1005).
+        """
+        config = corpus_config(tmp_path)
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
+        write_selected([], config.data_dir / "selected.jsonl")
+
+        assert run(config, Namespace()) == 1
+
+        out = capsys.readouterr().out
+        assert "No index at" in out
+        assert "find-best-mobo index" in out
+        assert "Traceback" not in out
+        assert "projected tokens" not in out, "a refusal must not print a projection"
+
+    def test_a_missing_index_writes_no_bundles(self, tmp_path: Path) -> None:
+        """The checks run before anything is cut, so a refusal leaves the tree alone."""
+        config = corpus_config(tmp_path)
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
+        write_selected([], config.data_dir / "selected.jsonl")
+
+        assert run(config, Namespace()) == 1
+
+        assert not (config.data_dir / "bundles").exists()
+
+    def test_an_absent_transcript_cache_refuses_and_names_fetch(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """No cache directory at all means `fetch` never ran — a precondition, not a result."""
+        config = corpus_config(tmp_path)
+        write_index_lines([make_video("a")], config.data_dir / "index.jsonl")
+        write_selected([], config.data_dir / "selected.jsonl")
+
+        assert run(config, Namespace()) == 1
+
+        out = capsys.readouterr().out
+        assert "find-best-mobo fetch" in out
+        assert "Traceback" not in out
+
+    def test_the_earliest_missing_stage_is_the_one_named(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """With nothing on disk, `index` is named — not whatever this stage opened last.
+
+        Pipeline order is what makes the message actionable: told to run
+        `select` first, the owner runs a stage that would itself refuse.
+        """
+        config = corpus_config(tmp_path)
+        config.data_dir.mkdir(parents=True, exist_ok=True)
+
+        assert run(config, Namespace()) == 1
+
+        out = capsys.readouterr().out
+        assert "find-best-mobo index" in out
+        assert "fetch" not in out and "select" not in out
+
+    def test_project_itself_raises_on_a_missing_index(self, tmp_path: Path) -> None:
+        """The refusal lives in the function that reads the artifact, not only in the command."""
+        config = corpus_config(tmp_path)
+
+        with pytest.raises(MissingArtifact):
+            project((), (), config)
+
     def test_a_missing_selected_file_returns_one_naming_what_to_run_first(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         config = corpus_config(tmp_path)
         write_index_lines([make_video("a")], config.data_dir / "index.jsonl")
+        # A `fetch` run leaves this directory whether or not it cached anything
+        # (R1005), and this test is about a state where fetch HAS run. Creating
+        # it restores exactly the state the test was always about; nothing is
+        # weakened.
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
 
         assert run(config, Namespace()) == 1
 
@@ -649,6 +728,11 @@ class TestEstimateCommand:
     ) -> None:
         config = corpus_config(tmp_path)
         write_index_lines([make_video("a")], config.data_dir / "index.jsonl")
+        # A `fetch` run leaves this directory whether or not it cached anything
+        # (R1005), and this test is about a state where fetch HAS run. Creating
+        # it restores exactly the state the test was always about; nothing is
+        # weakened.
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
 
         assert run(config, Namespace()) == 1
         capsys.readouterr()
@@ -661,6 +745,11 @@ class TestEstimateCommand:
         config = corpus_config(tmp_path)
         write_index_lines([], config.data_dir / "index.jsonl")
         write_selected([], config.data_dir / "selected.jsonl")
+        # A `fetch` run leaves this directory whether or not it cached anything
+        # (R1005), and this test is about a state where fetch HAS run. Creating
+        # it restores exactly the state the test was always about; nothing is
+        # weakened.
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
 
         assert run(config, Namespace()) == 0
 

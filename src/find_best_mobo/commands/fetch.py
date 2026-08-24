@@ -10,6 +10,7 @@ from __future__ import annotations
 from argparse import Namespace
 from collections.abc import Sequence
 
+from find_best_mobo.artifacts import MissingArtifact, require_file
 from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
 from find_best_mobo.index import read_index
@@ -26,10 +27,18 @@ def parse_args(argv: Sequence[str]) -> Namespace:
 
 def run(config: Config, args: Namespace) -> int:
     """Fetch the pending videos' transcripts and print what happened."""
-    index_path = config.data_dir / "index.jsonl"
-    if not index_path.exists():
-        print(f"No index at {index_path}. Run `find-best-mobo index` first.")
+    try:
+        index_path = require_file(config.data_dir / "index.jsonl", "index", "index")
+    except MissingArtifact as error:
+        print(error.message())
         return 1
+
+    # Create the cache directory whether or not anything is cached — including
+    # when the run halts part-way (R24). Before R1005 it appeared only on the
+    # first successful write, so "fetch never ran" and "fetch ran and everything
+    # failed" were one state on disk, which is the conflation R1005 forbids and
+    # which the stages downstream now read as their precondition.
+    (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
 
     pending = [video for video in read_index(index_path) if video.inclusion == "pending"]
     ledger = Ledger(config.data_dir / "failures.jsonl", config, len(pending))
