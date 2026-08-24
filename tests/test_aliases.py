@@ -568,9 +568,17 @@ class TestAliasesCommand:
         assert "index" in out.lower(), f"the message must name the index command: {out!r}"
         assert "Traceback" not in out
 
-    def test_empty_transcript_cache_returns_one_naming_what_to_run(
+    def test_an_absent_transcript_cache_returns_one_naming_what_to_run(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """RENAMED from `test_empty_transcript_cache_...`, and the name was the bug.
+
+        It called this state "empty" and it is ABSENT: no `data/transcripts/`
+        directory at all, which means `fetch` has not run. The assertion is
+        unchanged and still passes; what changed is that the suite now has a
+        separate test for the genuinely empty case below, which used to be
+        indistinguishable and used to fail (R1005, OD-9).
+        """
         config = make_config(tmp_path / "data")
         write_aliases(config.data_dir / "aliases.toml", STANDARD_TABLE)
         write_index([make_video("vid1")], config.data_dir / "index.jsonl")
@@ -580,6 +588,31 @@ class TestAliasesCommand:
         out = capsys.readouterr().out
         assert "fetch" in out.lower(), f"the message must name the fetch command: {out!r}"
         assert "Traceback" not in out
+
+    def test_an_empty_transcript_cache_reports_all_zeros_and_returns_zero(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """`fetch` ran and cached nothing. That is a result, not a precondition failure.
+
+        The report is useless in this state, and that is not a reason to hide
+        it: R1005's point is that it is not a LIE. Every canonical reads
+        `videos=0`, which says plainly that nothing was scanned — where the old
+        exit-1 told the owner to re-run a stage that had already run.
+        """
+        config = make_config(tmp_path / "data")
+        write_aliases(config.data_dir / "aliases.toml", STANDARD_TABLE)
+        write_index([make_video("vid1")], config.data_dir / "index.jsonl")
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
+
+        assert run(config, Namespace(check=True)) == 0
+
+        out = capsys.readouterr().out
+        assert "Traceback" not in out
+        for canonical in ("X670E", "B650E", "A620", "Taichi"):
+            line = line_with(out, canonical)
+            assert "videos=0" in line and "mentions=0" in line, line
+            assert "NEVER MATCHED" in line, line
+        assert "4 of 4 canonicals never matched anything" in out
 
     def test_normal_run_returns_zero_and_reports_video_counts(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
