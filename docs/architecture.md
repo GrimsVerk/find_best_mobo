@@ -40,7 +40,7 @@ excerpting and no model involvement — those are the last slice of the
 | `fetch` subcommand (`commands/fetch.py`) | The stage itself: read the index, fetch what is pending and uncached, print the summary — or, on a halt, the trigger and the ledger. |
 | Normalization (`normalize.py`) | Folding caption text and titles into one comparable form: case, scattered punctuation, and above all the spacing damage that renders `X670E` as `x 670 e`. Pure and total. |
 | Alias table (`aliases.py`, path from `alias_table_path`) | Mapping many surface forms onto one canonical entity, and finding those entities in normalized text with a single compiled pattern. The table is hand-authored input, not derived data, and every loader takes its path from configuration rather than building one (OD-11, R1007). |
-| `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. |
+| `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. Requires the table, the index and the transcript-cache DIRECTORY; an empty cache yields a report of zeros rather than a refusal (OD-9, R1005). |
 | Selection (`select.py`) | Deciding which videos are actually about AM5 boards, and saying what the threshold currently costs. A title hit is an automatic include; otherwise the video needs enough DISTINCT boards mentioned in the body. Pure decision logic, plus its own deterministic JSONL. |
 | `select` subcommand (`commands/select.py`) | The stage itself: require the index, the alias table and the transcript-cache directory before deciding anything (OD-9, R1005), then read index and cached transcripts, write `data/selected.jsonl`, and print the threshold's effect. |
 | Excerpting (`excerpt.py`) | Cutting a wide asymmetric window around each mention, merging windows that overlap, and capping how many survive per video. Pure — it never reads the disk. |
@@ -128,7 +128,11 @@ memory, so a 1000-video channel costs no more than one video's worth.
 
 1. The owner runs `uv run find-best-mobo aliases --check`, or
    `./scripts/run.sh aliases`. It reads the index and the cached transcripts;
-   without either it says which stage to run first.
+   without either it says which stage to run first. An EMPTY transcript cache
+   is not "without": `fetch` ran and cached nothing, so the report prints every
+   canonical at zero and exits 0 (OD-9, R1005). The numbers say plainly that
+   nothing was scanned, which is the honest answer — where calling it a missing
+   cache sent the owner to re-run a stage that had already run.
 2. Every surface form in the table and every piece of text are put through the
    same normalization, so the two meet in one space rather than the table
    guessing at what captions look like.
