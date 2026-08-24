@@ -123,10 +123,46 @@ def compile_matcher(aliases: Sequence[Alias]) -> re.Pattern[str]:
     # so the pattern is byte-identical for a given table (R23).
     forms.sort(key=lambda pair: -len(pair[0]))
     alternatives = "|".join(
-        f"(?P<{_group_name(canonical, position)}>{re.escape(form)})"
+        f"(?P<{_group_name(canonical, position)}>{alias_pattern(form)})"
         for position, (form, canonical) in enumerate(forms)
     )
     return re.compile(rf"(?<![a-z0-9])(?:{alternatives})(?![a-z0-9])")
+
+
+def alias_pattern(form: str) -> str:
+    """Regex source for one already-normalized surface form, split-tolerant (R1002).
+
+    Auto-captions break product names mid-word: BL-8 measured `toma hawk` for
+    `tomahawk`, `aor us master` for `aorus master`, `air us elite` for `aorus
+    elite`. The first two are a name split at an arbitrary point, and this is
+    what recovers them.
+
+    Between every pair of adjacent characters INSIDE one word of the form, an
+    optional single space. Where the form itself has a space, a REQUIRED single
+    space. That asymmetry is the whole safety property: `aorus master` cannot
+    match `aorusmaster`, because the alias's own space needs a real token
+    boundary to land on, so a match always starts at a token start and ends at a
+    token end (with `compile_matcher`'s boundary lookarounds). `air us` for
+    `aorus` is a mishearing no join recovers and stays the alias table's job.
+
+    Returns source only — no group wrapper and no lookarounds, both of which are
+    `compile_matcher`'s. Raises `ValueError` on an empty form: an empty pattern
+    matches at every position, which is worth naming rather than emitting.
+    """
+    if not form:
+        raise ValueError("an empty surface form would match at every position")
+    parts: list[str] = []
+    for index, character in enumerate(form):
+        if index:
+            previous = form[index - 1]
+            if character == " " or previous == " ":
+                # The form's own space, emitted once by the space character
+                # itself; never also as an optional one beside it.
+                pass
+            else:
+                parts.append(" ?")
+        parts.append(" " if character == " " else re.escape(character))
+    return "".join(parts)
 
 
 def find_mentions(transcript: Transcript, matcher: re.Pattern[str]) -> tuple[Mention, ...]:
