@@ -158,7 +158,14 @@ tested through its entry point; the wiring is an open plan question recorded in
    state and selects normally. Then it reads the index, keeps the videos the
    index left pending, and loads each one's cached transcript in turn; a video
    with no cached transcript is still selected on its title, which is the
-   per-video tolerance R24 owns and which this rule does not touch.
+   per-video tolerance R24 owns and which this rule does not touch. It then
+   reports its COVERAGE — how many of the pending videos had a transcript to
+   read — on every run, and refuses if that is zero over a non-empty corpus
+   (OD-23, R1012). That case is `fetch` half-done rather than not run: the
+   directory exists and is empty of what this video needed, so every body is
+   empty because none was read, and a threshold report over it is a
+   measurement of the missing corpus wearing the shape of a measurement of the
+   lever.
 2. An alias hit in the **title** is an automatic include. He titles videos after
    what they are about, so a title hit is the strongest signal available and it
    does not need corroborating.
@@ -224,7 +231,12 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
 - `data/failures.jsonl` — this run's fetch failures, rewritten on every record.
   It doubles as the next run's retry list.
 - `data/selected.jsonl` — one record per pending video: the video, why it was
-  included or excluded, its body mentions, and its distinct-canonical count.
+  included or excluded, its body mentions, its distinct-canonical count, and
+  `has_transcript` — whether that video's transcript was in the cache when it
+  was selected. The last is written here rather than re-derived downstream so
+  that `select` and `estimate` print the SAME coverage figure; two stages each
+  counting for themselves would diverge the moment their populations do, and
+  they already do (R1012).
 - `data/bundles/batch-N/bundle-NNN.xml` — the work bundles, one file each,
   byte-identical across runs given the same cache and configuration.
 

@@ -25,7 +25,13 @@ from find_best_mobo.artifacts import require_file
 from find_best_mobo.bundle import Bundle
 from find_best_mobo.config import Config
 from find_best_mobo.index import read_index
-from find_best_mobo.select import EXCLUDED, Selection
+from find_best_mobo.select import (
+    EXCLUDED,
+    Coverage,
+    Selection,
+    render_coverage,
+    transcript_coverage,
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +43,11 @@ class Projection:
     tokens_per_batch: tuple[int, ...]
     total_tokens: int
     chars_per_token: float
+    # How much of the transcript cache the excerpted videos actually had. It
+    # sits on the projection because R1012 requires it printed beside the
+    # character count: a projection read without it says nothing about what
+    # fraction of the corpus produced it.
+    coverage: Coverage
 
 
 def project(
@@ -69,14 +80,21 @@ def project(
         if bundle.batch >= 1:
             tokens_per_batch[bundle.batch - 1] += bundle.projected_tokens
 
+    included = [s for s in selections if s.reason != EXCLUDED]
     return Projection(
         videos_indexed=videos_indexed,
-        videos_selected=sum(1 for selection in selections if selection.reason != EXCLUDED),
+        videos_selected=len(included),
         excerpt_characters=sum(len(excerpt.text) for excerpt in excerpts),
         bundle_count=len(bundles),
         tokens_per_batch=tuple(tokens_per_batch),
         total_tokens=sum(bundle.projected_tokens for bundle in bundles),
         chars_per_token=config.chars_per_token,
+        # The INCLUDED selections, matching the line it is printed beside:
+        # `excerpt_characters` is summed over the videos that were
+        # excerpted, and a coverage figure over a different set than the
+        # number it annotates is worse than none. Read off the selections,
+        # never re-derived from the cache — see R1012.
+        coverage=transcript_coverage(included),
     )
 
 
@@ -93,6 +111,7 @@ def render_projection(projection: Projection) -> str:
         f"  {projection.videos_indexed} videos indexed and pending",
         f"  {projection.videos_selected} videos selected for excerpting",
         f"  {projection.excerpt_characters} characters of excerpt text",
+        render_coverage(projection.coverage, "selected videos"),
         f"  {projection.bundle_count} bundles written",
     ]
     for index, tokens in enumerate(projection.tokens_per_batch, start=1):

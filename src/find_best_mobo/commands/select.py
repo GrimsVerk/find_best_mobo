@@ -24,7 +24,14 @@ from collections.abc import Sequence
 from find_best_mobo.artifacts import MissingArtifact
 from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
-from find_best_mobo.select import ThresholdReport, select_all, threshold_report, write_selected
+from find_best_mobo.select import (
+    ThresholdReport,
+    render_coverage,
+    select_all,
+    threshold_report,
+    transcript_coverage,
+    write_selected,
+)
 
 
 def parse_args(argv: Sequence[str]) -> Namespace:
@@ -42,10 +49,26 @@ def run(config: Config, args: Namespace) -> int:
         print(_missing(config, error))
         return 1
 
+    coverage = transcript_coverage(selections)
+    if coverage.considered > 0 and coverage.with_transcript == 0:
+        # Not a result. Every body was empty because none was read, so a
+        # threshold report over this would measure the missing corpus and read
+        # as a measurement of the lever (R1012, OD-23). Nothing is written: a
+        # half-answer on disk is what let a stale file mislead the next stage.
+        print(
+            f"None of the {coverage.considered} pending videos has a cached transcript. "
+            "Run `find-best-mobo fetch` first."
+        )
+        return 1
+
     path = config.data_dir / "selected.jsonl"
     written = write_selected(selections, path)
     report = threshold_report(selections, config)
     print(f"Wrote {written} selections to {path} (excluded videos included)")
+    # Every run, whether or not anything is wrong: a figure that appears only on
+    # failure is a figure nobody can compare across runs, and that is precisely
+    # why BL-27's collapse was invisible.
+    print(render_coverage(coverage, "pending videos"))
     _print_report(report)
     return 0
 

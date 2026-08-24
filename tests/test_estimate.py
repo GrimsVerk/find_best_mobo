@@ -41,7 +41,7 @@ from find_best_mobo.config import Config
 from find_best_mobo.estimate import Projection, project, render_projection
 from find_best_mobo.excerpt import Excerpt
 from find_best_mobo.index import Video
-from find_best_mobo.select import Selection, write_selected
+from find_best_mobo.select import Coverage, Selection, write_selected
 from find_best_mobo.transcripts import Cue, Transcript, cache_path
 
 TITLE_HIT = "title_hit"
@@ -110,12 +110,20 @@ def make_selection(
     video: Video,
     reason: str = THRESHOLD,
     mentions: tuple[Mention, ...] = (),
+    *,
+    has_transcript: bool = True,
 ) -> Selection:
+    """`has_transcript` defaults to True: these fixtures describe videos that were read.
+
+    The coverage tests pass it explicitly, which is the only way the flag should
+    ever be false in a fixture (R1012).
+    """
     return Selection(
         video=video,
         reason=reason,
         mentions=mentions,
         distinct_canonicals=len({mention.canonical for mention in mentions}),
+        has_transcript=has_transcript,
     )
 
 
@@ -216,6 +224,9 @@ class TestProject:
             tokens_per_batch=(10, 20, 0, 0),
             total_tokens=30,
             chars_per_token=4.0,
+            # Two INCLUDED selections, both with transcripts; the excluded
+            # video is not in the population this number annotates.
+            coverage=Coverage(considered=2, with_transcript=2),
         )
 
     def test_videos_indexed_counts_only_the_pending_ones(self, tmp_path: Path) -> None:
@@ -342,6 +353,7 @@ class TestProject:
             tokens_per_batch=(0, 0, 0, 0),
             total_tokens=0,
             chars_per_token=4.0,
+            coverage=Coverage(considered=0, with_transcript=0),
         )
 
 
@@ -353,6 +365,9 @@ SAMPLE = Projection(
     tokens_per_batch=(11, 22, 33, 0),
     total_tokens=66,
     chars_per_token=3.5,
+    # Distinct from every other number here, so a coverage line printed with
+    # the wrong field cannot be mistaken for the right one.
+    coverage=Coverage(considered=45, with_transcript=40),
 )
 
 
@@ -429,6 +444,7 @@ class TestRenderProjection:
             tokens_per_batch=(1, 0, 0, 0),
             total_tokens=1,
             chars_per_token=4.0,
+            coverage=Coverage(considered=0, with_transcript=0),
         )
 
         assert render_projection(SAMPLE) != render_projection(other)
@@ -637,6 +653,77 @@ class TestEstimateCommand:
 
         assert {path: path.read_bytes() for path in bundle_files(config)} == before
         assert before != {}
+
+    def test_the_projection_carries_its_coverage(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """R1012: no projection can be read without seeing what produced it."""
+        config = corpus_config(tmp_path)
+        videos = [
+            make_video("withcaps", "Deep dive", upload_date=date(2025, 5, 5)),
+            make_video("nocaps", "Deep dive", upload_date=date(2025, 5, 6)),
+        ]
+        write_index_lines(videos, config.data_dir / "index.jsonl")
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
+        write_transcript(config, "withcaps", (100.0, "the b650e board"))
+        write_selected(
+            [
+                make_selection(videos[0], THRESHOLD, (make_mention("B650E", "withcaps", 100.0),)),
+                make_selection(videos[1], TITLE_HIT, has_transcript=False),
+            ],
+            config.data_dir / "selected.jsonl",
+        )
+
+        assert run(config, Namespace()) == 0
+
+        out = capsys.readouterr().out
+        assert "1 of 2 selected videos had a cached transcript" in out
+        assert "characters of excerpt text" in out
+
+    def test_zero_coverage_over_selected_videos_refuses(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """BL-27's measured console output, made impossible.
+
+        A zero-token projection closing with R7's stop sentence read exactly
+        like a finished run. The refusal REPLACES the projection block rather
+        than appearing above it: a warning beside the checkpoint's own success
+        language annotates it instead of separating it.
+        """
+        config = corpus_config(tmp_path)
+        videos = [make_video("a"), make_video("b")]
+        write_index_lines(videos, config.data_dir / "index.jsonl")
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
+        write_selected(
+            [make_selection(v, TITLE_HIT, has_transcript=False) for v in videos],
+            config.data_dir / "selected.jsonl",
+        )
+
+        assert run(config, Namespace()) == 1
+
+        out = capsys.readouterr().out
+        assert "None of the 2 selected videos has a cached transcript" in out
+        assert "find-best-mobo fetch" in out
+        assert "projected tokens" not in out
+        assert "The pipeline STOPS here" not in out
+        assert not (config.data_dir / "bundles").exists()
+
+    def test_full_coverage_with_no_mentions_still_projects_a_real_zero(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The other half of R1012's pair: a read corpus with nothing in it is a result."""
+        config = corpus_config(tmp_path)
+        video = make_video("quiet")
+        write_index_lines([video], config.data_dir / "index.jsonl")
+        (config.data_dir / "transcripts").mkdir(parents=True, exist_ok=True)
+        write_transcript(config, "quiet", (1.0, "nothing relevant here"))
+        write_selected([make_selection(video, TITLE_HIT)], config.data_dir / "selected.jsonl")
+
+        assert run(config, Namespace()) == 0
+
+        out = capsys.readouterr().out
+        assert "1 of 1 selected videos had a cached transcript" in out
+        assert "The pipeline STOPS here" in out
 
     def test_a_missing_index_refuses_and_names_the_index_stage(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
