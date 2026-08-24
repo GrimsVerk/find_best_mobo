@@ -18,6 +18,7 @@ captions never sits in memory together.
 from __future__ import annotations
 
 from argparse import Namespace
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -28,11 +29,28 @@ from find_best_mobo.aliases import (
     find_title_hits,
     load_aliases,
 )
+from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
 from find_best_mobo.index import read_index
 from find_best_mobo.transcripts import load_cached
 
 _USAGE = "usage: find-best-mobo aliases --check"
+
+
+def parse_args(argv: Sequence[str]) -> Namespace:
+    """This stage's own flags, parsed by this stage (R1006).
+
+    `--check` stays a `store_true` rather than an argparse-required option, so
+    a bare `find-best-mobo aliases` still prints the friendlier usage `run`
+    writes and returns 2, instead of exiting through argparse.
+    """
+    parser = subcommand_parser("aliases", "Report what the alias table actually catches.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="report how many videos mention each canonical (required)",
+    )
+    return parser.parse_args(list(argv))
 
 
 @dataclass
