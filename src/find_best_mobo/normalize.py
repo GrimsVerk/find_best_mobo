@@ -10,9 +10,13 @@ the recall risk `docs/DESIGN.md` R3 exists to contain.
 table and the transcript meet in the same space. Surface forms from the table
 are normalized too — the caller never compares raw text with raw text.
 
-The one rule worth stating twice: a hyphen is KEPT as a character, because it is
-load-bearing in real board names (`x670e-plus`), but it never blocks the joining
-rule, because a caption is just as likely to write `x-670-e` as `x 670 e`.
+The one rule worth stating twice: a hyphen FOLDS TO A SPACE. It used to be kept
+as a character, on the reasoning that it is load-bearing in real board names
+(`x670e-plus`) — but BL-8 measured what that costs: the table's `steel legend`
+never met a caption's `steel-legend`, and a hyphenated spelling was simply
+invisible. Folding loses nothing, because the joining rule then rebuilds
+`x-670-e` into `x670e` exactly as it rebuilds `x 670 e`, and `x670e-plus`
+becomes `x670e plus`, whose first token still matches (OD-6, R1002).
 """
 
 from __future__ import annotations
@@ -26,10 +30,10 @@ _PUNCTUATION = str.maketrans(dict.fromkeys(".,!?:;\"'()[]‘’“”"))
 
 _ALNUM = re.compile(r"[a-z0-9]+")
 
-# Separators a mangled part number can be broken on. Anything else — a slash, an
-# em dash, two spaces that survived collapsing — means the two sides are
-# genuinely separate words.
-_SEPARATORS = frozenset({" ", "-"})
+# The one separator a mangled part number can be broken on, after hyphens have
+# folded into it. Anything else — a slash, an em dash, two spaces that survived
+# collapsing — means the two sides are genuinely separate words.
+_SEPARATORS = frozenset({" "})
 
 # A purely alphabetic fragment joins to a number only when it is a single
 # letter. This is what keeps `ryzen 9` and `in 2023` intact while still folding
@@ -51,10 +55,12 @@ def normalize(text: str) -> str:
     """Return `text` in the single space the matcher and the alias table share.
 
     Pure and total: it never raises, and `normalize("")` is `""`. Lowercases,
-    drops scattered punctuation, collapses whitespace, and then joins up the
-    letter/digit fragments a caption broke a part number into.
+    drops scattered punctuation, FOLDS HYPHENS TO SPACES, collapses whitespace,
+    and then joins up the letter/digit fragments a caption broke a part number
+    into. Only hyphens fold; every other separator is left to say what it says.
     """
-    cleaned = " ".join(text.lower().translate(_PUNCTUATION).split())
+    folded = text.lower().translate(_PUNCTUATION).replace("-", " ")
+    cleaned = " ".join(folded.split())
     return _collapse_spacing(cleaned)
 
 
