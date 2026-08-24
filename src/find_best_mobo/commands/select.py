@@ -21,6 +21,7 @@ from __future__ import annotations
 from argparse import Namespace
 from collections.abc import Sequence
 
+from find_best_mobo.artifacts import MissingArtifact
 from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
 from find_best_mobo.select import ThresholdReport, select_all, threshold_report, write_selected
@@ -38,7 +39,7 @@ def run(config: Config, args: Namespace) -> int:
     try:
         selections = select_all(config)
     except FileNotFoundError as error:
-        print(_missing(config, str(error.filename)))
+        print(_missing(config, error))
         return 1
 
     path = config.data_dir / "selected.jsonl"
@@ -49,16 +50,20 @@ def run(config: Config, args: Namespace) -> int:
     return 0
 
 
-def _missing(config: Config, filename: str) -> str:
+def _missing(config: Config, error: FileNotFoundError) -> str:
     """Name the missing file and the command that produces it.
 
-    The alias table is recognised by comparing against the CONFIGURED path
-    rather than by its filename: with `alias_table_path` a lever (R1007), a
-    suffix test is a guess about a name the owner now chooses. The index keeps
-    its `endswith` because nothing configures that filename.
+    A `MissingArtifact` already carries all three parts of the sentence, so it
+    is asked. What remains is the alias table, which `load_aliases` raises a
+    plain `FileNotFoundError` for and which no stage produces — R1005's "name
+    the stage that produces it" has no answer for hand-authored input (R1007),
+    so its wording stands as it is. It is recognised by the CONFIGURED path
+    rather than a filename suffix: with `alias_table_path` a lever, a suffix
+    test is a guess about a name the owner now chooses.
     """
-    if filename.endswith("index.jsonl"):
-        return f"No index at {filename}. Run `find-best-mobo index` first."
+    if isinstance(error, MissingArtifact):
+        return error.message()
+    filename = str(error.filename)
     if filename == str(config.alias_table_path):
         return f"No alias table at {filename}. It ships with the repository; restore it."
     return f"Missing file: {filename}. Run `find-best-mobo index` and `find-best-mobo fetch` first."
