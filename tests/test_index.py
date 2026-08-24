@@ -643,40 +643,66 @@ class TestRunAndCli:
         assert (tmp_path / "data" / "index.jsonl").is_file()
 
 
-# Stable markers for the zero-duration ruling. The ruling promises that the
-# count is reported and that two or more warn loudly with the ids named — it
-# says nothing about what the summary calls them. Matching the ruling's own
-# phrase ("zero duration") pinned prose the plan never promised, and failed
-# against a summary that reports the same fact as "N with no duration
-# reported". Match the subject instead, and let the assertions below carry the
-# behaviour: the count, the ids, and the presence or absence of a warning.
-ZERO_DURATION_MARKER = re.compile(r"duration", re.IGNORECASE)
-WARNING_MARKER = re.compile(r"warn", re.IGNORECASE)
+# Stable markers for the zero-duration reporting rule (OD-14, R1009). R1009
+# quotes the expected-Shorts line ("N Shorts reported no duration (expected)")
+# but fixes nothing about the banner's wording — OD-14 in fact requires that
+# wording to change, because the old text asserted the premise it retired. So
+# the banner is matched on its own marker and the count lines on their
+# subject, and the assertions below carry the behaviour: the two counts, the
+# ids, and the presence or absence of the banner.
+DURATION_MARKER = re.compile(r"duration", re.IGNORECASE)
+EXPECTED_MARKER = re.compile(r"expected", re.IGNORECASE)
+BANNER_MARKER = re.compile(r"warn|!!!", re.IGNORECASE)
+
+
+def make_shorts_listing_entry(video_id: str, title: str) -> dict[str, object]:
+    """A raw entry in the flat listing's Shorts shape (BL-15's measurement).
+
+    No ``duration`` key, no ``upload_date`` key and no ``timestamp`` key: this
+    is how the flat channel listing returns a Short, which is why R1009 reads
+    it as expected rather than anomalous. Distinct from ``make_entry`` and
+    ``make_listing_entry``, which both carry a date.
+    """
+    return {
+        "id": video_id,
+        "title": title,
+        "was_live": False,
+        "url": f"https://www.youtube.com/watch?v={video_id}",
+    }
 
 
 class TestZeroDurationReporting:
-    """OD-14 / R1009: the report judges the listing SHAPE, never the count.
+    """R1009: the summary judges each entry's evidence, never the count.
 
-    **Rewritten on 2026-08-24, and the old rule is why.** This class used to
-    assert the owner's earlier ruling — at most one zero duration is benign,
-    because a stream in progress reports none and he can only be live in one
-    place at a time. BL-15 measured that premise false: eight videos reported no
-    duration on the first real run and all eight were genuine Shorts, so the
-    banner fired every run and a real silent drop would have been invisible
-    inside it. The fixtures here all carry a REAL upload date with no duration,
-    which under R1009 is the anomaly shape — so they warn at any count now,
-    including at one. Nothing is weakened; the tests follow the rule.
+    **The rule this class used to hold, and why it is gone.** The owner's
+    plan amendment ruled that at most one zero duration is benign — a stream
+    in progress reports none, and he can only be live in one place at a time —
+    so the summary warned loudly, naming the ids, once the *count* exceeded
+    one. BL-15 measured that premise false on the first real run after the
+    ``timestamp`` fix: eight videos reported no duration and every one was a
+    genuine Short, because a flat listing returns Shorts with no ``duration``
+    field and no date in either field. OD-14 retired the threshold: it is a
+    permanent false positive, and it hid the very case the warning existed
+    for, since a ninth id with a real date would be invisible in a list of
+    eight expected ones.
+
+    What replaces it: a dateless, durationless entry is the expected Shorts
+    shape and reports as a count with no banner, at any count; an entry with a
+    real date and no duration is the silent-drop shape and fires the banner,
+    at a count of one. Both counts print on every run, including as zero.
     """
 
     @pytest.fixture
     def channel_entries(self, request: pytest.FixtureRequest) -> list[dict[str, object]]:
-        """A listing with N dated, zero-duration entries — the anomaly shape.
+        """Override the module fixture: (expected Shorts, anomalies) entries.
 
-        The parameter is that count. Both ways a zero can arrive — a null
-        duration and a literal 0 — are represented, since the rule counts a
-        video that reports no duration either way.
+        The parameter is a pair of counts. The expected-Shorts entries carry
+        no duration and no date in either listing field; the anomalies carry a
+        real ``upload_date`` and no duration, arriving both ways a zero can —
+        an absent key and a literal 0 — since the record cannot tell them
+        apart once ``classify`` has read it.
         """
-        zero_count: int = request.param
+        expected_count, anomaly_count = request.param
         entries = [
             make_entry(),
             make_entry(
@@ -687,98 +713,157 @@ class TestZeroDurationReporting:
             ),
         ]
         entries.extend(
-            make_entry(
-                id=f"zeroDur{i:04d}",
-                title=f"Listing entry {i} with no reported duration",
-                duration=None if i % 2 == 0 else 0,
+            make_shorts_listing_entry(f"listShort{i:02d}", f"Listing Short {i}")
+            for i in range(expected_count)
+        )
+        for i in range(anomaly_count):
+            anomaly = make_entry(
+                id=f"dr0pped{i:04d}",
+                title=f"Dated entry {i} with no reported duration",
                 upload_date="20240701",
             )
-            for i in range(zero_count)
-        )
+            if i % 2 == 0:
+                del anomaly["duration"]
+            else:
+                anomaly["duration"] = 0
+            entries.append(anomaly)
         return entries
 
     @staticmethod
-    def _zero_ids(channel_entries: list[dict[str, object]]) -> list[str]:
-        return [str(entry["id"]) for entry in channel_entries if not entry.get("duration")]
+    def _expected_ids(channel_entries: list[dict[str, object]]) -> list[str]:
+        return [
+            str(entry["id"])
+            for entry in channel_entries
+            if not entry.get("duration") and not entry.get("upload_date")
+        ]
 
     @staticmethod
-    def _zero_duration_report(out: str) -> str:
-        lines = [line for line in out.splitlines() if ZERO_DURATION_MARKER.search(line)]
-        assert lines, f"summary never reports the zero-duration count: {out!r}"
-        return "\n".join(lines)
+    def _anomaly_ids(channel_entries: list[dict[str, object]]) -> list[str]:
+        return [
+            str(entry["id"])
+            for entry in channel_entries
+            if not entry.get("duration") and entry.get("upload_date")
+        ]
 
-    @pytest.mark.parametrize("channel_entries", [0], indirect=True)
-    def test_a_clean_listing_reports_zero_and_does_not_warn(
-        self,
-        boundary_calls: list[tuple[str, date]],
-        channel_entries: list[dict[str, object]],
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        assert run(make_config(tmp_path / "data"), Namespace()) == 0
+    @staticmethod
+    def _visible(text: str) -> str:
+        """Printed output with the index path stripped off the header line.
 
-        captured = capsys.readouterr()
-        # Reported even at 0, so 0 cannot be confused with silence.
-        report = self._zero_duration_report(captured.out)
-        assert re.search(r"\b0\b", report), report
-        assert not WARNING_MARKER.search(captured.out + captured.err)
-
-    @pytest.mark.parametrize("channel_entries", [1, 2, 3], indirect=True)
-    def test_a_dated_zero_duration_video_warns_at_any_count(
-        self,
-        boundary_calls: list[tuple[str, date]],
-        channel_entries: list[dict[str, object]],
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """ONE is enough now. The "more than one" threshold is what OD-14 retired.
-
-        These entries carry a real upload date and no duration, so they are not
-        the flat listing's Shorts shape and something else zeroed them — which
-        is the silent drop the banner exists for.
+        The header ends in a ``tmp_path`` named after the running test, so it
+        is truncated before anything searches the output for a marker.
         """
-        zero_ids = self._zero_ids(channel_entries)
+        return "\n".join(line.split("; index written to ")[0] for line in text.splitlines())
 
-        # A warning, not a failure: the rule changes reporting only.
+    @classmethod
+    def _calm_lines(cls, text: str) -> list[str]:
+        """The summary lines, up to the banner if one fired."""
+        lines = cls._visible(text).splitlines()
+        for number, line in enumerate(lines):
+            if BANNER_MARKER.search(line):
+                return lines[:number]
+        return lines
+
+    @classmethod
+    def _count_lines(cls, text: str) -> tuple[str, str]:
+        """The expected-Shorts count line and the anomaly count line."""
+        duration_lines = [line for line in cls._calm_lines(text) if DURATION_MARKER.search(line)]
+        expected = [line for line in duration_lines if EXPECTED_MARKER.search(line)]
+        anomalies = [line for line in duration_lines if not EXPECTED_MARKER.search(line)]
+        assert len(expected) == 1, f"no single expected-Shorts count line: {duration_lines!r}"
+        assert len(anomalies) == 1, f"no single anomaly count line: {duration_lines!r}"
+        return expected[0], anomalies[0]
+
+    @classmethod
+    def _assert_counts(cls, text: str, *, expected: int, anomalies: int) -> None:
+        expected_line, anomaly_line = cls._count_lines(text)
+        assert re.search(rf"\b{expected}\b", expected_line), (
+            f"expected-Shorts line omits the count {expected}: {expected_line!r}"
+        )
+        assert re.search(r"shorts", expected_line, re.IGNORECASE), (
+            f"expected-Shorts line never says Shorts: {expected_line!r}"
+        )
+        assert re.search(rf"\b{anomalies}\b", anomaly_line), (
+            f"anomaly line omits the count {anomalies}: {anomaly_line!r}"
+        )
+
+    @pytest.mark.parametrize("channel_entries", [(0, 0), (1, 0), (2, 0), (8, 0)], indirect=True)
+    def test_the_listing_shorts_shape_reports_a_count_and_no_banner(
+        self,
+        boundary_calls: list[tuple[str, date]],
+        channel_entries: list[dict[str, object]],
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        expected_ids = self._expected_ids(channel_entries)
+
         assert run(make_config(tmp_path / "data"), Namespace()) == 0
 
         captured = capsys.readouterr()
-        everything = captured.out + captured.err
-        report = self._zero_duration_report(captured.out)
-        assert re.search(rf"\b{len(zero_ids)}\b", report)
-        assert WARNING_MARKER.search(everything), (
-            f"no warning for {len(zero_ids)} dated zero-duration videos: {everything!r}"
+        everything = self._visible(captured.out + captured.err)
+        # Both counts print on every run, so 0 cannot be confused with
+        # silence and the numbers stay comparable run to run.
+        self._assert_counts(captured.out + captured.err, expected=len(expected_ids), anomalies=0)
+        # No threshold anywhere: eight of them are as quiet as one, which is
+        # precisely what BL-15 measured and the old rule got wrong.
+        assert not BANNER_MARKER.search(everything), f"banner fired for Shorts: {everything!r}"
+
+    @pytest.mark.parametrize("channel_entries", [(0, 1), (3, 2)], indirect=True)
+    def test_a_dated_entry_with_no_duration_fires_the_banner_and_is_named(
+        self,
+        boundary_calls: list[tuple[str, date]],
+        channel_entries: list[dict[str, object]],
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        expected_ids = self._expected_ids(channel_entries)
+        anomaly_ids = self._anomaly_ids(channel_entries)
+
+        # A banner, not a failure: R1009 changes reporting only.
+        assert run(make_config(tmp_path / "data"), Namespace()) == 0
+
+        captured = capsys.readouterr()
+        everything = self._visible(captured.out + captured.err)
+        self._assert_counts(everything, expected=len(expected_ids), anomalies=len(anomaly_ids))
+        # One is enough — the count of one that the old rule called benign is
+        # exactly the silent drop this banner exists to surface.
+        assert BANNER_MARKER.search(everything), (
+            f"no banner for {len(anomaly_ids)} dated zero-duration videos: {everything!r}"
         )
         # The ids are what let the cause be chased; the calm summary never
-        # prints ids, so their presence is attributable to the warning.
-        for video_id in zero_ids:
-            assert video_id in everything, f"warning does not name {video_id}: {everything!r}"
+        # prints ids, so their presence is attributable to the banner.
+        for video_id in anomaly_ids:
+            assert video_id in everything, f"banner does not name {video_id}: {everything!r}"
+        for video_id in expected_ids:
+            assert video_id not in everything, f"an expected Short was named: {everything!r}"
 
-    @pytest.mark.parametrize("channel_entries", [2], indirect=True)
-    def test_warning_changes_reporting_only_not_classification(
+    @pytest.mark.parametrize("channel_entries", [(2, 1)], indirect=True)
+    def test_reporting_changes_only_never_classification(
         self,
         boundary_calls: list[tuple[str, date]],
         channel_entries: list[dict[str, object]],
         tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        # Guard against a future "fix" that reacts to the warning by keeping
-        # the videos: zero-duration videos are still excluded Shorts, and the
-        # summary's kept/excluded counts are unchanged by the warning.
+        # Guard against a future "fix" that answers the banner by keeping the
+        # video: every zero-duration video is still an excluded Short,
+        # whichever shape it has, and the kept/excluded counts are unmoved.
         config = make_config(tmp_path / "data")
         assert run(config, Namespace()) == 0
 
         by_id = {video.video_id: video for video in read_index(config.data_dir / "index.jsonl")}
-        assert len(by_id) == 4
-        for video_id in self._zero_ids(channel_entries):
+        assert len(by_id) == 5
+        for video_id in self._expected_ids(channel_entries) + self._anomaly_ids(channel_entries):
             assert by_id[video_id].duration_seconds == 0
             assert by_id[video_id].classification == "short"
             assert by_id[video_id].inclusion == "excluded_short"
+        # The sentinel date is what tells the two shapes apart on the record.
+        assert by_id["listShort00"].upload_date == date.min
+        assert by_id["dr0pped0000"].upload_date == date(2024, 7, 1)
         kept = [video for video in by_id.values() if video.inclusion == "pending"]
         assert [video.video_id for video in kept] == ["b0ardLong01"]
 
         out = capsys.readouterr().out
-        # 4 found, 1 kept, 3 Shorts (the real Short plus both zero-duration
-        # videos) — all distinct from the zero-duration count of 2.
-        for count in (4, 1, 3):
+        # 5 found, 1 kept, 4 Shorts (the real Short, both expected ones and
+        # the anomaly) — all distinct from the two zero-duration counts.
+        for count in (5, 1, 4):
             assert re.search(rf"\b{count}\b", out), f"summary omits the count {count}: {out!r}"
