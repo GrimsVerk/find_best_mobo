@@ -8,7 +8,7 @@ Base branch: run/local (branch suffix '--run-local').
 - 11:25:53Z iteration 1: phase STEWARD
 - 11:25:53Z dispatch steward worker (steward-od-8)
 spawn-worker[steward-od-8]: the worker moved its work to 'docs/oracle-plan-description-signal' (this script created 'worker/steward-od-8'); reporting the branch that carries the commits
-WORKER_RESULT id=steward-od-8 branch=docs/oracle-plan-description-signal worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/steward-od-8 engine=claude exit=0 commits=1
+WORKER_RESULT id=steward-od-8 branch=docs/oracle-plan-description-signal worktree=<repos_root>/find_best_mobo/.worktrees/steward-od-8 engine=claude exit=0 commits=1
 - 11:36:01Z the worker's work is on 'docs/oracle-plan-description-signal', not 'worker/steward-od-8' — pushing what it reported
 - 11:36:08Z budget: weekly at 11% (model 9%), spent 1 of 20 points on the weekly limit
 - 11:36:08Z iteration 2: phase WAIT
@@ -18,7 +18,7 @@ WORKER_RESULT id=steward-od-8 branch=docs/oracle-plan-description-signal worktre
 - 11:39:15Z iteration 3: phase STEWARD
 - 11:39:15Z dispatch steward worker (steward-od-9)
 spawn-worker[steward-od-9]: the worker moved its work to 'docs/oracle-plan-refuse-on-missing-artifact' (this script created 'worker/steward-od-9'); reporting the branch that carries the commits
-WORKER_RESULT id=steward-od-9 branch=docs/oracle-plan-refuse-on-missing-artifact worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/steward-od-9 engine=claude exit=0 commits=1
+WORKER_RESULT id=steward-od-9 branch=docs/oracle-plan-refuse-on-missing-artifact worktree=<repos_root>/find_best_mobo/.worktrees/steward-od-9 engine=claude exit=0 commits=1
 - 11:50:25Z the worker's work is on 'docs/oracle-plan-refuse-on-missing-artifact', not 'worker/steward-od-9' — pushing what it reported
 - 11:50:31Z budget: weekly at 12% (model 10%), spent 2 of 20 points on the weekly limit
 - 11:50:32Z iteration 4: phase WAIT
@@ -28,7 +28,7 @@ WORKER_RESULT id=steward-od-9 branch=docs/oracle-plan-refuse-on-missing-artifact
 - 11:53:09Z iteration 5: phase STEWARD
 - 11:53:09Z dispatch steward worker (steward-od-10)
 spawn-worker[steward-od-10]: the worker moved its work to 'docs/oracle-plan-subcommand-flag-forwarding' (this script created 'worker/steward-od-10'); reporting the branch that carries the commits
-WORKER_RESULT id=steward-od-10 branch=docs/oracle-plan-subcommand-flag-forwarding worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/steward-od-10 engine=claude exit=0 commits=1
+WORKER_RESULT id=steward-od-10 branch=docs/oracle-plan-subcommand-flag-forwarding worktree=<repos_root>/find_best_mobo/.worktrees/steward-od-10 engine=claude exit=0 commits=1
 - 12:04:14Z the worker's work is on 'docs/oracle-plan-subcommand-flag-forwarding', not 'worker/steward-od-10' — pushing what it reported
 - 12:04:21Z budget: weekly at 12% (model 10%), spent 2 of 20 points on the weekly limit
 - 12:04:22Z iteration 6: phase WAIT
@@ -37,7 +37,7 @@ WORKER_RESULT id=steward-od-10 branch=docs/oracle-plan-subcommand-flag-forwardin
 - 12:07:29Z budget: weekly at 12% (model 10%), spent 2 of 20 points on the weekly limit
 - 12:07:30Z iteration 7: phase ORACLE
 - 12:07:30Z dispatch oracle worker (oracle-20260820120730)
-WORKER_RESULT id=oracle-20260820120730 branch=worker/oracle-20260820120730 worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/oracle-20260820120730 engine=claude exit=0 commits=1
+WORKER_RESULT id=oracle-20260820120730 branch=worker/oracle-20260820120730 worktree=<repos_root>/find_best_mobo/.worktrees/oracle-20260820120730 engine=claude exit=0 commits=1
 - 12:10:08Z budget: weekly at 13% (model 11%), spent 3 of 20 points on the weekly limit
 - 12:10:09Z iteration 8: phase WAIT
 - 12:10:09Z waiting on PR #124 (docs/oracle-20260820120730--run-local) — mechanical watch, no model budget
@@ -45,7 +45,7 @@ WORKER_RESULT id=oracle-20260820120730 branch=worker/oracle-20260820120730 workt
 - 12:11:44Z budget: weekly at 13% (model 11%), spent 3 of 20 points on the weekly limit
 - 12:11:44Z iteration 9: phase STEWARD
 - 12:11:44Z dispatch steward worker (steward-od-11)
-WORKER_RESULT id=steward-od-11 branch=worker/steward-od-11 worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/steward-od-11 engine=claude exit=0 commits=1
+WORKER_RESULT id=steward-od-11 branch=worker/steward-od-11 worktree=<repos_root>/find_best_mobo/.worktrees/steward-od-11 engine=claude exit=0 commits=1
 - 12:20:48Z budget: weekly at 13% (model 11%), spent 3 of 20 points on the weekly limit
 - 12:20:49Z iteration 10: phase WAIT
 - 12:20:49Z waiting on PR #125 (docs/oracle-plan-od-11--run-local) — mechanical watch, no model budget
@@ -53,7 +53,7 @@ WORKER_RESULT id=steward-od-11 branch=worker/steward-od-11 worktree=/home/loke/c
 - 12:23:25Z budget: weekly at 13% (model 11%), spent 3 of 20 points on the weekly limit
 - 12:23:26Z iteration 11: phase STEWARD
 - 12:23:26Z dispatch steward worker (steward-od-13)
-WORKER_RESULT id=steward-od-13 branch=worker/steward-od-13 worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/steward-od-13 engine=claude exit=0 commits=1
+WORKER_RESULT id=steward-od-13 branch=worker/steward-od-13 worktree=<repos_root>/find_best_mobo/.worktrees/steward-od-13 engine=claude exit=0 commits=1
 - 12:40:11Z budget: weekly at 14% (model 11%), spent 4 of 20 points on the weekly limit
 - 12:40:11Z iteration 12: phase WAIT
 - 12:40:11Z waiting on PR #126 (docs/oracle-plan-od-13--run-local) — mechanical watch, no model budget
@@ -61,7 +61,7 @@ WORKER_RESULT id=steward-od-13 branch=worker/steward-od-13 worktree=/home/loke/c
 - 12:42:48Z budget: weekly at 14% (model 11%), spent 4 of 20 points on the weekly limit
 - 12:42:49Z iteration 13: phase ORACLE
 - 12:42:49Z dispatch oracle worker (oracle-20260820124249)
-WORKER_RESULT id=oracle-20260820124249 branch=worker/oracle-20260820124249 worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/oracle-20260820124249 engine=claude exit=0 commits=1
+WORKER_RESULT id=oracle-20260820124249 branch=worker/oracle-20260820124249 worktree=<repos_root>/find_best_mobo/.worktrees/oracle-20260820124249 engine=claude exit=0 commits=1
 - 12:48:33Z budget: weekly at 15% (model 12%), spent 5 of 20 points on the weekly limit
 - 12:48:34Z iteration 14: phase WAIT
 - 12:48:34Z waiting on PR #128 (docs/oracle-20260820124249--run-local) — mechanical watch, no model budget
@@ -70,7 +70,7 @@ WORKER_RESULT id=oracle-20260820124249 branch=worker/oracle-20260820124249 workt
 - 12:50:10Z iteration 15: phase STEWARD
 - 12:50:10Z dispatch steward worker (steward-od-5)
 spawn-worker[steward-od-5]: the worker moved its work to 'docs/bl-22-superseded-decision-dispatch' (this script created 'worker/steward-od-5'); reporting the branch that carries the commits
-WORKER_RESULT id=steward-od-5 branch=docs/bl-22-superseded-decision-dispatch worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/steward-od-5 engine=claude exit=0 commits=1
+WORKER_RESULT id=steward-od-5 branch=docs/bl-22-superseded-decision-dispatch worktree=<repos_root>/find_best_mobo/.worktrees/steward-od-5 engine=claude exit=0 commits=1
 - 12:53:21Z the worker's work is on 'docs/bl-22-superseded-decision-dispatch', not 'worker/steward-od-5' — pushing what it reported
 - 12:53:28Z budget: weekly at 15% (model 12%), spent 5 of 20 points on the weekly limit
 - 12:53:29Z iteration 16: phase WAIT
@@ -79,7 +79,7 @@ WORKER_RESULT id=steward-od-5 branch=docs/bl-22-superseded-decision-dispatch wor
 - 12:55:35Z budget: weekly at 15% (model 12%), spent 5 of 20 points on the weekly limit
 - 12:55:35Z iteration 17: phase ORACLE
 - 12:55:35Z dispatch oracle worker (oracle-20260820125535)
-WORKER_RESULT id=oracle-20260820125535 branch=worker/oracle-20260820125535 worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/oracle-20260820125535 engine=claude exit=0 commits=1
+WORKER_RESULT id=oracle-20260820125535 branch=worker/oracle-20260820125535 worktree=<repos_root>/find_best_mobo/.worktrees/oracle-20260820125535 engine=claude exit=0 commits=1
 - 13:01:07Z budget: weekly at 16% (model 13%), spent 6 of 20 points on the weekly limit
 - 13:01:07Z iteration 18: phase WAIT
 - 13:01:07Z waiting on PR #132 (docs/oracle-20260820125535--run-local) — mechanical watch, no model budget
@@ -93,7 +93,7 @@ WORKER_RESULT id=oracle-20260820125535 branch=worker/oracle-20260820125535 workt
 - 13:05:52Z iteration 20: phase ORACLE
 - 13:05:52Z dispatch oracle worker (oracle-20260820130552)
 spawn-worker[oracle-20260820130552]: the worker moved its work to 'worker/oracle-20260820130552b' (this script created 'worker/oracle-20260820130552'); reporting the branch that carries the commits
-WORKER_RESULT id=oracle-20260820130552 branch=worker/oracle-20260820130552b worktree=/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/oracle-20260820130552 engine=claude exit=0 commits=6
+WORKER_RESULT id=oracle-20260820130552 branch=worker/oracle-20260820130552b worktree=<repos_root>/find_best_mobo/.worktrees/oracle-20260820130552 engine=claude exit=0 commits=6
 - 13:17:00Z the worker's work is on 'worker/oracle-20260820130552b', not 'worker/oracle-20260820130552' — pushing what it reported
 - 13:17:06Z owner edited the design layer — re-deriving everything, resetting failure counters
 - 13:17:07Z budget: weekly at 18% (model 17%), spent 8 of 20 points on the per-model weekly limit
