@@ -18,7 +18,8 @@ import pytest
 from find_best_mobo.normalize import normalize
 
 # Every character the contract requires to be stripped out of part numbers.
-# The hyphen is deliberately absent: it is load-bearing in `x670e-plus`.
+# The hyphen is deliberately absent, and no longer for the old reason: under
+# OD-6/R1002 it is not stripped, it FOLDS TO A SPACE. See `TestHyphenFolding`.
 STRIPPED_PUNCTUATION = [".", ",", "!", "?", ":", ";", '"', "'", "(", ")", "[", "]"]
 
 
@@ -62,11 +63,69 @@ class TestPunctuation:
     def test_quotes_around_a_phrase_vanish(self) -> None:
         assert normalize('"the best board", he said') == "the best board he said"
 
-    def test_hyphen_survives_as_a_character(self) -> None:
-        assert "-" in normalize("the x670e-plus board")
 
-    def test_hyphenated_model_name_is_left_intact(self) -> None:
-        assert normalize("The X670E-PLUS board") == "the x670e-plus board"
+class TestHyphenFolding:
+    """OD-6/R1002: a hyphen folds to a space, and it is the only thing that does.
+
+    The two tests below are the shipped ones, rewritten rather than deleted
+    (AGENTS.md, the blind-tests rule: an edit to a test is allowed and must be
+    visible). Each says in its docstring what it used to assert and why the
+    rule it asserted was retired.
+    """
+
+    def test_a_hyphen_folds_to_a_space(self) -> None:
+        """REWRITTEN from `test_hyphen_survives_as_a_character`.
+
+        The old rule: a hyphen was KEPT as a character, and the old test read
+        `assert "-" in normalize("the x670e-plus board")`. It was kept on the
+        reasoning that it is load-bearing in a name like `x670e-plus`, where
+        dropping it would fuse two tokens the matcher needs apart.
+
+        BL-8 retired it. Keeping the character meant the table's `steel legend`
+        never met a caption's `steel-legend`: the two spellings normalized to
+        different strings, so a hyphenated family name was invisible to the
+        matcher entirely. Folding to a space keeps the tokens apart AND lets the
+        two spellings meet, which is what the retired rule could not do.
+        """
+        assert normalize("steel-legend") == "steel legend"
+        assert "-" not in normalize("the x670e-plus board")
+
+    def test_hyphenated_model_name_folds_to_two_tokens(self) -> None:
+        """REWRITTEN from `test_hyphenated_model_name_is_left_intact`.
+
+        The old rule, asserted verbatim by the old test:
+        `normalize("The X670E-PLUS board") == "the x670e-plus board"` — the
+        hyphen survived into normalized space as a character, because it is
+        load-bearing in `x670e-plus`.
+
+        BL-8 retired it for the reason above: a spelling nobody in the table
+        writes with a hyphen could never be found in a caption that does. The
+        two tokens are still two tokens; the separator is now a space, which is
+        the separator every other rule in this module already speaks.
+        """
+        assert normalize("The X670E-PLUS board") == "the x670e plus board"
+
+    def test_a_hyphen_between_two_words_leaves_two_words(self) -> None:
+        assert normalize("the steel-legend board") == "the steel legend board"
+
+    def test_a_hyphen_run_does_not_leave_a_run_of_spaces(self) -> None:
+        assert normalize("steel--legend") == "steel legend"
+
+    def test_a_lone_hyphen_normalizes_away(self) -> None:
+        assert normalize("-") == ""
+        assert normalize("the - board") == "the board"
+
+    @pytest.mark.parametrize("separator", ["/", "+", "\u2014", "\u2013", "_"])
+    def test_only_the_hyphen_folds(self, separator: str) -> None:
+        """R1002 names hyphens and nothing else; every other separator is untouched.
+
+        What these characters do is deliberately NOT pinned here — that is
+        whatever the shipped rule already did with them. What is pinned is that
+        the fold did not widen to reach them, so `steel/legend` still does not
+        become the table's `steel legend`.
+        """
+        assert normalize(f"steel{separator}legend") != "steel legend"
+        assert normalize(f"x670e{separator}plus") != normalize("x670e-plus")
 
 
 class TestSpacingDamage:
@@ -89,6 +148,11 @@ class TestSpacingDamage:
 
     def test_folding_survives_punctuation_in_the_middle(self) -> None:
         assert normalize("the x 670 e, honestly, rules") == "the x670e honestly rules"
+
+    def test_a_hyphenated_part_number_folds_exactly_as_a_spaced_one_does(self) -> None:
+        # The join rule is unaffected by the fold: a hyphen was already a
+        # separator here, so a gap that joined before joins now.
+        assert normalize("x-670-e") == normalize("x 670 e") == "x670e"
 
     def test_a_trailing_letter_group_folds_too(self) -> None:
         assert normalize("b 650 e") == "b650e"
@@ -127,6 +191,8 @@ class TestTotality:
             "-e",
             "()[]",
             "x 670 e-plus, and the b 650 e too!",
+            "steel-legend",
+            "the x670e-plus board",
             "éçho",
         ],
     )
@@ -138,5 +204,24 @@ class TestTotality:
 
     def test_is_idempotent(self) -> None:
         once = normalize("So the X 670 E Taichi board, honestly?")
+
+        assert normalize(once) == once
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "",
+            "-",
+            "---",
+            "steel-legend",
+            "The X670E-PLUS board",
+            "x-670-e",
+            "the b650e-plus board, honestly!",
+        ],
+    )
+    def test_stays_idempotent_across_the_fold(self, text: str) -> None:
+        # The fold is a cleaning step, so its output must be a fixed point:
+        # every caller routes through `normalize` and some of them twice.
+        once = normalize(text)
 
         assert normalize(once) == once
