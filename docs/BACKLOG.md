@@ -412,6 +412,81 @@ reading. All of these live in `.claude/scripts/` and `.github/scripts/`, both
 owner-owned gate paths, and the hole is the template's as BL-21's is. — filed
 by: steward (dispatched for OD-5; wrote no plan)
 
+### BL-27 — A run with no transcripts reports success and projects zero cost
+
+Measured on 2026-08-24, on the corpus the 2026-08-20 local-lane run left on
+disk. `data/selected.jsonl` was written at 14:57 and `data/transcripts/`
+finished filling at 15:09, so `select` ran twelve minutes before the transcripts
+it reads existed. Every one of the 285 rows it wrote carries `"mentions":[]` and
+`"distinct_canonicals":0`. It printed no warning of any kind.
+
+`estimate` then read that file and printed this, and exited 0:
+
+```
+Wrote 0 bundles to data/bundles
+Cost projection (no model has been invoked)
+  285 videos indexed and pending
+  109 videos selected for excerpting
+  0 characters of excerpt text
+  0 bundles written
+  batch 1 (calibration): 0 projected tokens
+  ...
+  0 projected tokens in total
+...
+The pipeline STOPS here. No model has been or will be invoked by this command
+```
+
+Re-running `select` against the now-complete transcript cache produced 89
+threshold passes and 198 selected videos, and `estimate` then wrote 650 bundles.
+So the corpus was fine and the pipeline was fine; only the ORDER was wrong, and
+nothing anywhere said so.
+
+**The failure and a finished run are byte-comparable at the console.** "The
+pipeline STOPS here" is R7's checkpoint language — the sentence that tells the
+owner the projection is ready to spend against. Here it closed a run that had
+read no speech at all. An operator returning to that output has no signal
+distinguishing "your corpus contains no board mentions" from "you ran the
+stages out of order" from "the alias table is broken", and the first of those
+is a legitimate result the pipeline must be able to report.
+
+**R1005 (OD-9) does not cover it.** That requirement refuses when an upstream
+ARTIFACT is missing, and none was: `data/index.jsonl` and `data/selected.jsonl`
+both existed. The absent input was the transcript cache, which the design
+deliberately treats as tolerable per video —
+`src/find_best_mobo/commands/estimate.py` says so in as many words ("A missing
+transcript is not an error here"), because a video can be selected on a title
+hit and have no caption track, and R24's failure ledger owns that case. The
+per-video rule is right. What is missing is any statement about the POPULATION:
+tolerating one absent transcript and tolerating all 285 of them are not the
+same judgement, and today they are the same code path.
+
+**Two costs.** The projection is the one number R7 exists to produce, and it
+can read zero for a reason that has nothing to do with the corpus. And this is
+the input side of Stage B's calibration (R8): a factor measured against a run
+in this state would be measured against nothing.
+
+Directions, not mutually exclusive:
+
+1. **Report coverage, always.** `select` states how many of the videos it
+   considered had a transcript to read — "189 of 285 videos had a cached
+   transcript" — so the number is on the console of every run, at the stage
+   that first depends on it, whether or not anything is wrong.
+2. **Refuse at zero.** Coverage of zero over a non-empty selection is not a
+   result, it is an unmet precondition: refuse, name `fetch` as the stage that
+   produces the missing input, and exit non-zero — the shape R1005 already uses
+   for a missing artifact.
+3. **Make the projection carry it.** `estimate` prints the same coverage line
+   next to the character count, so the projection cannot be read without seeing
+   what fraction of the corpus it was computed from.
+
+Whichever directions are taken, the pair worth pinning as tests is the pair that
+tells the two cases apart: a selection whose videos all have transcripts and
+genuinely zero mentions still reports a real (zero) projection, and a selection
+whose videos have NO transcripts does not.
+
+— filed by: the attended session of 2026-08-24, from the state the 2026-08-20
+local-lane run left on disk; reproduced by re-running `select` and `estimate`
+
 ## Uncertainties awaiting oracle ruling
 
 _(nothing yet — filed by `/plan` when a design leaves a question open; format:_
