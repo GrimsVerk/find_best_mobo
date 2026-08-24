@@ -14,6 +14,14 @@ table compiles to ONE regex with a group per surface form, so a two-hour
 transcript is scanned once rather than once per entity — the difference between
 a table that can grow and a table that cannot.
 
+Third, a `kind = "chipset"` alias also contributes its ITX form — every declared
+surface form plus a trailing `i`, so `b850i` finds B850 (OD-7, R1003). It is
+DERIVED in code rather than listed in the table, so a spelling added later gets
+its variant for free; it applies to chipsets only, because a vendor deriving
+`asrocki` would be inventing a word; and an explicitly declared form always wins,
+because declared forms are enumerated before any derived one and the
+de-duplication below is first-declared-wins.
+
 De-duplication is global: if two canonicals claim the same normalized form, the
 one declared first wins and the other never fires. That is not hidden — it
 surfaces as a zero-match canonical in `find-best-mobo aliases --check`, which is
@@ -40,6 +48,11 @@ KINDS = ("board", "family", "chipset", "cpu", "vendor")
 # UTF-8 bytes is reversible, collision-free by construction, and needs no state
 # outside the pattern itself — `find_mentions` only ever receives the compiled
 # pattern, so the canonical has to be recoverable from the group name alone.
+# The single character an ITX board's name appends to its chipset — `b850i`,
+# `x870i`, `b650i` (OD-7, R1003). Named rather than inlined because `itx_forms`
+# both appends it and tests for it, and the two must never drift.
+ITX_SUFFIX = "i"
+
 _GROUP_PREFIX = "c"
 
 # Nothing matches this, at any position: the pattern for an empty alias table.
@@ -109,6 +122,10 @@ def compile_matcher(aliases: Sequence[Alias]) -> re.Pattern[str]:
     """
     seen: set[str] = set()
     forms: list[tuple[str, str]] = []
+    # Declared forms first, ALL of them, before any derived one. That ordering
+    # is what makes "explicit beats derived" fall out of the existing
+    # first-declared-wins de-duplication: a hand-added `b850i` claims the form
+    # and the derived one drops out silently (OD-7, R1003).
     for alias in aliases:
         for form in alias.surface_forms:
             normalized = normalize(form)
@@ -116,6 +133,12 @@ def compile_matcher(aliases: Sequence[Alias]) -> re.Pattern[str]:
                 continue
             seen.add(normalized)
             forms.append((normalized, alias.canonical))
+    for alias in aliases:
+        for derived in itx_forms(alias):
+            if derived in seen:
+                continue
+            seen.add(derived)
+            forms.append((derived, alias.canonical))
     if not forms:
         return _MATCHES_NOTHING
 
@@ -127,6 +150,43 @@ def compile_matcher(aliases: Sequence[Alias]) -> re.Pattern[str]:
         for position, (form, canonical) in enumerate(forms)
     )
     return re.compile(rf"(?<![a-z0-9])(?:{alternatives})(?![a-z0-9])")
+
+
+def itx_forms(alias: Alias) -> tuple[str, ...]:
+    """A chipset's ITX spellings, derived from every form it declares (R1003).
+
+    ITX boards are named `<chipset>I` — `b850i`, `x870i`, `b650i` — and the
+    right-boundary rule means the chipset alias cannot see them. BL-9 measured
+    the cost as total: a 33-minute review of the MSI MPG B850I Edge TI matched
+    `B850` zero times, in title and body both, so even the automatic title
+    include missed it. Every ITX review in the corpus is affected, and ITX is
+    where one-DIMM-per-channel memory behaviour lives.
+
+    Derived from each DECLARED form rather than from the canonical alone, so a
+    spelling the owner adds later gets its ITX variant with no code change —
+    the self-maintaining property OD-7 rejected hand-listed entries for.
+
+    Chipsets only: R1003 names the chipset, and a vendor deriving `asrocki`
+    would be inventing a word. A form already ending in `i` derives nothing.
+    The boundary itself is untouched, which is why `b850ix` and `theb850i` still
+    match nothing.
+    """
+    if alias.kind != "chipset":
+        return ()
+    derived: list[str] = []
+    for form in alias.surface_forms:
+        normalized = normalize(form)
+        if not normalized or normalized.endswith(ITX_SUFFIX):
+            continue
+        candidate = f"{normalized}{ITX_SUFFIX}"
+        # Distinct spellings, in declaration order. Two declared forms can
+        # normalize to one string — `b650` and `b 650` both fold to `b650` —
+        # and a list of spellings that repeats itself is not a list of
+        # spellings. `compile_matcher`'s global de-duplication would drop the
+        # repeat anyway; this keeps the function's own contract honest.
+        if candidate not in derived:
+            derived.append(candidate)
+    return tuple(derived)
 
 
 def alias_pattern(form: str) -> str:

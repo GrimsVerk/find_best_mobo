@@ -1278,3 +1278,165 @@ class TestSelectCommand:
         assert "No alias table at" in out
         assert str(absent) in out
         assert "Run `find-best-mobo index` and `find-best-mobo fetch` first." not in out
+
+
+# --- R1003: the ITX review comes into the corpus ------------------------------
+
+# A RECONSTRUCTED title. `MSI MPG B850I Edge TI` is verbatim from BL-9 and is the
+# only wording with measured provenance; the rest is invented, is asserted on
+# nowhere, and carries no form the pre-R1003 matcher resolves to B850. The full
+# provenance statement lives on
+# `TestItxSelection.test_the_itx_titled_video_is_selected_on_its_title`.
+RECONSTRUCTED_B850I_TITLE = "Taking a look at the MSI MPG B850I Edge TI and how it runs"
+
+# Chipsets and nothing else, on purpose (OD-17): with no vendor or family form
+# in the table, the reconstructed title reaches the corpus on its chipset or not
+# at all, which is what makes the pre-R1003 exclusion visible here. Under the
+# SHIPPED table the same title would title-hit MSI regardless, and a test
+# claiming it was excluded before this plan would be claiming something false.
+ITX_TABLE: tuple[Alias, ...] = (
+    Alias(canonical="B850", kind="chipset", surface_forms=("b850", "b 850")),
+    Alias(canonical="X870", kind="chipset", surface_forms=("x870", "x 870")),
+    Alias(canonical="B650", kind="chipset", surface_forms=("b650", "b 650")),
+)
+
+
+def build_itx_corpus(tmp_path: Path, *, mention_threshold: int = 3) -> Config:
+    """Three ITX videos, one per selection outcome, all spelled `<chipset>i`.
+
+    `itx-title` is the regression: a title hit with an empty body. `itx-three`
+    names three distinct chipsets in ITX spelling and so passes at N=3.
+    `itx-one` names one chipset three times and so does NOT — the mention
+    threshold still gates bodies (OD-7), and a rule that only ever adds mentions
+    could otherwise be read as having loosened it.
+    """
+    config = make_config(tmp_path / "data", mention_threshold=mention_threshold)
+    write_aliases(config.data_dir / "aliases.toml", ITX_TABLE)
+    videos = [
+        make_video("itx-title", RECONSTRUCTED_B850I_TITLE),
+        make_video("itx-three", "Deep dive one"),
+        make_video("itx-one", "Deep dive two"),
+    ]
+    write_index_lines(videos, config.data_dir / "index.jsonl")
+    write_transcript(config, empty_transcript("itx-title"))
+    write_transcript(
+        config,
+        make_transcript(
+            "itx-three",
+            (10.0, "the b850i is a tiny board"),
+            (20.0, "so is the x870i"),
+            (30.0, "and the b650i as well"),
+        ),
+    )
+    write_transcript(
+        config,
+        make_transcript(
+            "itx-one",
+            (10.0, "the b850i is a tiny board"),
+            (20.0, "the b850i again"),
+            (30.0, "still the b850i"),
+        ),
+    )
+    return config
+
+
+class TestItxSelection:
+    """R1003 end to end: an ITX-spelled chipset reaches the selection counts.
+
+    Nothing in `select.py` changes for this; what these pin is that the matcher
+    change arrives in the numbers the cost checkpoint is spent against, which is
+    the second half of OD-7's stated measurement.
+    """
+
+    def test_the_itx_titled_video_is_selected_on_its_title(self, tmp_path: Path) -> None:
+        """The regression R1003 names, over a LABELLED RECONSTRUCTION of the title.
+
+        The real B850I review's title is not recoverable from this repository:
+        it is in no commit, no journal entry and no run record, and
+        `data/index.jsonl`, the one artifact that would hold it, is gitignored
+        and absent from a fresh clone. That is BL-18, ruled LOW and proceeded on
+        under OD-17. Absent, not unknowable — the video is public, so recovering
+        the measured string later is a supersession with logged evidence, never
+        a silent swap of this constant.
+
+        `MSI MPG B850I Edge TI` is verbatim from BL-9 and is the ONLY wording
+        here with measured provenance. What BL-9 measured is the provenance of
+        the CASE, not of the string: on a real 33-minute review of that board,
+        `B850` matched ZERO times, in title and body both, so even the automatic
+        title include missed it. The surrounding wording is invented and nothing
+        asserts on it — the assertion is the reason and the video id.
+
+        The table is chipset-only so that this video's inclusion turns on R1003
+        and on nothing else (OD-17): before this plan the title matches no form
+        in it at all and the video is excluded with an empty body.
+        """
+        config = build_itx_corpus(tmp_path)
+
+        (selection,) = [s for s in select_all(config) if s.video.video_id == "itx-title"]
+
+        assert selection.reason == TITLE_HIT
+        assert selection.mentions == ()
+        assert selection.distinct_canonicals == 0
+
+    def test_three_itx_chipsets_in_a_body_pass_the_threshold(self, tmp_path: Path) -> None:
+        config = build_itx_corpus(tmp_path)
+
+        (selection,) = [s for s in select_all(config) if s.video.video_id == "itx-three"]
+
+        assert selection.distinct_canonicals == 3
+        assert selection.reason == THRESHOLD
+
+    def test_one_itx_chipset_named_three_times_stays_excluded(self, tmp_path: Path) -> None:
+        """OD-7: the mention threshold still gates body matches.
+
+        Three mentions, one distinct canonical. Recovering ITX spellings raises
+        mention counts, and it must not be mistaken for having relaxed what the
+        threshold counts.
+        """
+        config = build_itx_corpus(tmp_path)
+
+        (selection,) = [s for s in select_all(config) if s.video.video_id == "itx-one"]
+
+        assert len(selection.mentions) == 3
+        assert selection.distinct_canonicals == 1
+        assert selection.reason == EXCLUDED
+
+    def test_every_mention_records_the_itx_spelling(self, tmp_path: Path) -> None:
+        config = build_itx_corpus(tmp_path)
+
+        (selection,) = [s for s in select_all(config) if s.video.video_id == "itx-three"]
+
+        assert [(m.canonical, m.matched_form) for m in selection.mentions] == [
+            ("B850", "b850i"),
+            ("X870", "x870i"),
+            ("B650", "b650i"),
+        ]
+
+    def test_the_threshold_report_counts_the_itx_title_hit(self, tmp_path: Path) -> None:
+        config = build_itx_corpus(tmp_path)
+
+        assert threshold_report(select_all(config), config) == ThresholdReport(
+            threshold=3,
+            title_hits=1,
+            threshold_passes=1,
+            excluded=1,
+            would_include_at_minus_one=0,
+            would_exclude_at_plus_one=1,
+        )
+
+    def test_selected_jsonl_records_the_itx_spelling(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """`selected.jsonl` says what the caption actually said, not `b850`."""
+        config = build_itx_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+        assert "Traceback" not in capsys.readouterr().out
+
+        restored = {s.video.video_id: s for s in read_selected(config.data_dir / "selected.jsonl")}
+        assert restored["itx-title"].reason == TITLE_HIT
+        assert [m.matched_form for m in restored["itx-three"].mentions] == [
+            "b850i",
+            "x870i",
+            "b650i",
+        ]
