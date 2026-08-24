@@ -122,8 +122,9 @@ memory, so a 1000-video channel costs no more than one video's worth.
 
 ### Inspecting the alias table
 
-1. The owner runs the `aliases` stage with `--check`. It reads the index and the
-   cached transcripts; without either it says which stage to run first.
+1. The owner runs `uv run find-best-mobo aliases --check`, or
+   `./scripts/run.sh aliases`. It reads the index and the cached transcripts;
+   without either it says which stage to run first.
 2. Every surface form in the table and every piece of text are put through the
    same normalization, so the two meet in one space rather than the table
    guessing at what captions look like.
