@@ -175,7 +175,9 @@ def render_coverage(coverage: Coverage, noun: str) -> str:
     at `select`, selected videos at `estimate` — and a shared renderer that
     hard-coded one would print a false label at the other.
     """
-    return f"  {coverage.with_transcript} of {coverage.considered} {noun} had a cached transcript"
+    # The sentence, and only the sentence: indentation is the caller's, because
+    # the two callers sit at different depths in their own reports.
+    return f"{coverage.with_transcript} of {coverage.considered} {noun} had a cached transcript"
 
 
 def threshold_report(selections: Sequence[Selection], config: Config) -> ThresholdReport:

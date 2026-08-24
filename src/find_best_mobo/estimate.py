@@ -111,7 +111,7 @@ def render_projection(projection: Projection) -> str:
         f"  {projection.videos_indexed} videos indexed and pending",
         f"  {projection.videos_selected} videos selected for excerpting",
         f"  {projection.excerpt_characters} characters of excerpt text",
-        render_coverage(projection.coverage, "selected videos"),
+        f"  {render_coverage(projection.coverage, 'selected videos')}",
         f"  {projection.bundle_count} bundles written",
     ]
     for index, tokens in enumerate(projection.tokens_per_batch, start=1):

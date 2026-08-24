@@ -68,7 +68,7 @@ def run(config: Config, args: Namespace) -> int:
     # Every run, whether or not anything is wrong: a figure that appears only on
     # failure is a figure nobody can compare across runs, and that is precisely
     # why BL-27's collapse was invisible.
-    print(render_coverage(coverage, "pending videos"))
+    print(f"  {render_coverage(coverage, 'pending videos')}")
     _print_report(report)
     return 0
 
