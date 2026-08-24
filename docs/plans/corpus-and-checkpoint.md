@@ -207,13 +207,13 @@ class Cue:
 
 
 @dataclass(frozen=True)
-class Transcript:
+class Transcript:  # lives in src/find_best_mobo/transcripts.py
     video_id: str
     cues: tuple[Cue, ...]
 
 
 @dataclass(frozen=True)
-class FetchFailure:
+class FetchFailure:  # lives in src/find_best_mobo/ledger.py
     video_id: str
     title: str
     upload_date: date
@@ -222,11 +222,11 @@ class FetchFailure:
     attempts: int
 
 
-class HaltTriggered(Exception):
+class HaltTriggered(Exception):  # lives in src/find_best_mobo/ledger.py
     def __init__(self, trigger: str, ledger: Sequence[FetchFailure]) -> None: ...
 
 
-class Ledger:
+class Ledger:  # lives in src/find_best_mobo/ledger.py
     def __init__(self, path: Path, config: Config, indexed_count: int) -> None: ...
     def record(self, failure: FetchFailure) -> None: ...
     def record_success(self) -> None: ...
@@ -256,7 +256,18 @@ def fetch_all(videos: Iterable[Video], config: Config, ledger: Ledger) -> int: .
 def fetch_caption_track(video_id: str, config: Config) -> str | None: ...
 ```
 
-**Two behaviours the signatures cannot carry:**
+**Where every shared name above lives, per OD-12.** That decision was filed
+against this slice: two blind authors agreed on the ledger's behaviour and
+disagreed on where its types go, so the orchestrator's shared contract had to
+assign modules ad hoc and put `FetchFailure` in `transcripts.py` — circular,
+because the ledger is what the transcript stage reports failures TO. This
+revision **ratifies `FetchFailure`, `HaltTriggered` and `Ledger` in
+`src/find_best_mobo/ledger.py`**, where the built tree already has them, and
+**retires the `transcripts.py` re-export shim** that kept the old placement
+importable. Removing the shim is code and belongs to its own pull request; what
+this plan does is stop specifying the placement the shim exists to paper over.
+
+**Three behaviours the signatures cannot carry:**
 
 - **`fetch_transcript` never consults the cache and never writes it.** It
   fetches, parses, and returns. `fetch_all` owns the cache: it checks
@@ -272,12 +283,12 @@ def fetch_caption_track(video_id: str, config: Config) -> str | None: ...
 ## Slice 3 — Mangled caption text folds onto real model names
 
 - **Delivers:** `uv run find-best-mobo aliases --check` reports, for every
-  canonical entity in `data/aliases.toml`, how many videos mention it and which
+  canonical entity in the alias table at `alias_table_path`, how many videos mention it and which
   surface forms matched — so the alias table's recall can be inspected by hand
   before it silently decides the corpus. Normalization collapses the spacing
   damage auto-captions inflict on part numbers. Covers R3.
 - **Files:** `src/find_best_mobo/normalize.py`, `src/find_best_mobo/aliases.py`,
-  `data/aliases.toml`, `src/find_best_mobo/commands/aliases.py`,
+  `aliases.toml` (moved out of the gitignored corpus directory by OD-11/R1007), `src/find_best_mobo/commands/aliases.py`,
   `tests/test_normalize.py`, `tests/test_aliases.py`
 - **Estimate:** ~340 lines
 
