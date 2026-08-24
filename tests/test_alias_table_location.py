@@ -78,16 +78,26 @@ def test_git_does_not_ignore_the_alias_table() -> None:
 
     The negative control is what stops this passing vacuously. `check-ignore`
     exits non-zero both when a path is genuinely not ignored and when the ignore
-    machinery is not working at all, so the assertion is paired with `data/`,
-    which R21 requires to be ignored. Without the pair, a missing `.gitignore`
-    would make this test green.
+    machinery is not working at all, so the assertion is paired with the corpus
+    directory, which R21 requires to be ignored. Without the pair, a missing
+    `.gitignore` would make this test green.
+
+    The control asks about `data/index.jsonl` rather than `data`, and the
+    trailing component is load-bearing: `.gitignore` holds `data/`, which is a
+    DIRECTORY-only pattern, and `check-ignore` can only tell that a bare `data`
+    is a directory by looking on disk. In a fresh checkout — CI, or any clone
+    before the first run — `data/` does not exist yet, so the bare name matches
+    nothing and the control reports "not ignored" for a rule that is working
+    perfectly. Naming a path under the directory is true either way.
     """
     require_git()
 
     table = git("check-ignore", "-q", str(DEFAULT_ALIAS_TABLE))
-    corpus = git("check-ignore", "-q", "data")
+    corpus = git("check-ignore", "-q", "data/index.jsonl")
 
-    assert corpus.returncode == 0, "negative control failed: `data/` is not ignored (R21)"
+    assert corpus.returncode == 0, (
+        "negative control failed: the corpus directory is not ignored (R21)"
+    )
     assert table.returncode != 0, f"{DEFAULT_ALIAS_TABLE} is inside the gitignored corpus tree"
 
 
