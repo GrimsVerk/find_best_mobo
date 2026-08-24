@@ -835,3 +835,35 @@ guards, not after.
 Measurement: the printed `select` and `estimate` summaries are already captured
 in the run reports under `docs/runs/`, and the test pair pins both sides in the
 suite. No new collection mechanism is needed.
+
+## OD-24 — Captions are fetched as json3; VTT stays as a fallback that says so
+
+- **Date:** 2026-08-24
+- **Evidence:** BL-28
+- **Requirements added:** R1013
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V11 — "Every claim carries a video and a timestamp." — and, for the cost half, V4 — "Given a choice between a cheaper run and a better-sourced answer, take the better answer."
+- **Vision statements against:** V3 — "Cost is about not being *stupid* — not spending budget I could have used on other projects — rather than a hard constraint." — the nearest, because a change whose headline is "spend 2.84x less" invites being read as cost-chasing, and V3 explicitly ranks cost below the two statements above it. It does not forbid this: paying three times for the same sentence is the definition of the stupid spend V3 names, and the decision is not made on cost anyway — the deciding argument is V11's, because roll-up VTT cannot express the timestamp V11 requires and json3 can. If the cost were unchanged this decision would still be right.
+- **Alternatives considered:** (1) De-duplicate the VTT and keep it as the only source — this works and was measured: the reconstruction lands within 0.05% of json3's text, 73,121 characters against 73,159, and a conservative structural rule recovers 13,646,892 characters against an aggressive word-overlap merge's 13,645,734, a 0.008% difference, so the version that could eat genuinely repeated speech is never needed. Rejected as the PRIMARY source on two grounds: it is a reconstruction whose correctness would have to be re-proved for every video forever, and it cannot recover per-word timing that the VTT never carried. (2) Take json3 and delete the VTT path — rejected: json3 is an undocumented internal format that can change without notice, where WebVTT is a W3C standard with a parser already in the tree and under test; deleting the fallback would make an upstream format change a total outage rather than a degraded run. (3) `srv1`/`srv3`/`ttml` — not chosen: they are equally undocumented and carry no per-word timing json3 does not, so they would add a third parser for nothing. (4) Prefer json3, keep VTT as an announcing fallback — chosen.
+- **Rationale:** Measured, not argued. 285 of 285 cached transcripts carry roughly three copies of every spoken word — 38,767,230 characters stored against 13,645,734 of speech, 2.84x, from 2.54x to 3.00x per video. The mechanism is YouTube's roll-up presentation: a cue per display frame rather than per line, so every line appears alone, as the tail of the previous frame and as the head of the next, which the cue statistics confirm exactly (50% of cues extend the previous, 49% are a suffix of it, 50% start within 0.02s of it). The same track fetched as json3 gives 73,159 characters where vtt gives 217,427. `parse_vtt` is not defective; it keeps every cue, which is right for an ordinary WebVTT and wrong for a roll-up one. What decides the format is not the size: R5 cuts every excerpt window from a mention's `start_seconds`, and in roll-up VTT a board name inside a two-line frame inherits the FIRST line's timestamp, up to about 2.5 seconds early. V11 makes that timestamp the thing the owner acts on and V14 makes an uncheckable recommendation unacceptable, so a format that carries per-word offsets is better provenance than VTT can express at all. The fallback announces itself because the alternative is two provenance classes in one cache with nothing distinguishing them — a transcript reconstructed within 0.05% and one taken verbatim are both fine to use and must never be indistinguishable when a later question is asked about a specific claim's timestamp.
+
+**R1013** — The caption fetch requests `json3` and prefers it, reading a
+transcript as the concatenation of every segment of every event, `aAppend`
+events included — they carry real speech, and dropping them loses words. Each
+cue's start time comes from the segment timing json3 supplies rather than from
+a display frame, so a mention's `start_seconds` is the moment its own words were
+spoken.
+
+WebVTT remains the fallback for a track offering no `json3`, and its roll-up
+duplication is removed on parse rather than stored: no video's cached transcript
+may contain the same line three times whichever path produced it.
+
+**The path taken is recorded per video in the cache record and reported in the
+run summary**, so a transcript's provenance is never a question asked later
+about a cache that cannot answer it. A run that used the fallback for any video
+says so prominently, because a fallback nobody notices is a reconstruction
+silently mixed in with verbatim text.
+
+Measurement: the transcript character totals the projection already prints, the
+per-video provenance field, and the summary's fallback count — all three land in
+the run reports under `docs/runs/` that R1011 and BL-28 already read.
