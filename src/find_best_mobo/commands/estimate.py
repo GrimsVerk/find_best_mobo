@@ -110,4 +110,4 @@ def _excerpts_for(selection: Selection, config: Config) -> tuple[Excerpt, ...]:
     if transcript is None:
         return ()
     windows = cut_windows(transcript, selection.mentions, selection.video, config)
-    return cap_per_video(merge_overlapping(windows), config)
+    return cap_per_video(merge_overlapping(windows, transcript), config)

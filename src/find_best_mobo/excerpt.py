@@ -18,7 +18,7 @@ afford (R17).
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from find_best_mobo.aliases import Mention
 from find_best_mobo.config import Config
@@ -68,47 +68,71 @@ def cut_windows(
     return tuple(excerpts)
 
 
-def merge_overlapping(excerpts: Sequence[Excerpt]) -> tuple[Excerpt, ...]:
-    """Fold windows of the same video that overlap or touch into single excerpts.
+def merge_overlapping(excerpts: Sequence[Excerpt], transcript: Transcript) -> tuple[Excerpt, ...]:
+    """Fold windows that overlap or touch into single excerpts, RE-CUT from the cues.
 
     Touching exactly counts as overlapping: a zero-second gap between two windows
     is not worth a second excerpt, a second XML block and a second copy of the
-    provenance. Excerpts from different videos never merge, whatever their
-    timestamps say — the timestamps are only comparable within one video.
+    provenance. Merging on touch is also what makes the surviving spans strictly
+    disjoint, which is half the proof of the bound below — do not relax it to a
+    strict `<`.
 
-    The merged TEXT is assembled from the two texts rather than re-cut from cues,
-    because this function has no cues to re-cut from. When the later window sits
-    wholly inside the earlier one its text adds nothing and is dropped; otherwise
-    the two are joined and the speech in the overlap is counted twice. That is a
-    known imprecision and it is accepted deliberately: it OVER-states the token
-    count, which is the safe direction for a projection the owner spends money
-    against. The alternative — trimming the duplicate by matching prose strings —
-    is guesswork on auto-caption text, and a wrong guess silently deletes
-    evidence instead of visibly inflating a number.
+    **The merged text is re-cut from the transcript, never assembled from the two
+    window texts** (OD-4, R1000). The old behaviour concatenated on partial
+    overlap, so every character in the overlap was paid for once per window
+    instead of once. BL-10 measured a 28,438-character transcript producing a
+    single 137,246-character excerpt — 4.8x the whole transcript — and the cost
+    projection, which is the one number the checkpoint exists to produce, was
+    wrong by that factor. Re-running the real corpus on 2026-08-24 made the same
+    defect much larger: one 91-minute video's 213,000-character transcript
+    became a 12,166,000-character excerpt.
+
+    **The bound is a property, not an estimate.** Merged spans are disjoint and
+    cue membership is decided on the cue's START alone, so each cue's text lands
+    in at most one excerpt and a video's summed excerpt characters can never
+    exceed `transcript_characters(transcript)`.
+
+    Every excerpt must belong to `transcript`; a foreign one is a `ValueError`
+    rather than a silent pass-through. The only caller already passes one
+    video's windows and R22 forbids holding a channel at once, so "never merge
+    across videos" becomes unaskable rather than enforced.
     """
-    ordered = sorted(excerpts, key=lambda e: (e.start_seconds, e.end_seconds, e.video_id))
-    merged: list[Excerpt] = []
-    # Per video, the index in `merged` of the excerpt still open for merging.
-    # Only the most recent one per video can ever merge, since `ordered` is
-    # ascending by start and merging only extends an excerpt to the right.
-    open_index: dict[str, int] = {}
-    for excerpt in ordered:
-        index = open_index.get(excerpt.video_id)
-        if index is not None and excerpt.start_seconds <= merged[index].end_seconds:
-            merged[index] = _merge_pair(merged[index], excerpt)
-            continue
-        open_index[excerpt.video_id] = len(merged)
-        merged.append(
-            Excerpt(
-                video_id=excerpt.video_id,
-                video_title=excerpt.video_title,
-                start_seconds=excerpt.start_seconds,
-                end_seconds=excerpt.end_seconds,
-                text=excerpt.text,
-                canonicals=_distinct_sorted(excerpt.canonicals),
+    for excerpt in excerpts:
+        if excerpt.video_id != transcript.video_id:
+            raise ValueError(
+                f"excerpt for {excerpt.video_id!r} cannot be merged against "
+                f"the transcript of {transcript.video_id!r}"
             )
-        )
-    return tuple(merged)
+    ordered = sorted(excerpts, key=lambda e: (e.start_seconds, e.end_seconds))
+    merged: list[Excerpt] = []
+    for excerpt in ordered:
+        if merged and excerpt.start_seconds <= merged[-1].end_seconds:
+            previous = merged[-1]
+            merged[-1] = replace(
+                previous,
+                end_seconds=max(previous.end_seconds, excerpt.end_seconds),
+                canonicals=_distinct_sorted(previous.canonicals + excerpt.canonicals),
+            )
+            continue
+        merged.append(replace(excerpt, canonicals=_distinct_sorted(excerpt.canonicals)))
+    # Re-cut once, after every span is final: cutting during the fold would
+    # re-read the same cues for every merge and produce the same answer.
+    return tuple(
+        replace(span, text=_text_between(transcript, span.start_seconds, span.end_seconds))
+        for span in merged
+    )
+
+
+def transcript_characters(transcript: Transcript) -> int:
+    """The characters of a whole transcript, joined the way an excerpt is.
+
+    The same single-space join `_text_between` performs, so R1000's bound is
+    exact rather than approximate — an excerpt's own text carries the separators
+    between its cues, and a denominator that omitted them would make the bound
+    false. It is also the denominator R28's saturation ratio needs, so the two
+    cannot drift into two definitions. Zero cues is 0.
+    """
+    return len(" ".join(cue.text for cue in transcript.cues))
 
 
 def cap_per_video(excerpts: Sequence[Excerpt], config: Config) -> tuple[Excerpt, ...]:
@@ -142,23 +166,6 @@ def cap_per_video(excerpts: Sequence[Excerpt], config: Config) -> tuple[Excerpt,
             )[:cap]
         kept.extend(sorted(group, key=lambda e: (e.start_seconds, e.end_seconds)))
     return tuple(kept)
-
-
-def _merge_pair(earlier: Excerpt, later: Excerpt) -> Excerpt:
-    """Combine two overlapping excerpts of the same video into one.
-
-    `later` starts at or after `earlier` because the caller sorted; the span is
-    therefore `earlier.start` to whichever end is further out.
-    """
-    contained = later.end_seconds <= earlier.end_seconds
-    return Excerpt(
-        video_id=earlier.video_id,
-        video_title=earlier.video_title,
-        start_seconds=earlier.start_seconds,
-        end_seconds=max(earlier.end_seconds, later.end_seconds),
-        text=earlier.text if contained else f"{earlier.text} {later.text}",
-        canonicals=_distinct_sorted(earlier.canonicals + later.canonicals),
-    )
 
 
 def _distinct_sorted(canonicals: Sequence[str]) -> tuple[str, ...]:

@@ -334,15 +334,19 @@ the cache ITSELF.
   tangentially-titled video enters the corpus on that alone. Deliberate — recall
   matters more than precision at this stage, and the excerpting slice will find
   nothing to excerpt in a video that only mentions a board in passing.
-- **A merged excerpt double-counts its overlap, and not slightly.**
-  `merge_overlapping` has no access to the cues and cannot re-cut, so on partial
-  overlap it concatenates — and with many overlapping windows the concatenation
-  compounds. Measured against a real 33-minute review: a 28,438-character
-  transcript became one 137,246-character excerpt, **4.8x the whole transcript**.
-  This entry previously called the effect slight; that was written from theory,
-  before any real transcript existed to check it against. The inflation scales
-  with mention density rather than being a constant factor, so the projected
-  token count cannot be corrected by dividing. Recorded in `docs/BACKLOG.md`.
+
+- **A merged excerpt is the speech in its span, exactly once.**
+  `merge_overlapping` takes the video's transcript and RE-CUTS the merged span
+  from the cues rather than gluing two window texts together (OD-4, R1000). The
+  bound is a property, not an estimate: merged spans are disjoint and cue
+  membership is decided on the cue's start alone, so a video's summed excerpt
+  characters can never exceed `transcript_characters(transcript)` — the same
+  single-space join an excerpt uses, and also the denominator R28's saturation
+  ratio needs, so the two cannot drift apart. Before this, partial overlap
+  concatenated and the inflation compounded with mention density: BL-10 measured
+  4.8x on a 33-minute review, and the real corpus on 2026-08-24 gave 57x on a
+  91-minute one. The whole-corpus projection fell from 232.7M characters to
+  19.9M.
 - **The token projection is a guess until the calibration batch runs.** The
   chars-per-token factor starts at 4.0 and is configuration, not a measurement.
   It is printed with the projection precisely so it is not mistaken for one.
