@@ -86,13 +86,20 @@ excerpting and no model involvement — those are the last slice of the
    carrying its classification and inclusion reason — exclusions are recorded,
    never implied.
 6. A summary prints: total videos found, how many fell outside the date range,
-   how many were excluded as Shorts, how many were kept, and how many reported
-   no duration at all.
-7. If more than one video reported no duration, a warning follows the summary
-   naming every affected video id, in the order they appear in the index. One
-   such video is expected and harmless; more than one means durations are being
-   zeroed by some other cause and real videos are silently leaving the corpus,
-   so the ids are named to make the cause chaseable.
+   how many were excluded as Shorts, how many were kept, and then the
+   zero-duration videos split by the SHAPE of their listing entry — how many
+   were the flat listing's Shorts shape (no duration and no date in either
+   field, which is how that listing returns a Short), and how many carried a
+   real date with no duration. Both lines print every run, including as zero.
+7. A warning follows the summary only for the second group, naming every
+   affected video id, in the order they appear in the index — and it fires for
+   ONE such entry. A dated entry with no duration is not the listing's Shorts
+   shape, so something else zeroed its duration and a real video is silently
+   leaving the corpus; the ids are named to make the cause chaseable. The old
+   rule warned above a COUNT of one, on the premise that only a stream in
+   progress can lack a duration. BL-15 measured that false — eight genuine
+   Shorts, every run — so the banner was a permanent false alarm and a ninth id
+   inside it would have been invisible (OD-14, R1009).
 
 Rerunning rewrites the index from a fresh listing; given the same listing and
 configuration the file is byte-identical (records sorted by upload date then
@@ -294,8 +301,9 @@ the cache ITSELF.
   treated as 0, which is at or below the Shorts threshold. Deliberate — it
   never crashes — but it means a listing that omitted durations would
   quietly exclude everything as Shorts. The `index` summary therefore counts
-  these separately and warns above one, which is what turns that silent failure
-  into a visible one. The count deliberately overlaps the Shorts count rather
+  these separately, split by listing shape, and warns on any dated entry that
+  lacks a duration — which is what turns that silent failure into a visible one.
+  The counts deliberately overlap the Shorts count rather
   than being subtracted from it: a zero-duration video really was excluded as a
   Short, and the second line says why that may be wrong.
 - **A video with no date at all is recorded as `0001-01-01`.** When an entry
