@@ -100,6 +100,13 @@ def _print_report(report: ThresholdReport) -> None:
     print(f"  {report.threshold_passes} videos included on the mention threshold")
     print(f"  {selected} videos selected in total")
     print(f"  {report.excluded} videos excluded below the threshold")
+    # Always, zero included: a counter that prints only when non-zero cannot be
+    # told from a counter that was never run (OD-15, R1010).
+    print(
+        f"  {report.cross_cue_candidates} alias matches spanned a cue boundary "
+        "and were NOT counted as mentions"
+    )
+    print("    (a name split across two cues has no single cue start, so no timestamp)")
     print(
         f"Lowering the threshold to {report.threshold - 1} would include "
         f"{report.would_include_at_minus_one} ADDITIONAL videos, "

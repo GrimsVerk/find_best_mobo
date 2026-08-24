@@ -249,6 +249,45 @@ def find_mentions(transcript: Transcript, matcher: re.Pattern[str]) -> tuple[Men
     return tuple(mentions)
 
 
+def count_cross_cue_candidates(transcript: Transcript, matcher: re.Pattern[str]) -> int:
+    """How many alias matches exist ONLY across an adjacent-cue join (R1010).
+
+    Auto-captions break mid-phrase — the shipped VTT fixture has `...Taichi
+    board` ending one cue and `has a twelve phase...` beginning the next — so a
+    board name can land half in each. OD-15 ruled that R1002's join applies
+    WITHIN one cue and that a cross-cue split is **counted, never matched**: no
+    mention is synthesized here, nothing is emitted, and no `start_seconds` is
+    invented, because a mention spanning two cues has no single cue start and R5
+    cuts every excerpt window from that field.
+
+    This is the counter that turns the scoped-out case from an assumption into a
+    measurement. It is a FLOOR, not a certified total: the scan is one
+    left-to-right non-overlapping pass, so a match lying wholly inside the first
+    cue can consume characters a crossing match would have used. R1010 asks for
+    an observable that tells a zero from a material number, and "at least N"
+    does that; a certified total would cost an overlapping scan for no decision
+    it would change.
+
+    Pure and offline. Adjacency is list order — a silent gap between two cues
+    does not disqualify a pair, because R1010 says adjacent cues and nothing
+    about time.
+    """
+    total = 0
+    cues = transcript.cues
+    for first, second in zip(cues, cues[1:], strict=False):
+        left, right = normalize(first.text), normalize(second.text)
+        if not left or not right:
+            continue
+        boundary = len(left)
+        for match in matcher.finditer(f"{left} {right}"):
+            # Wholly inside the first cue, or wholly inside the second: both are
+            # already the matcher's own business. Only a match straddling the
+            # inserted separator is new information.
+            if match.start() < boundary and match.end() > boundary + 1:
+                total += 1
+    return total
+
+
 def find_title_hits(video: Video, matcher: re.Pattern[str]) -> frozenset[str]:
     """The canonicals named in the video's title, if any.
 
