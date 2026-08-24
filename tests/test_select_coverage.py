@@ -412,7 +412,10 @@ class TestRenderCoverage:
         )
 
     def test_zero_of_zero_renders_as_a_figure_not_an_absence(self) -> None:
-        """An empty population still prints, because a run that skips the line is a run nobody can compare."""
+        """An empty population still prints, because a run that skips the line is a run nobody can
+
+        compare.
+        """
         text = render_coverage(Coverage(considered=0, with_transcript=0), PENDING_NOUN)
 
         assert text == "0 of 0 pending videos had a cached transcript"
@@ -475,7 +478,10 @@ class TestSelectAllRecordsTheCacheHit:
         assert selection.has_transcript is False
 
     def test_the_coverage_of_the_corpus_is_the_pending_figure(self, tmp_path: Path) -> None:
-        """Denominator = the pending videos, not the index rows: `shortie` is cached and uncounted."""
+        """Denominator = the pending videos, not the index rows.
+
+        `shortie` is cached and still uncounted.
+        """
         config = build_corpus(tmp_path)
 
         coverage = transcript_coverage(select_all(config))
@@ -538,7 +544,7 @@ class TestSelectedFileCarriesTheFlag:
         assert first.read_bytes() == second.read_bytes()
 
     def test_the_coverage_read_back_is_the_coverage_written(self, tmp_path: Path) -> None:
-        """`estimate` must be able to state the SAME figure, which means reading it, not redoing it."""
+        """`estimate` states the SAME figure, which means reading it rather than redoing it."""
         config = build_corpus(tmp_path)
         path = config.data_dir / "selected.jsonl"
         selections = select_all(config)

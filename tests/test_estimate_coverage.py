@@ -252,7 +252,8 @@ def build_corpus(
 
 class TestProjectCarriesCoverage:
     def test_the_population_is_the_included_selections(self, tmp_path: Path) -> None:
-        """The figure annotates `characters of excerpt text`, which is summed over the INCLUDED videos.
+        """The figure annotates `characters of excerpt text`, which is summed over the INCLUDED
+        videos.
 
         A coverage figure over a different set than the number it sits beside is
         worse than none: it would read as a comment on the excerpt total while
