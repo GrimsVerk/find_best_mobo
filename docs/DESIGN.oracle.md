@@ -799,3 +799,39 @@ Measurement: R1011 is itself the measurement this decision adds — the committe
 records and `acceptance/S3.sh` are the observables — and the run reports under
 `docs/runs/` continue to record every dispatch and phase decision. No other new
 mechanism is needed.
+
+## OD-23 — Transcript coverage is reported on every run, and zero coverage refuses
+
+- **Date:** 2026-08-24
+- **Evidence:** BL-27
+- **Requirements added:** R1012
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V12 — "If he did not say it, the answer must say he did not say it. Silence has to read as silence." — and, for the always-printed half, the durable-evidence statement: "When a decision alters behaviour that no existing check, test, run report or review artifact would notice, adding the thing that notices is part of the decision — not a follow-up, and not optional."
+- **Vision statements against:** The tenets' preamble — "None of them is a reason to stop working and wait for me." — the nearest, because this decision adds a hard refusal that exits non-zero, and the vision is emphatic that stops belong to decisions rather than to work. It does not forbid this: that sentence governs a TENET stop, where an agent halts to ask the owner a question only they can answer, and nothing here waits on a human. The refusal names `fetch` and clears the moment `fetch` has run, so it costs one command and no ruling; and the alternative it replaces is not "keep working" but "print a number nobody can act on", which is where the work actually stops being work.
+- **Alternatives considered:** (1) Read it into R1005 (OD-9) — rejected: R1005 refuses when an upstream ARTIFACT is absent, and in the measured case none was; `data/index.jsonl` and `data/selected.jsonl` both existed and parsed. Stretching "missing artifact" to mean "an artifact whose contents imply an upstream stage never ran" makes one requirement enforce a rule it does not state, which is exactly the over-claim OD-20 names, and it would also have to explain why a partially-filled cache is still fine. (2) Warn and print the projection anyway — rejected on OD-9's own reasoning, which applies here unchanged: R7 makes the projection the moment the owner decides to spend, and a warned-but-printed zero still arrives inside the checkpoint's success language. BL-27's measurement is that the failing run and a finished run are comparable at the console; a warning above the same block does not separate them, it annotates them. (3) Have `select` run `fetch` when the cache is behind — rejected: it fuses two stages the design keeps apart (R2, R4), makes a local, offline command reach the network implicitly, and answers a reporting defect with 285 downloads. (4) Report coverage always and refuse only at zero — chosen: the number is present on every run whether or not anything is wrong, which is what makes a later degradation visible, and the refusal fires only on the one shape that cannot be a real result.
+- **Rationale:** Measured on 2026-08-24 against the corpus the 2026-08-20 local-lane run left on disk. `select` ran twelve minutes before `fetch` finished writing `data/transcripts/`, wrote 285 rows each carrying `"mentions":[]`, and printed nothing unusual; `estimate` then printed a zero-character, zero-token projection closing with R7's "The pipeline STOPS here". Re-running `select` against the complete cache produced 89 threshold passes, 198 selected videos and 650 bundles — so neither the corpus nor the code was at fault, only the order, and no output said so. V12 is the statement that decides it: the pipeline reported silence it had not observed. "No board was mentioned" and "no speech was read" are different facts about the corpus, and the design's own per-video tolerance — correct, and owned by R24's ledger — is what makes them indistinguishable in the population case. The always-printed half is the durable-evidence statement doing its job: a coverage figure that appears only on failure is a figure nobody can compare across runs, and BL-27's defect was invisible precisely because nothing routine reported the quantity that had collapsed.
+
+**R1012** — Every stage that reads the transcript cache reports its COVERAGE of
+the population it is working on: how many of the videos it considered had a
+cached transcript to read, printed on every run whether or not anything is
+wrong. Zero coverage over a non-empty selection is an unmet precondition rather
+than a result — the stage refuses, names the stage that produces the missing
+input, and exits non-zero, in the shape R1005 already gives a missing artifact.
+A partial cache stays tolerated exactly as today; the per-video rule R24's
+failure ledger owns is unchanged. The cost projection prints the same coverage
+figure beside its character count, so no projection can be read without seeing
+what fraction of the corpus produced it. The suite pins the distinguishing
+pair: a selection whose videos all have transcripts and genuinely zero mentions
+still reports a real (zero) projection, and a selection whose videos have none
+does not.
+
+Downstream: this decision commissions **one steward plan** under
+`docs/plans/oracle/`, covering R1012 alone. It is small and it is a
+precondition rather than a feature — every later measurement in this
+milestone, R8's calibration factor included, is taken from a run whose coverage
+this reports — so it is built before the selection and excerpting work it
+guards, not after.
+
+Measurement: the printed `select` and `estimate` summaries are already captured
+in the run reports under `docs/runs/`, and the test pair pins both sides in the
+suite. No new collection mechanism is needed.
