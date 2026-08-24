@@ -505,3 +505,53 @@ _why that class, and `— filed by: plan`.)_
   deliberate divergence from what the CLI does today, and the owner may prefer
   the top-level help to stay reachable after a command name. — filed by:
   steward (OD-10 plan `subcommand-flag-forwarding`; proceeded on the default)
+- **BL-24** — May the pipeline take a subscription-usage reading itself, or must
+  a reading be handed to it? Refiled from the web test lane's ledger (its
+  `BL-20`; that lane's ids collide with this branch's and its branch is frozen
+  for the post-mortem, so the item re-enters here under a fresh id). R26 names
+  two readers — `claude -p "/usage"` and `omarchy-agent-usage-claude
+  --limits-only --force` — and then says "The Python pipeline itself still
+  cannot read them", while S3 calls its criterion mechanically checkable
+  *because* the omarchy reader returns JSON on this machine. One sentence puts
+  the probe outside Python; the other leans on it being reachable, and R8's
+  projected-against-actual record needs whichever answer is true before it can
+  be built. **HIGH**, and ruled by the owner in chat on 2026-08-24 (recording
+  follows in `docs/DECISIONS.md`): on the local machine the run may read usage
+  — `omarchy-agent-usage-claude --limits-only --force` first, falling back to
+  the `claude -p "/usage"` reader if it fails; a web session has neither and
+  relies on other means (time, pull-request counts, or similar). And before
+  every unattended run, the agent asks the owner to confirm WHICH limit governs
+  the run and WHAT value to use for it — the owner prefers that confirmation
+  even where a default exists. — filed by: the 2026-08-24 attended session, at
+  the owner's instruction
+- **BL-25** — What is "actual usage" in R8 and S3, and what does the reported
+  delta compare? Refiled from the web test lane's ledger (its `BL-21`, same
+  reason as BL-24). The projection is in tokens and its factor is
+  chars-per-token (R7), while the only readings the design names return
+  percentage points of a weekly subscription limit and no token count at all
+  (R26). The two quantities are not in the same units, so no chars-per-token
+  correction follows from a points reading, and R8's three clauses — record
+  projected against actual, report the delta, correct the factor — cannot all
+  be satisfied from the same number. **HIGH**, and ruled by the owner in chat
+  on 2026-08-24 (recording follows in `docs/DECISIONS.md`): record both and
+  keep them apart, and additionally attempt an explicit token-to-points
+  conversion estimate, with every assumption behind it written down so the
+  reasoning can be investigated later. Note the ruling touches what R8/S3 mean,
+  and `docs/DESIGN.md` is owner-landed — the design-text correction stays with
+  the owner. — filed by: the 2026-08-24 attended session, at the owner's
+  instruction
+- **BL-26** — Where does the corrected chars-per-token factor land, so that
+  subsequent projections use it? Refiled from the web test lane's ledger (its
+  `BL-22`, same reason as BL-24). R8 says the factor is corrected "for
+  subsequent projections"; today it is a `config.toml` key, R17 makes the cost
+  levers configuration, and R23 promises byte-identical output "given the same
+  cache and configuration"; nothing says whether the correction is written back
+  to configuration, published as a data artifact the projection prefers, or
+  only reported for a human to apply. **HIGH**, and ruled by the owner in chat
+  on 2026-08-24 (recording follows in `docs/DECISIONS.md`): the proposed
+  default stands — the calibration stage writes `data/calibration.json`,
+  `estimate` prefers its measured factor over `config.chars_per_token` and
+  prints which source it used and whether the number is a measurement or a
+  guess, and the configuration key stays the fallback and is never rewritten by
+  a stage. — filed by: the 2026-08-24 attended session, at the owner's
+  instruction
