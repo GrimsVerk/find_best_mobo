@@ -27,6 +27,7 @@ import pytest
 from find_best_mobo.aliases import (
     Alias,
     Mention,
+    alias_pattern,
     compile_matcher,
     find_mentions,
     find_title_hits,
@@ -52,6 +53,52 @@ STANDARD_TABLE: tuple[Mapping[str, object], ...] = (
     {"canonical": "A620", "kind": "chipset", "surface_forms": ["a620", "a 620"]},
     {"canonical": "Taichi", "kind": "family", "surface_forms": ["taichi"]},
 )
+
+
+# The table the R1002 cases are stated over. The canonicals and their forms are
+# spelled as the shipped table spells them, so a case here reads the same as the
+# same case run against `data/aliases.toml` — but the table is local, so nothing
+# here moves when the shipped table is extended.
+SPLIT_TABLE: tuple[Mapping[str, object], ...] = (
+    {
+        "canonical": "MAG Tomahawk",
+        "kind": "family",
+        "surface_forms": ["mag tomahawk", "tomahawk"],
+    },
+    {"canonical": "Aorus Master", "kind": "family", "surface_forms": ["aorus master"]},
+    {"canonical": "Steel Legend", "kind": "family", "surface_forms": ["steel legend"]},
+    {"canonical": "X870E", "kind": "chipset", "surface_forms": ["x870e"]},
+    {"canonical": "B650E", "kind": "chipset", "surface_forms": ["b650e"]},
+    {"canonical": "B650", "kind": "chipset", "surface_forms": ["b650"]},
+)
+
+# R1002's reject set: in each of these the alias would have to start or end
+# inside a fused token, or land its own space where there is no boundary. None
+# of them may produce a mention at all — not merely not the obvious one.
+NEVER_MATCH = (
+    "theb650",
+    "xb650e",
+    "b650ex",
+    "x870ese",
+    "verb 650",
+    "verb 650 watts",
+    "aorusmaster",
+    "steellegend",
+)
+
+
+def one_space_splits(form: str) -> list[str]:
+    """Every way one space can fall INSIDE a word of `form`.
+
+    A caption splits a name at an arbitrary point, so the rule is stated over
+    all of them rather than over the one split that was observed. Positions
+    beside a space the form already has are skipped: those are not new splits.
+    """
+    return [
+        f"{form[:index]} {form[index:]}"
+        for index in range(1, len(form))
+        if form[index - 1] != " " and form[index] != " "
+    ]
 
 
 def write_aliases(path: Path, entries: Sequence[Mapping[str, object]]) -> Path:
@@ -699,3 +746,397 @@ class TestAliasesCommand:
         out = capsys.readouterr().out
         assert "Traceback" not in out
         assert re.search(r"\b3\b", line_with(out, "X670E"))
+
+
+class TestAliasPattern:
+    """`alias_pattern` — the join rule for ONE already-normalized surface form.
+
+    OD-6/R1002, slice 2. Every test here compiles the source and matches with
+    it; none of them compares the source to a string. What the function returns
+    is an implementation detail and the language it accepts is the contract, so
+    a rewrite that changes the spelling of the pattern and not its language must
+    stay green.
+    """
+
+    @pytest.mark.parametrize(
+        "form",
+        ["x670e", "b650", "tomahawk", "mag tomahawk", "aorus master", "steel legend", "x"],
+    )
+    def test_the_form_itself_matches(self, form: str) -> None:
+        assert re.fullmatch(alias_pattern(form), form) is not None
+
+    @pytest.mark.parametrize("text", one_space_splits("tomahawk"))
+    def test_a_split_anywhere_inside_a_word_matches(self, text: str) -> None:
+        """A caption breaks a word wherever it likes, so every break must land."""
+        assert re.fullmatch(alias_pattern("tomahawk"), text) is not None
+
+    @pytest.mark.parametrize("text", one_space_splits("aorus master"))
+    def test_a_split_inside_either_word_of_a_two_word_form_matches(self, text: str) -> None:
+        assert re.fullmatch(alias_pattern("aorus master"), text) is not None
+
+    @pytest.mark.parametrize("text", ["toma hawk", "tom a hawk", "t o m a h a w k"])
+    def test_several_splits_at_once_still_match(self, text: str) -> None:
+        # The space is optional between EVERY adjacent pair, so more than one
+        # break in a word is the same rule applied more than once.
+        assert re.fullmatch(alias_pattern("tomahawk"), text) is not None
+
+    @pytest.mark.parametrize(
+        ("form", "text"),
+        [
+            ("aorus master", "aor us master"),
+            ("steel legend", "steel leg end"),
+            ("tomahawk", "toma hawk"),
+            ("b650", "b 650"),
+            ("b650", "b6 50"),
+            ("x670e", "x 670 e"),
+        ],
+    )
+    def test_the_split_spellings_r1002_names_match(self, form: str, text: str) -> None:
+        assert re.fullmatch(alias_pattern(form), text) is not None
+
+    @pytest.mark.parametrize(
+        ("form", "text"),
+        [
+            ("aorus master", "aorusmaster"),
+            ("steel legend", "steellegend"),
+            ("mag tomahawk", "magtomahawk"),
+        ],
+    )
+    def test_the_forms_own_space_is_required(self, form: str, text: str) -> None:
+        """The space in the form is where a real token boundary has to be.
+
+        This is the half of the rule that keeps it safe rather than merely wide:
+        an optional space everywhere would make `aorus master` a substring of
+        the fused token `aorusmaster`, which is exactly what R1002 forbids.
+        """
+        assert re.fullmatch(alias_pattern(form), text) is None
+
+    def test_an_optional_space_is_a_single_space(self) -> None:
+        # Normalized text has no runs, so the pattern needs no `+` and gains
+        # none — one fewer thing that can drift between two runs (R23).
+        assert re.fullmatch(alias_pattern("tomahawk"), "toma  hawk") is None
+
+    def test_a_required_space_is_a_single_space(self) -> None:
+        assert re.fullmatch(alias_pattern("aorus master"), "aorus  master") is None
+
+    @pytest.mark.parametrize("text", ["toma\thawk", "toma\nhawk"])
+    def test_the_optional_space_is_a_space_and_not_any_whitespace(self, text: str) -> None:
+        assert re.fullmatch(alias_pattern("tomahawk"), text) is None
+
+    def test_a_split_is_never_required(self) -> None:
+        assert re.fullmatch(alias_pattern("tomahawk"), "tomahawk") is not None
+
+    def test_it_carries_no_boundary_of_its_own(self) -> None:
+        """No lookarounds: the boundaries are `compile_matcher`'s, not this one's.
+
+        `theb650` is a case the matcher must never match, and this asserts the
+        opposite deliberately — for one form on its own there is nothing to stop
+        it. Which is the point: the anchoring lives in exactly one place, so
+        `compile_matcher` is where a reader looks for it and where OD-7's later
+        boundary work has to happen.
+        """
+        assert re.search(alias_pattern("b650"), "theb650") is not None
+        assert re.search(alias_pattern("b650"), "verb 650") is not None
+
+    def test_it_adds_no_capturing_group(self) -> None:
+        # `compile_matcher` dispatches on named groups; a stray capturing group
+        # from here would shift every group index it owns.
+        assert re.compile(alias_pattern("mag tomahawk")).groups == 0
+        assert re.compile(alias_pattern("x670e")).groups == 0
+
+    def test_it_returns_a_string(self) -> None:
+        assert isinstance(alias_pattern("x670e"), str)
+
+    def test_it_is_deterministic_for_one_form(self) -> None:
+        # R23: the same table compiles to the same bytes on every run.
+        assert alias_pattern("mag tomahawk") == alias_pattern("mag tomahawk")
+
+    def test_an_empty_form_raises_value_error(self) -> None:
+        """An empty pattern matches at every position; that is the failure to name.
+
+        `compile_matcher` drops forms that normalize to empty, so this is
+        unreachable from there — which is why it is asserted here.
+        """
+        with pytest.raises(ValueError):
+            alias_pattern("")
+
+
+class TestSplitFormsMatch:
+    """R1002 over normalized text, through the compiled matcher."""
+
+    @pytest.mark.parametrize(
+        ("text", "canonical"),
+        [
+            ("toma hawk", "MAG Tomahawk"),
+            ("tom a hawk", "MAG Tomahawk"),
+            ("t omahawk", "MAG Tomahawk"),
+            ("tomahaw k", "MAG Tomahawk"),
+            ("mag toma hawk", "MAG Tomahawk"),
+            ("aor us master", "Aorus Master"),
+            ("a orus master", "Aorus Master"),
+            ("aorus mast er", "Aorus Master"),
+            ("steel leg end", "Steel Legend"),
+            ("st eel legend", "Steel Legend"),
+            ("b 650", "B650"),
+            ("x 870 e", "X870E"),
+        ],
+    )
+    def test_a_split_spelling_reaches_its_canonical(
+        self, tmp_path: Path, text: str, canonical: str
+    ) -> None:
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, text))
+
+        assert canonical in {mention.canonical for mention in find_mentions(transcript, matcher)}
+
+    @pytest.mark.parametrize(
+        ("text", "canonical"),
+        [
+            ("toma hawk", "MAG Tomahawk"),
+            ("aor us master", "Aorus Master"),
+            ("steel leg end", "Steel Legend"),
+        ],
+    )
+    def test_a_split_spelling_matches_mid_sentence_too(
+        self, tmp_path: Path, text: str, canonical: str
+    ) -> None:
+        # A match at the ends of the text and a match with a word either side
+        # are different positions for the boundary rule, so both are covered.
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, f"the {text} board"))
+
+        assert canonical in {mention.canonical for mention in find_mentions(transcript, matcher)}
+
+    @pytest.mark.parametrize("text", one_space_splits("aorus master"))
+    def test_a_split_anywhere_inside_a_word_reaches_the_canonical(
+        self, tmp_path: Path, text: str
+    ) -> None:
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+
+        assert find_title_hits(make_video("v", f"the {text} board"), matcher) == frozenset(
+            {"Aorus Master"}
+        )
+
+    def test_a_hyphenated_family_name_matches_through_the_fold(self, tmp_path: Path) -> None:
+        """Slice 1 and slice 2 meet here: `steel-legend` is BL-8's own example.
+
+        The hyphen folds to a space (R1002) and the form's required space lands
+        on the boundary the fold created, so the caption's spelling and the
+        table's spelling finally meet.
+        """
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, "the ASRock B650E Steel-Legend, honestly"))
+
+        canonicals = {mention.canonical for mention in find_mentions(transcript, matcher)}
+        assert "Steel Legend" in canonicals
+        assert "B650E" in canonicals
+
+    def test_a_title_inherits_the_rule(self, tmp_path: Path) -> None:
+        # Title hits go through the same matcher, so nothing here is a second
+        # rule that could drift from the first.
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+        video = make_video("vid1", "MSI MAG toma hawk MAX WIFI review")
+
+        assert "MAG Tomahawk" in find_title_hits(video, matcher)
+
+    def test_a_title_hyphenated_form_hits(self, tmp_path: Path) -> None:
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+
+        assert find_title_hits(make_video("vid1", "The Steel-Legend, ranked!"), matcher) == (
+            frozenset({"Steel Legend"})
+        )
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("the mag tomahawk board", {"MAG Tomahawk"}),
+            ("the tomahawk board", {"MAG Tomahawk"}),
+            ("the aorus master board", {"Aorus Master"}),
+            ("the steel legend board", {"Steel Legend"}),
+            ("the x870e board", {"X870E"}),
+            ("the b650e board", {"B650E"}),
+            ("the b650 board", {"B650"}),
+            ("b650", {"B650"}),
+            ("the b650e-plus board", {"B650E"}),
+            ("power supply teardown", set()),
+        ],
+    )
+    def test_everything_that_matched_before_still_matches(
+        self, tmp_path: Path, text: str, expected: set[str]
+    ) -> None:
+        """The rule widens what matches; it may not move what already did."""
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+
+        assert find_title_hits(make_video("v", text), matcher) == frozenset(expected)
+
+
+class TestFusedTokensAreStillNeverMatched:
+    """R1002's reject set — the half of the rule that makes it safe, not wide."""
+
+    @pytest.mark.parametrize("text", NEVER_MATCH)
+    def test_nothing_in_the_reject_set_yields_a_mention(self, tmp_path: Path, text: str) -> None:
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, text))
+
+        assert find_mentions(transcript, matcher) == (), f"{text!r} must produce no mention at all"
+
+    @pytest.mark.parametrize("text", NEVER_MATCH)
+    def test_nothing_in_the_reject_set_yields_a_title_hit(self, tmp_path: Path, text: str) -> None:
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+
+        assert find_title_hits(make_video("v", text), matcher) == frozenset()
+        assert find_title_hits(make_video("v", f"the {text} board"), matcher) == frozenset()
+
+    @pytest.mark.parametrize("text", NEVER_MATCH)
+    def test_the_compiled_matcher_finds_nothing_in_the_reject_set(
+        self, tmp_path: Path, text: str
+    ) -> None:
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+
+        assert matcher.search(normalize(text)) is None
+
+    def test_the_optional_space_does_not_reach_across_a_word_boundary(self, tmp_path: Path) -> None:
+        """`verb 650` is `b650` starting inside a token, split-rule or not.
+
+        The optional space makes `b 650` a spelling of `b650`; the left boundary
+        is what stops that spelling being read out of the middle of `verb`.
+        """
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+
+        assert matcher.search("the amp draw is verb 650 watts") is None
+
+    def test_a_split_spelling_may_not_end_inside_a_token_either(self, tmp_path: Path) -> None:
+        """The right boundary applies to the split spelling, not just the fused one.
+
+        `x870e` can be spelled `x 870 e`, and `x 870 ese` is that spelling
+        running into a token it does not own — the same rejection as `x870ese`,
+        reached the other way round.
+        """
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+
+        assert find_title_hits(make_video("v", "x 870 ese"), matcher) == frozenset()
+        assert find_title_hits(make_video("v", "aor us masters"), matcher) == frozenset()
+
+
+class TestLongestFormFirstIsUnchanged:
+    """R23 and the ordering rule, restated over patterns that are no longer literals."""
+
+    def test_the_longer_form_wins_at_the_same_position_when_split(self, tmp_path: Path) -> None:
+        matcher = matcher_for(SPLIT_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, "the mag toma hawk vrm"))
+
+        mentions = find_mentions(transcript, matcher)
+
+        assert [mention.canonical for mention in mentions] == ["MAG Tomahawk"]
+        assert mentions[0].matched_form == "mag toma hawk"
+
+    def test_the_order_is_by_normalized_form_length_not_by_pattern_length(
+        self, tmp_path: Path
+    ) -> None:
+        """Two forms that sort one way by form and the other way by pattern.
+
+        `aa bb cc dd` is the longer FORM (11 characters against 10). `aabbccddee`
+        compiles to the longer PATTERN, because a pattern grows by an optional
+        space between every adjacent pair inside a word and this one is all one
+        word. Both can match at position 0 of the text below, so whichever sort
+        the implementation uses decides which canonical is reported — and R1002
+        says the sort is on the form.
+        """
+        matcher = matcher_for(
+            [
+                {"canonical": "Fused", "kind": "family", "surface_forms": ["aabbccddee"]},
+                {"canonical": "Spaced", "kind": "family", "surface_forms": ["aa bb cc dd"]},
+            ],
+            tmp_path,
+        )
+
+        assert find_title_hits(make_video("v", "aa bb cc dd ee"), matcher) == frozenset({"Spaced"})
+
+    def test_two_canonicals_claiming_one_form_still_resolve_to_the_first(
+        self, tmp_path: Path
+    ) -> None:
+        # Global de-duplication is unchanged: a stable sort on negated form
+        # length keeps file order among equals, so the first declared wins and
+        # the loser stays a visible zero in the report.
+        matcher = matcher_for(
+            [
+                {"canonical": "First", "kind": "family", "surface_forms": ["tomahawk"]},
+                {"canonical": "Second", "kind": "family", "surface_forms": ["tomahawk"]},
+            ],
+            tmp_path / "a",
+        )
+
+        assert find_title_hits(make_video("v", "toma hawk"), matcher) == frozenset({"First"})
+
+    def test_the_compiled_pattern_is_byte_identical_for_a_given_table(self, tmp_path: Path) -> None:
+        # R23: two runs over one table produce the same bytes, so a diff of two
+        # run reports is a diff of the corpus and never of the compiler.
+        first = matcher_for(SPLIT_TABLE, tmp_path / "a")
+        second = matcher_for(SPLIT_TABLE, tmp_path / "b")
+
+        assert first.pattern == second.pattern
+
+    def test_the_shipped_table_compiles_and_finds_a_split_form(self) -> None:
+        matcher = compile_matcher(load_aliases(SHIPPED_TABLE))
+
+        assert "MAG Tomahawk" in find_title_hits(make_video("v", "the toma hawk board"), matcher)
+        assert "Aorus Master" in find_title_hits(make_video("v", "aor us master"), matcher)
+        assert find_title_hits(make_video("v", "theb650"), matcher) == frozenset()
+
+
+class TestSplitSpellingsReachTheRecallReport:
+    """R1002's stated measurement: `aliases --check` names the form that fired.
+
+    The report only measures the change if the split spelling survives into it,
+    so `matched_form` staying `match.group(0)` — the text as the caption spelled
+    it — is asserted here at the report, not only at the matcher.
+    """
+
+    def setup_corpus(self, tmp_path: Path) -> Config:
+        config = make_config(tmp_path / "data")
+        write_aliases(config.alias_table_path, SPLIT_TABLE)
+        write_index([make_video("vid1", "Deep dive")], config.data_dir / "index.jsonl")
+        write_transcript(
+            config,
+            make_transcript(
+                "vid1",
+                (10.0, "so the mag toma hawk board"),
+                (20.0, "and the aor us master, honestly"),
+                (30.0, "the steel-legend is fine"),
+            ),
+        )
+        return config
+
+    def test_matched_form_is_the_split_text_the_caption_spelled(self, tmp_path: Path) -> None:
+        config = self.setup_corpus(tmp_path)
+        matcher = compile_matcher(load_aliases(config.alias_table_path))
+        transcript = make_transcript("vid1", (7.0, "So the AOR US Master, honestly, rules"))
+
+        (mention,) = find_mentions(transcript, matcher)
+
+        assert mention.matched_form == "aor us master"
+        assert mention.matched_form == normalize(mention.matched_form)
+
+    def test_the_report_names_the_split_spelling_that_fired(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = self.setup_corpus(tmp_path)
+
+        assert run(config, Namespace(check=True)) == 0
+
+        out = capsys.readouterr().out
+        assert "Traceback" not in out
+        assert "mag toma hawk" in line_with(out, "MAG Tomahawk"), out
+        assert "aor us master" in line_with(out, "Aorus Master"), out
+
+    def test_a_canonical_found_only_by_a_split_spelling_is_no_longer_a_zero(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Before R1002 all three of these read NEVER MATCHED. That was the loss."""
+        config = self.setup_corpus(tmp_path)
+
+        assert run(config, Namespace(check=True)) == 0
+
+        out = capsys.readouterr().out
+        for canonical in ("MAG Tomahawk", "Aorus Master", "Steel Legend"):
+            assert "NEVER MATCHED" not in line_with(out, canonical), out
