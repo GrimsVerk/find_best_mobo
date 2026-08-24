@@ -9,16 +9,28 @@ The what-if lines are phrased as deltas *and* resulting totals on purpose. A
 bare "12" next to a threshold change is unreadable — nobody should have to work
 out whether it is twelve more videos or twelve videos in all.
 
-This stage is reachable from Python only, by owner ruling: the top-level parser
-holds no subcommand table, so `run` takes no flags and reads nothing off `args`.
+This stage declares no flags, so anything passed to it is an error naming the
+stage (`find-best-mobo select --nonsense`). The dispatcher still holds no
+subcommand table — what changed with R1006 is that it forwards what it does not
+recognise rather than rejecting it, so a stage that grows a flag declares it
+here and `cli.py` is untouched.
 """
 
 from __future__ import annotations
 
 from argparse import Namespace
+from collections.abc import Sequence
 
+from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
 from find_best_mobo.select import ThresholdReport, select_all, threshold_report, write_selected
+
+
+def parse_args(argv: Sequence[str]) -> Namespace:
+    """This stage declares no flags, so anything left over is its error (R1006)."""
+    return subcommand_parser(
+        "select", "Narrow the corpus, and report what the threshold cost."
+    ).parse_args(list(argv))
 
 
 def run(config: Config, args: Namespace) -> int:

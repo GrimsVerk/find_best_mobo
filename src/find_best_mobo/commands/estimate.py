@@ -16,20 +16,32 @@ recency order matters downstream: it survives packing and batching, so the
 calibration batch is drawn from the newest boards rather than the oldest, and a
 run stopped after batch 2 has read the most currently-relevant material.
 
-This stage is reachable from Python only, by owner ruling: the top-level parser
-holds no subcommand table, so `run` takes no flags and reads nothing off `args`.
+This stage declares no flags, so anything passed to it is an error naming the
+stage (`find-best-mobo estimate --nonsense`). The dispatcher still holds no
+subcommand table — what changed with R1006 is that it forwards what it does not
+recognise rather than rejecting it, so a stage that grows a flag declares it
+here and `cli.py` is untouched.
 """
 
 from __future__ import annotations
 
 from argparse import Namespace
+from collections.abc import Sequence
 
 from find_best_mobo.bundle import assign_batches, pack_bundles, write_bundles
+from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
 from find_best_mobo.estimate import project, render_projection
 from find_best_mobo.excerpt import Excerpt, cap_per_video, cut_windows, merge_overlapping
 from find_best_mobo.select import EXCLUDED, Selection, read_selected
 from find_best_mobo.transcripts import load_cached
+
+
+def parse_args(argv: Sequence[str]) -> Namespace:
+    """This stage declares no flags, so anything left over is its error (R1006)."""
+    return subcommand_parser(
+        "estimate", "Cut, bundle, batch, project the cost — and stop."
+    ).parse_args(list(argv))
 
 
 def run(config: Config, args: Namespace) -> int:
