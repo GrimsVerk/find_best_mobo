@@ -597,6 +597,7 @@ class TestThresholdReport:
             excluded=4,
             would_include_at_minus_one=2,
             would_exclude_at_plus_one=1,
+            cross_cue_candidates=0,
         )
 
     def test_no_selections_reports_all_zeros(self) -> None:
@@ -609,6 +610,7 @@ class TestThresholdReport:
             excluded=0,
             would_include_at_minus_one=0,
             would_exclude_at_plus_one=0,
+            cross_cue_candidates=0,
         )
 
     def test_the_threshold_reported_is_the_configured_one(self) -> None:
@@ -1098,6 +1100,7 @@ class TestWriteAndReadSelected:
                 "mentions",
                 "distinct_canonicals",
                 "has_transcript",
+                "cross_cue_candidates",
             }
 
     def test_the_record_nests_the_video_and_its_mentions(self, tmp_path: Path) -> None:
@@ -1532,6 +1535,7 @@ class TestItxSelection:
             excluded=1,
             would_include_at_minus_one=0,
             would_exclude_at_plus_one=1,
+            cross_cue_candidates=0,
         )
 
     def test_selected_jsonl_records_the_itx_spelling(
@@ -1550,3 +1554,301 @@ class TestItxSelection:
             "x870i",
             "b650i",
         ]
+
+
+NOT_COUNTED_MARKERS = (
+    "not counted",
+    "never counted",
+    "uncounted",
+    "not a mention",
+    "no mention",
+    "not matched",
+    "not emitted",
+    "were not",
+    "do not count",
+    "does not count",
+)
+
+CROSS_CUE_MARKERS = ("cue", "boundary", "cross-cue")
+
+
+def cross_cue_line(output: str, value: int) -> tuple[str, str]:
+    """The cue-boundary line stating `value`, and the line printed after it.
+
+    The reason may be stated on the same line or the one below it, so both are
+    returned and the caller reads them together.
+    """
+    lines = output.splitlines()
+    for index, line in enumerate(lines):
+        lowered = without_paths(line).lower()
+        if has_number(line, value) and any(marker in lowered for marker in CROSS_CUE_MARKERS):
+            return line, lines[index + 1] if index + 1 < len(lines) else ""
+    raise AssertionError(
+        f"no line states {value} cue-boundary candidates (markers {CROSS_CUE_MARKERS}):\n{output}"
+    )
+
+
+def build_cross_cue_corpus(tmp_path: Path) -> Config:
+    """A corpus with exactly one cue-spanning candidate, in one video.
+
+    `the x 670` | `e board` joins to `the x670 e board`, where the alias starts
+    in the first cue's text and ends in the second's. Neither cue matches
+    anything on its own, so the video is excluded with no mentions at all —
+    which is precisely the loss the counter exists to make visible.
+    """
+    config = make_config(tmp_path / "data", mention_threshold=3)
+    write_aliases(config.data_dir / "aliases.toml")
+    write_index_lines(
+        [make_video("t1", "X670E rundown"), make_video("c1", "Deep dive")],
+        config.data_dir / "index.jsonl",
+    )
+    write_transcript(config, empty_transcript("t1"))
+    write_transcript(config, make_transcript("c1", (1.0, "the x 670"), (2.0, "e board")))
+    return config
+
+
+class TestSelectVideoCrossCueCandidates:
+    """R1010 rides `Selection` because `select_all` releases the transcript (R22)."""
+
+    def test_the_field_defaults_to_zero(self) -> None:
+        """A record built before this slice, and a video with no cached transcript.
+
+        Both are genuinely zero, and the default is what lets `read_selected`
+        read a `selected.jsonl` written before R1010 without failing.
+        """
+        selection = Selection(
+            video=make_video("vid1"),
+            reason=EXCLUDED,
+            mentions=(),
+            distinct_canonicals=0,
+            # Supplied because R1012 — a different slice, built in parallel and
+            # invisible to this test's author — made `has_transcript` a required
+            # field. `cross_cue_candidates` is the one under test and is still
+            # left to its default, which is what this test is about.
+            has_transcript=True,
+        )
+
+        assert selection.cross_cue_candidates == 0
+
+    def test_select_video_fills_the_field_from_the_transcript_it_has(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+
+        selection = select_video(video, cross_cue_transcript(), shipped_matcher(), config)
+
+        assert selection.cross_cue_candidates == 1
+
+    def test_the_crossing_split_is_still_not_a_mention(self) -> None:
+        """The counter observes the boundary; the matcher does not cross it."""
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+
+        selection = select_video(video, cross_cue_transcript(), shipped_matcher(), config)
+
+        assert selection.mentions == ()
+        assert selection.distinct_canonicals == 0
+        assert selection.reason == EXCLUDED
+
+    def test_the_same_split_inside_one_cue_is_a_mention_and_counts_nothing(self) -> None:
+        config = make_config(Path("data"), mention_threshold=1)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript("vid1", (0.0, "the mag toma hawk has a twelve phase vrm"))
+
+        selection = select_video(video, transcript, shipped_matcher(), config)
+
+        assert [mention.canonical for mention in selection.mentions] == ["MAG Tomahawk"]
+        assert selection.mentions[0].start_seconds == 0.0
+        assert selection.reason == THRESHOLD
+        assert selection.cross_cue_candidates == 0
+
+    def test_the_count_never_decides_anything(self) -> None:
+        """A video is never selected or excluded because of this number.
+
+        Two videos, the same three distinct canonicals in the body, one of them
+        also carrying a crossing candidate: the reason is identical.
+        """
+        config = make_config(Path("data"), mention_threshold=3)
+        body = "x670e b650e a620"
+        plain = select_video(
+            make_video("plain", "Deep dive"),
+            make_transcript("plain", (1.0, body)),
+            make_matcher(),
+            config,
+        )
+        crossing = select_video(
+            make_video("crossing", "Deep dive"),
+            make_transcript("crossing", (1.0, body), (2.0, "the x 670"), (3.0, "e board")),
+            make_matcher(),
+            config,
+        )
+
+        assert plain.reason == crossing.reason == THRESHOLD
+        assert plain.cross_cue_candidates == 0
+        assert crossing.cross_cue_candidates == 1
+
+    def test_a_video_with_no_cached_transcript_counts_zero(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+
+        selection = select_video(
+            make_video("vid1", "X670E rundown"), empty_transcript("vid1"), make_matcher(), config
+        )
+
+        assert selection.cross_cue_candidates == 0
+
+    def test_select_all_carries_the_count_per_video(self, tmp_path: Path) -> None:
+        config = make_config(tmp_path / "data", mention_threshold=3)
+        write_aliases(config.data_dir / "aliases.toml")
+        write_index_lines(
+            [make_video("plain", "Deep dive"), make_video("crossing", "Deep dive")],
+            config.data_dir / "index.jsonl",
+        )
+        write_transcript(config, make_transcript("plain", (1.0, "the x670e board")))
+        write_transcript(config, make_transcript("crossing", (1.0, "the x 670"), (2.0, "e board")))
+
+        counts = {s.video.video_id: s.cross_cue_candidates for s in select_all(config)}
+
+        assert counts == {"plain": 0, "crossing": 1}
+
+
+class TestThresholdReportCrossCueCandidates:
+    def test_the_report_sums_the_per_video_counts(self) -> None:
+        """R1010 asks for "the count": matches, summed over the corpus."""
+        config = make_config(Path("data"), mention_threshold=3)
+        selections = [
+            replace(make_selection(TITLE_HIT, 0, "t1"), cross_cue_candidates=2),
+            replace(make_selection(THRESHOLD, 3, "p1"), cross_cue_candidates=3),
+            make_selection(EXCLUDED, 1, "e1"),
+        ]
+
+        assert threshold_report(selections, config).cross_cue_candidates == 5
+
+    def test_no_selections_report_zero(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+
+        assert threshold_report([], config).cross_cue_candidates == 0
+
+    def test_excluded_videos_contribute_too(self) -> None:
+        """The scoped-out case costs most where a video was excluded on a thin body."""
+        config = make_config(Path("data"), mention_threshold=3)
+        selections = [replace(make_selection(EXCLUDED, 2, "e1"), cross_cue_candidates=4)]
+
+        assert threshold_report(selections, config).cross_cue_candidates == 4
+
+
+class TestSelectedRecordCrossCueCandidates:
+    def selections_with_counts(self, config: Config) -> tuple[Selection, ...]:
+        return tuple(
+            replace(selection, cross_cue_candidates=count)
+            for selection, count in zip(round_trip_selections(config), (0, 7, 2), strict=True)
+        )
+
+    def test_the_count_survives_the_round_trip(self, tmp_path: Path) -> None:
+        config = make_config(tmp_path / "data", mention_threshold=3)
+        path = tmp_path / "selected.jsonl"
+
+        write_selected(self.selections_with_counts(config), path)
+
+        assert [s.cross_cue_candidates for s in read_selected(path)] == [0, 7, 2]
+
+    def test_the_field_is_written_as_a_plain_integer(self, tmp_path: Path) -> None:
+        config = make_config(tmp_path / "data", mention_threshold=3)
+        path = tmp_path / "selected.jsonl"
+        write_selected(self.selections_with_counts(config), path)
+
+        record = json.loads(path.read_text(encoding="utf-8").splitlines()[1])
+
+        assert record["cross_cue_candidates"] == 7
+
+    def test_a_record_written_before_this_slice_reads_as_zero(self, tmp_path: Path) -> None:
+        """No refetch and no re-select: an older `selected.jsonl` still loads.
+
+        The line is written and then stripped of the key, so the shape is
+        whatever `write_selected` really produces minus the one field — not a
+        hand-written guess at what the old writer emitted.
+        """
+        config = make_config(tmp_path / "data", mention_threshold=3)
+        path = tmp_path / "selected.jsonl"
+        write_selected(self.selections_with_counts(config), path)
+        older = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            record = json.loads(line)
+            record.pop("cross_cue_candidates")
+            older.append(json.dumps(record, sort_keys=True, separators=(",", ":")))
+        path.write_text("\n".join(older) + "\n", encoding="utf-8")
+
+        restored = list(read_selected(path))
+
+        assert [s.cross_cue_candidates for s in restored] == [0, 0, 0]
+        assert [s.reason for s in restored] == [TITLE_HIT, THRESHOLD, EXCLUDED]
+
+
+class TestSelectCommandCrossCueLine:
+    """The observable R1010 fixes: one line in the selection report, every run.
+
+    A counter that prints only when it is non-zero cannot be told from a counter
+    that was never run, and the whole reason OD-15 added it is that a silent
+    loss can never be superseded by evidence.
+    """
+
+    def test_the_line_is_printed_when_the_count_is_zero(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = build_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+
+        line, _ = cross_cue_line(capsys.readouterr().out, 0)
+        assert line.strip() != ""
+
+    def test_the_line_states_a_non_zero_count(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = build_cross_cue_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+
+        line, _ = cross_cue_line(capsys.readouterr().out, 1)
+        assert line.strip() != ""
+
+    def test_the_line_says_those_matches_were_not_counted_as_mentions(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A bare number here would read as mentions FOUND, which is the opposite."""
+        config = build_cross_cue_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+
+        line, following = cross_cue_line(capsys.readouterr().out, 1)
+        context = f"{line}\n{following}".lower()
+        assert any(marker in context for marker in NOT_COUNTED_MARKERS), (
+            "the reader must be told these were NOT counted as mentions, on this "
+            f"line or the one below it: {line!r} / {following!r}"
+        )
+
+    def test_the_crossing_video_is_still_excluded_with_no_mentions(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = build_cross_cue_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+        capsys.readouterr()
+
+        written = {s.video.video_id: s for s in read_selected(config.data_dir / "selected.jsonl")}
+        assert written["c1"].reason == EXCLUDED
+        assert written["c1"].mentions == ()
+        assert written["c1"].cross_cue_candidates == 1
+        assert written["t1"].cross_cue_candidates == 0
+
+    def test_two_runs_print_identically(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """One extra linear scan per adjacent pair, and no clock in it (R23)."""
+        config = build_cross_cue_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+        first = capsys.readouterr().out
+        assert run(config, Namespace()) == 0
+        second = capsys.readouterr().out
+
+        assert first == second
+        assert first.strip() != ""

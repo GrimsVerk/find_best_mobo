@@ -32,6 +32,7 @@ from pathlib import Path
 from find_best_mobo.aliases import (
     Mention,
     compile_matcher,
+    count_cross_cue_candidates,
     find_mentions,
     find_title_hits,
     load_aliases,
@@ -58,6 +59,12 @@ class Selection:
     # themselves would diverge the moment their populations do — `select`
     # considers every pending video, `estimate` only the included selections.
     has_transcript: bool
+    # How many alias matches existed ONLY across an adjacent-cue join and were
+    # therefore not counted as mentions (OD-15, R1010). Defaults to 0 for two
+    # reasons, both worth stating so the default is not read as laziness: a
+    # video with no cached transcript genuinely has none, and `read_selected`
+    # must be able to read a record written before this field existed.
+    cross_cue_candidates: int = 0
 
 
 @dataclass(frozen=True)
@@ -81,6 +88,7 @@ class ThresholdReport:
     excluded: int
     would_include_at_minus_one: int
     would_exclude_at_plus_one: int
+    cross_cue_candidates: int
 
 
 def select_video(
@@ -113,6 +121,11 @@ def select_video(
         # the caller, which knows, overrides it. Keeping the one place that
         # knows the one place that decides is the whole point (R1012).
         has_transcript=False,
+        # Filled from the transcript this function already has. It changes no
+        # decision: reason, mentions and distinct_canonicals are computed
+        # exactly as before, and a video is never selected or excluded because
+        # of this count (R1010).
+        cross_cue_candidates=count_cross_cue_candidates(transcript, matcher),
     )
 
 
@@ -208,6 +221,7 @@ def threshold_report(selections: Sequence[Selection], config: Config) -> Thresho
         would_exclude_at_plus_one=sum(
             1 for selection in threshold_passes if selection.distinct_canonicals < threshold + 1
         ),
+        cross_cue_candidates=sum(selection.cross_cue_candidates for selection in selections),
     )
 
 
@@ -263,6 +277,7 @@ def read_selected(path: Path) -> Iterator[Selection]:
                 ),
                 distinct_canonicals=record["distinct_canonicals"],
                 has_transcript=bool(record["has_transcript"]),
+                cross_cue_candidates=int(record.get("cross_cue_candidates", 0)),
             )
 
 
@@ -281,4 +296,5 @@ def _record(selection: Selection) -> dict[str, object]:
         "mentions": [asdict(mention) for mention in selection.mentions],
         "distinct_canonicals": selection.distinct_canonicals,
         "has_transcript": selection.has_transcript,
+        "cross_cue_candidates": selection.cross_cue_candidates,
     }

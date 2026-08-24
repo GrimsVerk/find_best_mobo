@@ -26,6 +26,7 @@ import pytest
 
 from find_best_mobo.aliases import (
     ITX_SUFFIX,
+    count_cross_cue_candidates,
     Alias,
     itx_forms,
     Mention,
@@ -1051,6 +1052,215 @@ class TestShippedTableCaptionSplitEdits:
                 collisions[f"{canonical}: {form}"] = twins
 
         assert collisions == {}, f"hyphenated forms the fold makes dead: {collisions}"
+
+
+class TestCountCrossCueCandidates:
+    """R1010's counter: a split across a cue boundary is COUNTED, never matched.
+
+    OD-15 scoped cross-cue matching out and instrumented the boundary instead,
+    because a loss no artifact would ever show could never be evaluated against
+    evidence or superseded by it. Everything here is about a number; the
+    load-bearing assertions are the ones saying nothing is emitted.
+    """
+
+    def crossing_transcript(self) -> Transcript:
+        """The pair R1010 demands, spelled across two cues."""
+        return make_transcript("vid1", (0.0, "the mag toma"), (3.0, "hawk has a twelve phase vrm"))
+
+    def whole_transcript(self) -> Transcript:
+        """The same words, in one cue."""
+        return make_transcript("vid1", (0.0, "the mag toma hawk has a twelve phase vrm"))
+
+    def test_a_split_across_the_boundary_is_counted(self, shipped_matcher: re.Pattern[str]) -> None:
+        assert count_cross_cue_candidates(self.crossing_transcript(), shipped_matcher) == 1
+
+    def test_a_split_across_the_boundary_yields_no_mention(
+        self, shipped_matcher: re.Pattern[str]
+    ) -> None:
+        """THE load-bearing negative, asserted directly rather than implied.
+
+        `find_mentions` is not touched by this slice: no `Mention` is
+        constructed for a crossing match and no `start_seconds` is invented for
+        one. A mention spanning two cues has no single cue start, and that field
+        is what R5 cuts every excerpt window from and R14 builds every
+        timestamped link on.
+        """
+        assert find_mentions(self.crossing_transcript(), shipped_matcher) == ()
+
+    def test_the_same_split_inside_one_cue_is_a_mention_and_not_a_candidate(
+        self, shipped_matcher: re.Pattern[str]
+    ) -> None:
+        transcript = self.whole_transcript()
+
+        mentions = find_mentions(transcript, shipped_matcher)
+
+        assert [mention.canonical for mention in mentions] == ["MAG Tomahawk"]
+        assert mentions[0].start_seconds == 0.0
+        assert count_cross_cue_candidates(transcript, shipped_matcher) == 0
+
+    def test_the_counter_returns_a_plain_integer(self, shipped_matcher: re.Pattern[str]) -> None:
+        """It is a count and nothing else — no mentions, no offsets, no cues."""
+        count = count_cross_cue_candidates(self.crossing_transcript(), shipped_matcher)
+
+        assert isinstance(count, int)
+        assert not isinstance(count, bool)
+
+    def test_a_transcript_with_no_cues_is_zero(self, tmp_path: Path) -> None:
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+
+        assert count_cross_cue_candidates(Transcript(video_id="vid1", cues=()), matcher) == 0
+
+    def test_a_transcript_with_one_cue_is_zero(self, tmp_path: Path) -> None:
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, "the x670e board is fine"))
+
+        assert count_cross_cue_candidates(transcript, matcher) == 0
+
+    def test_a_match_wholly_inside_the_first_cue_is_not_counted(self, tmp_path: Path) -> None:
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript(
+            "vid1", (0.0, "the x670e board"), (3.0, "has a twelve phase vrm")
+        )
+
+        assert count_cross_cue_candidates(transcript, matcher) == 0
+
+    def test_a_match_wholly_inside_the_second_cue_is_not_counted(self, tmp_path: Path) -> None:
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript(
+            "vid1", (0.0, "it has a twelve phase vrm"), (3.0, "the x670e board")
+        )
+
+        assert count_cross_cue_candidates(transcript, matcher) == 0
+
+    def test_a_match_ending_exactly_at_the_boundary_is_not_counted(self, tmp_path: Path) -> None:
+        """`match.end() > boundary + 1`, and the reason: it lies wholly in the first cue.
+
+        `find_mentions` already found this one and gave it the first cue's
+        start. Counting it here would report a loss that never happened.
+        """
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, "the x670e"), (3.0, "board is fine"))
+
+        assert count_cross_cue_candidates(transcript, matcher) == 0
+
+    def test_a_match_starting_after_the_separator_is_not_counted(self, tmp_path: Path) -> None:
+        """`match.start() < boundary`: this one lies wholly in the second cue."""
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, "the board"), (3.0, "x670e is fine"))
+
+        assert count_cross_cue_candidates(transcript, matcher) == 0
+
+    def test_spacing_damage_across_the_break_is_counted(self, tmp_path: Path) -> None:
+        """The join is `normalize(a) + " " + normalize(b)`, which keeps the boundary known.
+
+        `x 670` | `e board` becomes `the x670 e board`, where the alias really
+        does start in the first cue's text and end in the second's.
+        """
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, "the x 670"), (3.0, "e board"))
+
+        assert count_cross_cue_candidates(transcript, matcher) == 1
+
+    def test_no_mention_is_emitted_for_the_spacing_case_either(self, tmp_path: Path) -> None:
+        """And the mentions that DO exist keep a real cue's start, never an invented one."""
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (10.0, "the x 670"), (20.0, "e board and the taichi"))
+
+        mentions = find_mentions(transcript, matcher)
+
+        assert [mention.canonical for mention in mentions] == ["Taichi"]
+        assert [mention.start_seconds for mention in mentions] == [20.0]
+        assert count_cross_cue_candidates(transcript, matcher) == 1
+
+    @pytest.mark.parametrize("blank", ["", "   ", "..."])
+    def test_a_pair_with_an_empty_side_is_skipped(self, tmp_path: Path, blank: str) -> None:
+        """Both pairs here have a side that normalizes to nothing, so both are skipped.
+
+        The candidate that a two-cue version of this transcript would report is
+        not reported, which is the point: the rule is about ADJACENT cues, and
+        an empty cue sits between these two.
+        """
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, "the x 670"), (1.0, blank), (3.0, "e board"))
+
+        assert count_cross_cue_candidates(transcript, matcher) == 0
+
+    def test_adjacency_is_list_order_and_a_silent_gap_does_not_disqualify_a_pair(
+        self, tmp_path: Path
+    ) -> None:
+        """R1010 says adjacent cues and says nothing about time.
+
+        An hour of silence between two cues is a fact about the audio, not about
+        whether the matcher would have joined the text.
+        """
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, "the x 670"), (3600.0, "e board"))
+
+        assert count_cross_cue_candidates(transcript, matcher) == 1
+
+    def test_cues_out_of_chronological_order_are_still_adjacent(self, tmp_path: Path) -> None:
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (90.0, "the x 670"), (5.0, "e board"))
+
+        assert count_cross_cue_candidates(transcript, matcher) == 1
+
+    def test_every_adjacent_pair_contributes_its_own_occurrences(self, tmp_path: Path) -> None:
+        """The count is of MATCHES per adjacent pair — not distinct canonicals, not videos."""
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript(
+            "vid1",
+            (0.0, "the x 670"),
+            (3.0, "e board and the b 650"),
+            (6.0, "e is fine"),
+        )
+
+        assert count_cross_cue_candidates(transcript, matcher) == 2
+
+    def test_a_canonical_found_elsewhere_in_the_video_does_not_suppress_the_count(
+        self, tmp_path: Path
+    ) -> None:
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript(
+            "vid1",
+            (0.0, "the x670e board is great"),
+            (3.0, "the x 670"),
+            (6.0, "e board again"),
+        )
+
+        assert count_cross_cue_candidates(transcript, matcher) == 1
+
+    def test_the_count_is_a_floor_not_a_certified_total(
+        self, shipped_matcher: re.Pattern[str]
+    ) -> None:
+        """One left-to-right non-overlapping pass, and the docstring must say so.
+
+        Both `aorus master` and `orus master` cross this boundary, and they
+        overlap, so a single `finditer` reports one of them. R1010 asks for an
+        observable that tells a zero from a material number; "at least N" does
+        that, and a certified total would cost an overlapping scan for no
+        decision it would change.
+        """
+        transcript = make_transcript("vid1", (0.0, "the aorus"), (3.0, "master board"))
+
+        assert count_cross_cue_candidates(transcript, shipped_matcher) == 1
+
+    def test_a_transcript_with_nothing_to_find_is_zero(self, tmp_path: Path) -> None:
+        matcher = matcher_for(STANDARD_TABLE, tmp_path)
+        transcript = make_transcript("vid1", (0.0, "he talks about"), (3.0, "power supplies"))
+
+        assert count_cross_cue_candidates(transcript, matcher) == 0
+
+    def test_an_empty_alias_table_counts_nothing(self) -> None:
+        matcher = compile_matcher(())
+
+        assert count_cross_cue_candidates(self.crossing_transcript(), matcher) == 0
+
+    def test_two_runs_over_one_transcript_agree(self, shipped_matcher: re.Pattern[str]) -> None:
+        transcript = self.crossing_transcript()
+
+        assert count_cross_cue_candidates(
+            transcript, shipped_matcher
+        ) == count_cross_cue_candidates(transcript, shipped_matcher)
 
 
 class TestAliasesCommand:
