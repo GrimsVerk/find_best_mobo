@@ -26,7 +26,7 @@ def run(config: Config, args: Namespace) -> int:
     try:
         selections = select_all(config)
     except FileNotFoundError as error:
-        print(_missing(str(error.filename)))
+        print(_missing(config, str(error.filename)))
         return 1
 
     path = config.data_dir / "selected.jsonl"
@@ -37,11 +37,17 @@ def run(config: Config, args: Namespace) -> int:
     return 0
 
 
-def _missing(filename: str) -> str:
-    """Name the missing file and the command that produces it."""
+def _missing(config: Config, filename: str) -> str:
+    """Name the missing file and the command that produces it.
+
+    The alias table is recognised by comparing against the CONFIGURED path
+    rather than by its filename: with `alias_table_path` a lever (R1007), a
+    suffix test is a guess about a name the owner now chooses. The index keeps
+    its `endswith` because nothing configures that filename.
+    """
     if filename.endswith("index.jsonl"):
         return f"No index at {filename}. Run `find-best-mobo index` first."
-    if filename.endswith("aliases.toml"):
+    if filename == str(config.alias_table_path):
         return f"No alias table at {filename}. It ships with the repository; restore it."
     return f"Missing file: {filename}. Run `find-best-mobo index` and `find-best-mobo fetch` first."
 

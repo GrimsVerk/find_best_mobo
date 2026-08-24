@@ -111,7 +111,7 @@ def select_all(config: Config) -> tuple[Selection, ...]:
         # Raised in the shape `open` would have raised it, `filename` included,
         # so the command can name the missing file without parsing a message.
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(index_path))
-    matcher = compile_matcher(load_aliases(config.data_dir / "aliases.toml"))
+    matcher = compile_matcher(load_aliases(config.alias_table_path))
 
     selections: list[Selection] = []
     for video in read_index(index_path):

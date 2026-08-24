@@ -52,7 +52,7 @@ def run(config: Config, args: Namespace) -> int:
         print("  --check  report how many videos mention each canonical (required)")
         return 2
 
-    table_path = config.data_dir / "aliases.toml"
+    table_path = config.alias_table_path
     if not table_path.exists():
         print(f"No alias table at {table_path}. It ships with the repository; restore it.")
         return 1

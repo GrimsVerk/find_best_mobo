@@ -7,6 +7,13 @@ channel_url = "https://www.youtube.com/@ActuallyHardcoreOverclocking"
 start_date = 2023-01-01
 data_dir = "data"
 
+# The hand-authored alias table. INPUT, not cache — which is why it is a path of
+# its own rather than something under `data_dir`: pointing the cache elsewhere
+# must not move the table with it (docs/DESIGN.oracle.md OD-11, R1007). A full
+# path to the file, relative to the working directory, like every other path
+# here.
+alias_table_path = "data/aliases.toml"
+
 # Classification: at or below this duration a video is a Short, and excluded.
 shorts_max_seconds = 120
 
