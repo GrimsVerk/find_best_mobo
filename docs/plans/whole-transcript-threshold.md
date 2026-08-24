@@ -21,6 +21,20 @@ plus duplication to deliver nearly the whole text anyway, and a model reading
 one continuous transcript does better than one reading overlapping fragments of
 it.
 
+> **DO NOT BUILD SLICE 1 OF THIS PLAN.** The routing it describes is being built
+> under `docs/plans/oracle/capped-whole-transcript-path.md`, whose slug is an
+> ADDRESS rather than a description — that document was rewritten on 2026-08-20
+> and specifies the **uncapped** path this one now also describes. Two plans
+> must not build one behaviour, and **OD-19** records the prohibition in the
+> design layer so the review gate reads it at every pull request's base commit.
+>
+> This document is kept rather than deleted because **BL-20**, **OD-13** and
+> **OD-19** all cite it by name, and a missing file those decisions point at
+> would confuse the next reader far more than a superseded one that says so.
+> It stays `status: draft` until R1008's work actually lands, at which point it
+> becomes `status: merged` — the field's own meaning is "the work shipped, by
+> another route", and claiming that before it has would be false.
+
 ## Summary
 
 Stop excerpting a video once the excerpts have grown to cover it. Windows cut
@@ -38,7 +52,13 @@ Owner's ruling of 2026-08-15, and what this plan does with it:
 - **Characters, not tokens**, because that is what the pipeline counts exactly.
 - **The ratio is measured after merging and capping**, on the excerpts that
   would actually be sent — measuring before merge counts the overlap twice and
-  would push nearly everything over the line.
+  would push nearly everything over the line. **And on RE-CUT text (R1000, OD-4):** when this plan was
+  written, `merge_overlapping` concatenated partially overlapping windows, so
+  the numerator counted the overlap once per window. On the real corpus that
+  inflated the excerpt total by 11.7x, which would have pushed almost every
+  video over the 80% line and made this rule fire everywhere. R1000 re-cuts the
+  merged span from the cues, which is what makes the ratio mean what this plan
+  says it means.
 
 One slice, ~260 lines, across the excerpt, bundle and estimate modules. The
 projection reports how many videos took each path, so the saving is visible
@@ -113,7 +133,13 @@ def choose_submission(
 
 - **The ratio is measured after merging and capping**, on the excerpts that
   would actually be sent. Measuring before merge counts the overlap twice and
-  would push nearly everything over the threshold.
+  would push nearly everything over the threshold. **And on RE-CUT text (R1000, OD-4):** when this plan was
+  written, `merge_overlapping` concatenated partially overlapping windows, so
+  the numerator counted the overlap once per window. On the real corpus that
+  inflated the excerpt total by 11.7x, which would have pushed almost every
+  video over the 80% line and made this rule fire everywhere. R1000 re-cuts the
+  merged span from the cues, which is what makes the ratio mean what this plan
+  says it means.
 - **Characters, not tokens.** The owner specified characters, and characters are
   the thing the pipeline can count exactly; the token projection is derived from
   them as it already is elsewhere.
