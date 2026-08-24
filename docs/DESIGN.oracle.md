@@ -849,7 +849,11 @@ suite. No new collection mechanism is needed.
 
 **R1013** — The caption fetch requests `json3` and prefers it, reading a
 transcript as the concatenation of every segment of every event, `aAppend`
-events included — they carry real speech, and dropping them loses words. Each
+events included. Those events are text-free — every one of the 2,257 measured
+carries a single newline and nothing else — so they are the LINE BREAK, and
+dropping them is not a loss of speech but a fusing of it: the text reads
+`we'regoing` where the speaker said `we're going`, which would corrupt matching
+at every line boundary rather than merely shortening the transcript. Each
 cue's start time comes from the segment timing json3 supplies rather than from
 a display frame, so a mention's `start_seconds` is the moment its own words were
 spoken.
