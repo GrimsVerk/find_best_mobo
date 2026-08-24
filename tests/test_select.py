@@ -28,6 +28,7 @@ from pathlib import Path
 
 import pytest
 
+from find_best_mobo.artifacts import MissingArtifact
 from find_best_mobo.aliases import Alias, Mention, compile_matcher
 from find_best_mobo.commands.select import run
 from find_best_mobo.config import Config
@@ -187,6 +188,19 @@ def write_aliases(path: Path, aliases: Sequence[Alias] = STANDARD_TABLE) -> Path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
     return path
+
+
+def fetched(config: Config) -> Path:
+    """Leave the empty cache directory a `fetch` run leaves, and return it.
+
+    R1005 separates "fetch has not run" (no directory) from "fetch ran and
+    cached nothing for this video" (a directory, no file). Tests about the
+    second must create the first, or they assert the wrong thing: before R1005
+    the two states were one on disk, so no test had to say which it meant.
+    """
+    cache_dir = config.data_dir / "transcripts"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
 
 def write_index_lines(videos: Sequence[Video], path: Path) -> Path:
@@ -768,6 +782,7 @@ class TestSelectAll:
         config = make_config(tmp_path / "data")
         write_aliases(config.data_dir / "aliases.toml")
         write_index_lines([make_video("solo", "X670E rundown")], config.data_dir / "index.jsonl")
+        fetched(config)
 
         (selection,) = select_all(config)
 
@@ -784,6 +799,7 @@ class TestSelectAll:
             make_video("mmm", "Deep dive", upload_date=date(2025, 9, 30)),
         ]
         write_index_lines(videos, config.data_dir / "index.jsonl")
+        fetched(config)
 
         selections = select_all(config)
 
@@ -799,10 +815,68 @@ class TestSelectAll:
         write_aliases(config.data_dir / "aliases.toml")
         video = make_video("solo", "X670E rundown", upload_date=date(2024, 3, 4))
         write_index_lines([video], config.data_dir / "index.jsonl")
+        fetched(config)
 
         (selection,) = select_all(config)
 
         assert selection.video == video
+
+    def test_an_absent_transcript_cache_raises_naming_fetch(self, tmp_path: Path) -> None:
+        """R1005: no cache directory means `fetch` never ran, and no video could pass.
+
+        The old behaviour printed a threshold report over a corpus in which
+        every body was empty — a measurement of the missing corpus, presented as
+        a measurement of the lever.
+        """
+        config = make_config(tmp_path / "data")
+        write_aliases(config.data_dir / "aliases.toml")
+        write_index_lines([make_video("solo", "X670E rundown")], config.data_dir / "index.jsonl")
+
+        with pytest.raises(MissingArtifact) as info:
+            select_all(config)
+
+        assert "find-best-mobo fetch" in info.value.message()
+
+    def test_an_empty_transcript_cache_is_a_real_state(self, tmp_path: Path) -> None:
+        """The other half of R1005, and the reason the check is on the directory.
+
+        `fetch` ran and cached nothing. That is a corpus with no captions, which
+        is a result: title hits are still includes, and everything else is
+        excluded at zero distinct canonicals.
+        """
+        config = make_config(tmp_path / "data")
+        write_aliases(config.data_dir / "aliases.toml")
+        write_index_lines(
+            [make_video("hit", "X670E rundown"), make_video("miss", "Deep dive")],
+            config.data_dir / "index.jsonl",
+        )
+        fetched(config)
+
+        selections = select_all(config)
+
+        assert [s.reason for s in selections] == [TITLE_HIT, EXCLUDED]
+        assert all(s.distinct_canonicals == 0 for s in selections)
+
+    def test_a_missing_index_is_named_before_a_missing_cache(self, tmp_path: Path) -> None:
+        """Pipeline order: the earliest stage that has not run is the one to run."""
+        config = make_config(tmp_path / "data")
+        write_aliases(config.data_dir / "aliases.toml")
+
+        with pytest.raises(MissingArtifact) as info:
+            select_all(config)
+
+        assert "find-best-mobo index" in info.value.message()
+
+    def test_a_missing_alias_table_is_named_before_a_missing_cache(self, tmp_path: Path) -> None:
+        """The table's refusal already existed and keeps its position and wording."""
+        config = make_config(tmp_path / "data")
+        write_index_lines([make_video("solo", "X670E rundown")], config.data_dir / "index.jsonl")
+
+        with pytest.raises(FileNotFoundError) as info:
+            select_all(config)
+
+        assert not isinstance(info.value, MissingArtifact)
+        assert str(info.value.filename) == str(config.alias_table_path)
 
     def test_a_missing_index_raises_file_not_found(self, tmp_path: Path) -> None:
         config = make_config(tmp_path / "data")
@@ -837,6 +911,7 @@ class TestSelectAll:
         write_aliases(elsewhere, STANDARD_TABLE)
         config = replace(config, alias_table_path=elsewhere)
         write_index_lines([make_video("solo", "X670E rundown")], config.data_dir / "index.jsonl")
+        fetched(config)
 
         selections = select_all(config)
 
@@ -1146,6 +1221,22 @@ class TestSelectCommand:
         out = capsys.readouterr().out
         assert "alias" in out.lower(), f"the message must name the alias table: {out!r}"
         assert "Traceback" not in out
+
+    def test_an_absent_cache_refuses_and_writes_no_selections(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A refusal leaves the tree as it found it — no half-answer on disk."""
+        config = make_config(tmp_path / "data")
+        write_aliases(config.data_dir / "aliases.toml")
+        write_index_lines([make_video("solo", "X670E rundown")], config.data_dir / "index.jsonl")
+
+        assert run(config, Namespace()) == 1
+
+        out = capsys.readouterr().out
+        assert "find-best-mobo fetch" in out
+        assert "Traceback" not in out
+        assert "Threshold in force" not in out, "a refusal must not print a threshold report"
+        assert not (config.data_dir / "selected.jsonl").exists()
 
     def test_the_missing_table_message_names_the_configured_path(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

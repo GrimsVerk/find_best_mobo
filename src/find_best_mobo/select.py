@@ -22,9 +22,7 @@ implied, the same rule the index follows.
 
 from __future__ import annotations
 
-import errno
 import json
-import os
 import re
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import asdict, dataclass
@@ -38,6 +36,7 @@ from find_best_mobo.aliases import (
     find_title_hits,
     load_aliases,
 )
+from find_best_mobo.artifacts import require_directory, require_file
 from find_best_mobo.config import Config
 from find_best_mobo.index import Video, read_index
 from find_best_mobo.transcripts import Transcript, load_cached
@@ -102,16 +101,21 @@ def select_all(config: Config) -> tuple[Selection, ...]:
     memory does not grow with the corpus (R22) — only the selections survive the
     loop, and a selection holds mentions rather than cues.
 
-    Raises `FileNotFoundError` if the index or the alias table is missing; a
-    missing transcript cache is not an error, because a video with no captions
-    can still be selected on its title.
+    Raises `FileNotFoundError` if the index, the alias table or the transcript
+    cache is missing. The last of those is a distinction worth stating exactly,
+    because getting it wrong is how the tolerance gets restored by accident: a
+    missing transcript **for a video** is not an error, since a video with no
+    captions can still be selected on its title (R2, R24); a missing **cache
+    directory** is, because `fetch` has not run and no video could have passed
+    the threshold. An empty cache directory is a real state and selects
+    normally — title hits in, everything else out at zero canonicals (R1005).
+
+    The cache is checked LAST, after the alias table. A stage missing both
+    still names the table, which is the order the refusals already had.
     """
-    index_path = config.data_dir / "index.jsonl"
-    if not index_path.exists():
-        # Raised in the shape `open` would have raised it, `filename` included,
-        # so the command can name the missing file without parsing a message.
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(index_path))
+    index_path = require_file(config.data_dir / "index.jsonl", "index", "index")
     matcher = compile_matcher(load_aliases(config.alias_table_path))
+    require_directory(config.data_dir / "transcripts", "cached transcripts", "fetch")
 
     selections: list[Selection] = []
     for video in read_index(index_path):

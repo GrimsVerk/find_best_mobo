@@ -146,8 +146,15 @@ tested through its entry point; the wiring is an open plan question recorded in
 
 ### Narrowing the corpus
 
-1. The `select` stage reads the index, keeps the videos the index left pending,
-   and loads each one's cached transcript in turn.
+1. The `select` stage refuses before it starts if the index, the alias table or
+   the transcript cache DIRECTORY is absent, naming the stage that produces it
+   (OD-9, R1005) — an absent cache means `fetch` never ran and no video could
+   have passed the threshold, so a report over it would measure the missing
+   corpus and read as a measurement of the lever. An EMPTY cache is a real
+   state and selects normally. Then it reads the index, keeps the videos the
+   index left pending, and loads each one's cached transcript in turn; a video
+   with no cached transcript is still selected on its title, which is the
+   per-video tolerance R24 owns and which this rule does not touch.
 2. An alias hit in the **title** is an automatic include. He titles videos after
    what they are about, so a title hit is the strongest signal available and it
    does not need corroborating.
