@@ -10,6 +10,11 @@ The corpus in `build_corpus` is arranged so every projected number is checkable
 by hand: two included videos with one 40-character excerpt each, a token factor
 of exactly one character per token, and a bundle cap of exactly one excerpt.
 
+`TestSaturatedVideoIsPinnedAtItsTranscript` is R1000's regression (OD-4), built
+from BL-10's measured geometry as a synthetic cached transcript: the whole
+`estimate` path runs over it and the summed excerpt characters are asserted
+never to exceed the transcript's own.
+
 The last class here is the point of the whole milestone. `estimate` prints a
 number and stops; there is no code path from it into inference, and
 `TestNoInferencePath` is what fails if someone later wires one in.
@@ -35,14 +40,20 @@ import pytest
 
 from find_best_mobo.artifacts import MissingArtifact
 from find_best_mobo.aliases import Mention
-from find_best_mobo.bundle import Bundle
+from find_best_mobo.bundle import Bundle, pack_bundles
 from find_best_mobo.commands.estimate import run
 from find_best_mobo.config import Config
 from find_best_mobo.estimate import Projection, project, render_projection
-from find_best_mobo.excerpt import Excerpt
+from find_best_mobo.excerpt import (
+    Excerpt,
+    cap_per_video,
+    cut_windows,
+    merge_overlapping,
+    transcript_characters,
+)
 from find_best_mobo.index import Video
-from find_best_mobo.select import Coverage, Selection, write_selected
-from find_best_mobo.transcripts import Cue, Transcript, cache_path
+from find_best_mobo.select import Coverage, Selection, read_selected, write_selected
+from find_best_mobo.transcripts import Cue, Transcript, cache_path, load_cached
 
 TITLE_HIT = "title_hit"
 THRESHOLD = "threshold"
@@ -772,6 +783,224 @@ class TestEstimateCommand:
         out = capsys.readouterr().out
         assert out.strip() != ""
         assert "Traceback" not in out
+
+
+# The saturated video: BL-10's geometry, rebuilt synthetically (R1000, OD-4).
+#
+# PROVENANCE. The numbers this fixture imitates were MEASURED, on a real
+# 33-minute review in the local corpus: a 28,438-character transcript came out
+# of the concatenating merge as a single 137,246-character excerpt — 4.8x the
+# whole transcript — and the cost projection, the one number the checkpoint
+# exists to produce, was wrong by that factor. Those figures are recorded here
+# and are deliberately NOT asserted: R21 holds the corpus local-only and never
+# redistributed, so no caption text is checked in and the text below is
+# synthetic. What is asserted is the BOUND R1000 states, which the measured case
+# violated by 4.8x and which this shape reproduces.
+SATURATED_VIDEO_ID = "saturated"
+SATURATED_TITLE = "Every AM5 board I have looked at this year"
+# ~33 minutes of speech: a cue every 3 seconds from 0s to 1,977s.
+CUE_SPACING_SECONDS = 3.0
+CUE_COUNT = 660
+# 42 characters of cue text plus the single space that joins it to the next one
+# is ~43 characters per cue, for a transcript of ~28.4k characters.
+CUE_FILLER = "the vrm on this board holds up ok!"
+# A mention roughly every 60 seconds: 33 windows of 120-before/300-after, each
+# overlapping its neighbours, so the whole video merges into a single span.
+MENTION_SPACING_SECONDS = 60.0
+MENTION_COUNT = 33
+
+
+def saturated_marker(index: int) -> str:
+    """Cue `index`'s unique tag, ZERO-PADDED.
+
+    Padding is load-bearing for the duplication assertions: unpadded, `"cue 1"`
+    is a substring of `"cue 10"` and the counting would answer a different
+    question than the one asked.
+    """
+    return f"cue {index:03d}"
+
+
+def saturated_cues() -> tuple[tuple[float, str], ...]:
+    return tuple(
+        (index * CUE_SPACING_SECONDS, f"{saturated_marker(index)} {CUE_FILLER}")
+        for index in range(CUE_COUNT)
+    )
+
+
+def saturated_corpus(tmp_path: Path) -> Config:
+    """One selected video whose mentions saturate it, on disk under `tmp_path`.
+
+    Written as a CACHED TRANSCRIPT so the real path runs end to end —
+    `load_cached` → `cut_windows` → `merge_overlapping` → `cap_per_video` →
+    `pack_bundles` → `project` — rather than the assertions being made against
+    hand-built excerpts that no stage produced.
+    """
+    config = make_config(
+        tmp_path / "data",
+        window_before_seconds=120,
+        window_after_seconds=300,
+        per_video_excerpt_cap=10,
+        bundle_token_cap=24000,
+        calibration_batch_size=1,
+        batch_count=3,
+        chars_per_token=4.0,
+    )
+    video = make_video(SATURATED_VIDEO_ID, SATURATED_TITLE, upload_date=date(2025, 3, 4))
+    write_index_lines([video], config.data_dir / "index.jsonl")
+    write_selected(
+        [
+            make_selection(
+                video,
+                THRESHOLD,
+                tuple(
+                    make_mention(
+                        "B650E" if index % 2 else "X670E",
+                        SATURATED_VIDEO_ID,
+                        index * MENTION_SPACING_SECONDS,
+                    )
+                    for index in range(MENTION_COUNT)
+                ),
+            )
+        ],
+        config.data_dir / "selected.jsonl",
+    )
+    write_transcript(config, SATURATED_VIDEO_ID, *saturated_cues())
+    return config
+
+
+def saturated_excerpts(config: Config) -> tuple[Transcript, tuple[Excerpt, ...]]:
+    """The video's excerpts, off the real pipeline, from the cache on disk."""
+    transcript = load_cached(SATURATED_VIDEO_ID, config)
+    assert transcript is not None
+    selection = next(iter(read_selected(config.data_dir / "selected.jsonl")))
+    windows = cut_windows(transcript, selection.mentions, selection.video, config)
+    return transcript, cap_per_video(merge_overlapping(windows, transcript), config)
+
+
+class TestSaturatedVideoIsPinnedAtItsTranscript:
+    """R1000: a video's excerpts never out-run its own transcript.
+
+    PROVENANCE — BL-10, measured on a real 33-minute review: a 28,438-character
+    transcript produced a single 137,246-character merged excerpt, 4.8x the
+    transcript, because `merge_overlapping` concatenated the text of every
+    overlapping window. The geometry below reproduces that video (~33 minutes, a
+    cue every ~3 seconds of ~43 characters, a mention every ~60 seconds); the
+    words do not, and the two measured figures are recorded rather than asserted,
+    because R21 keeps the captions local-only and this transcript is synthetic.
+    """
+
+    def test_the_fixture_reproduces_the_measured_geometry(self, tmp_path: Path) -> None:
+        # Guards the shape every assertion below depends on. If this drifts, the
+        # regression stops being the case BL-10 measured.
+        config = saturated_corpus(tmp_path)
+        transcript, _ = saturated_excerpts(config)
+
+        assert len(transcript.cues) == CUE_COUNT
+        assert transcript.cues[-1].start_seconds == pytest.approx(1977.0)
+        assert 27_500 <= transcript_characters(transcript) <= 29_500
+        assert len({cue.text for cue in transcript.cues}) == CUE_COUNT
+
+    def test_every_window_overlaps_so_the_video_merges_into_one_span(self, tmp_path: Path) -> None:
+        config = saturated_corpus(tmp_path)
+        transcript, excerpts = saturated_excerpts(config)
+
+        assert len(excerpts) == 1
+        assert excerpts[0].start_seconds == 0.0
+        assert excerpts[0].end_seconds == pytest.approx(
+            (MENTION_COUNT - 1) * MENTION_SPACING_SECONDS + config.window_after_seconds
+        )
+
+    def test_the_summed_excerpt_characters_do_not_exceed_the_transcripts(
+        self, tmp_path: Path
+    ) -> None:
+        config = saturated_corpus(tmp_path)
+        transcript, excerpts = saturated_excerpts(config)
+
+        total = sum(len(excerpt.text) for excerpt in excerpts)
+
+        assert total <= transcript_characters(transcript), (
+            f"{total} excerpt characters against {transcript_characters(transcript)} "
+            "in the transcript — this is the 4.8x BL-10 measured"
+        )
+
+    def test_the_bound_is_not_met_by_emitting_nothing(self, tmp_path: Path) -> None:
+        config = saturated_corpus(tmp_path)
+        _, excerpts = saturated_excerpts(config)
+
+        assert sum(len(excerpt.text) for excerpt in excerpts) > 0
+
+    def test_no_line_of_cue_text_appears_twice_across_the_excerpts(self, tmp_path: Path) -> None:
+        config = saturated_corpus(tmp_path)
+        transcript, excerpts = saturated_excerpts(config)
+
+        repeated = [
+            index
+            for index in range(len(transcript.cues))
+            if sum(excerpt.text.count(saturated_marker(index)) for excerpt in excerpts) > 1
+        ]
+
+        assert repeated == [], f"cues carried more than once: {repeated[:5]}"
+
+    def test_the_projections_excerpt_characters_is_that_same_bounded_sum(
+        self, tmp_path: Path
+    ) -> None:
+        # The number the owner reads must be the number that is bounded.
+        config = saturated_corpus(tmp_path)
+        transcript, excerpts = saturated_excerpts(config)
+        selections = tuple(read_selected(config.data_dir / "selected.jsonl"))
+
+        projection = project(pack_bundles(excerpts, config), selections, config)
+
+        assert projection.excerpt_characters == sum(len(e.text) for e in excerpts)
+        assert 0 < projection.excerpt_characters <= transcript_characters(transcript)
+
+    def test_the_command_prints_a_character_count_within_the_bound(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = saturated_corpus(tmp_path)
+        transcript, excerpts = saturated_excerpts(config)
+        expected = sum(len(excerpt.text) for excerpt in excerpts)
+
+        assert run(config, Namespace()) == 0
+
+        out = capsys.readouterr().out
+        assert states_number(out, expected), (
+            f"the projection must state {expected} characters of excerpt text: {out!r}"
+        )
+        assert expected <= transcript_characters(transcript)
+
+    def test_the_written_bundles_hold_no_repeated_passage(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = saturated_corpus(tmp_path)
+        transcript, _ = saturated_excerpts(config)
+
+        assert run(config, Namespace()) == 0
+        capsys.readouterr()
+
+        written = "".join(path.read_text(encoding="utf-8") for path in bundle_files(config))
+        assert written != ""
+        repeated = [
+            index
+            for index in range(len(transcript.cues))
+            if written.count(saturated_marker(index)) > 1
+        ]
+        assert repeated == [], f"cues written more than once: {repeated[:5]}"
+
+    def test_the_regression_runs_twice_to_the_same_projection(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # R23, on the path this plan changes: the re-cut must not introduce
+        # anything that varies between runs.
+        config = saturated_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+        first = capsys.readouterr().out
+        assert run(config, Namespace()) == 0
+        second = capsys.readouterr().out
+
+        assert first == second
+        assert first.strip() != ""
 
 
 # Package roots that only a model client, an HTTP call or a credential store
