@@ -1,9 +1,11 @@
 """The alias table, and the single pass that finds its entities in text.
 
 An entity is one canonical name — a chipset, a vendor, a board family, a CPU —
-plus every surface form a transcript might spell it as. The table is data
-(`data/aliases.toml`), not code, because it is the part of the pipeline the
-owner will keep extending as the corpus shows what it misses.
+plus every surface form a transcript might spell it as. The table is data, not
+code, because it is the part of the pipeline the owner will keep extending as
+the corpus shows what it misses — and it is hand-authored INPUT rather than
+cached corpus, so its path comes from configuration (`alias_table_path`) and no
+loader here builds one (OD-11, R1007).
 
 Two things here are deliberate. First, every surface form is `normalize`d before
 it enters the pattern, so the table lives in the same space as the caption text

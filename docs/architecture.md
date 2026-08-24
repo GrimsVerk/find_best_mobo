@@ -30,7 +30,7 @@ excerpting and no model involvement — those are the last slice of the
 | Component | Responsible for |
 | --- | --- |
 | CLI dispatcher (`cli.py`) | Parsing the command line, loading configuration, and handing off to the subcommand module named on the command line. It holds no list of subcommands: adding a stage means adding a module, never editing the dispatcher. |
-| Configuration (`config.py`) | Declaring every lever the whole pipeline will ever have — including ones no stage uses yet — and reading them from `config.toml`, with in-code defaults so an absent key or file is never a crash. |
+| Configuration (`config.py`) | Declaring every lever the whole pipeline will ever have — including ones no stage uses yet — and reading them from `config.toml`, with in-code defaults so an absent key or file is never a crash. Paths are levers too: `data_dir` for the corpus cache and `alias_table_path` for the hand-authored alias table, which is why the two can be moved independently. |
 | Network boundary (`ytdlp.py`) | The only code that touches `yt-dlp` or the network. Lists a channel's uploads via flat playlist extraction (no downloads), reusing one client for the whole run, and yields raw entry dicts. |
 | Index (`index.py`) | Classifying each raw entry into a video record (regular or Short; pending, excluded-as-Short, or out-of-range) and reading/writing the index as deterministic JSONL. Classification is pure — no I/O. |
 | `index` subcommand (`commands/index.py`) | The stage itself: enumerate, write `data/index.jsonl`, print the summary counts. |
@@ -38,7 +38,7 @@ excerpting and no model involvement — those are the last slice of the
 | Failure ledger (`ledger.py`) | Recording every fetch failure with its class, carrying attempt counts across runs, and deciding when the run must halt. It is rewritten on every record, so evidence is on disk even when the run stops abruptly. |
 | `fetch` subcommand (`commands/fetch.py`) | The stage itself: read the index, fetch what is pending and uncached, print the summary — or, on a halt, the trigger and the ledger. |
 | Normalization (`normalize.py`) | Folding caption text and titles into one comparable form: case, scattered punctuation, and above all the spacing damage that renders `X670E` as `x 670 e`. Pure and total. |
-| Alias table (`aliases.py`, `data/aliases.toml`) | Mapping many surface forms onto one canonical entity, and finding those entities in normalized text with a single compiled pattern. The table is hand-authored input, not derived data. |
+| Alias table (`aliases.py`, path from `alias_table_path`) | Mapping many surface forms onto one canonical entity, and finding those entities in normalized text with a single compiled pattern. The table is hand-authored input, not derived data, and every loader takes its path from configuration rather than building one (OD-11, R1007). |
 | `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. |
 | Selection (`select.py`) | Deciding which videos are actually about AM5 boards, and saying what the threshold currently costs. A title hit is an automatic include; otherwise the video needs enough DISTINCT boards mentioned in the body. Pure decision logic, plus its own deterministic JSONL. |
 | `select` subcommand (`commands/select.py`) | The stage itself: read index and cached transcripts, write `data/selected.jsonl`, print the threshold's effect. |
@@ -56,7 +56,7 @@ excerpting and no model involvement — those are the last slice of the
 - network boundary --(raw WebVTT)--> transcript parsing --(timed cues)--> `data/transcripts/<video_id>.json`
 - fetch failures --(class, detail, attempts)--> `data/failures.jsonl`, and back in as the retry list on the next run
 - `data/transcripts/` --(cached transcripts)--> normalization --(comparable text)--> alias matching
-- `data/aliases.toml` --(canonical entities and their surface forms)--> one compiled pattern --(mentions with timestamps)--> selection
+- the alias table at `alias_table_path` --(canonical entities and their surface forms)--> one compiled pattern --(mentions with timestamps)--> selection
 - index + transcripts + matcher --(one decision per video, exclusions included)--> `data/selected.jsonl`
 - selections + cached transcripts --(windows around mentions, merged and capped)--> excerpts --(packed to a token cap)--> bundles --> `data/bundles/batch-N/*.xml`
 - bundles + selections --(counts and a stated token factor)--> the printed projection, and then nothing
@@ -207,10 +207,13 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
   included or excluded, its body mentions, and its distinct-canonical count.
 - `data/bundles/batch-N/bundle-NNN.xml` — the work bundles, one file each,
   byte-identical across runs given the same cache and configuration.
-- `data/aliases.toml` — the hand-authored alias table. Unlike everything else
-  under `data/`, this is **input rather than cache**: it is tracked in git
-  (forced past the ignore rule) because a fresh clone with no alias table would
-  match nothing. That it lives here at all is an open plan question.
+- `data/aliases.toml` — the hand-authored alias table, and the one file under
+  `data/` that is **input rather than cache**: it is tracked in git (still
+  forced past the ignore rule today) because a fresh clone with no alias table
+  would match nothing. Its path is now a configuration lever,
+  `alias_table_path`, and no loader builds one — so it no longer follows
+  `data_dir`. Moving it out of the gitignored tree and retiring the `git add
+  -f` is slice 2 of `docs/plans/oracle/tracked-alias-table.md` (OD-11, R1007).
 
 ## Known rough edges
 

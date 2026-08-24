@@ -22,7 +22,7 @@ import json
 import re
 from argparse import Namespace
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date
 from pathlib import Path
 
@@ -96,6 +96,11 @@ def make_config(data_dir: Path, *, mention_threshold: int = 3) -> Config:
         consecutive_fetch_error_limit=3,
         fetch_error_rate_limit=0.03,
         missing_caption_rate_limit=0.05,
+        # Set explicitly rather than defaulted: `alias_table_path` no longer
+        # follows `data_dir` (R1007), so these suites now exercise a configured,
+        # non-default path throughout — which is the clause of R1007 they are
+        # best placed to pin.
+        alias_table_path=data_dir / "aliases.toml",
     )
 
 
@@ -813,6 +818,30 @@ class TestSelectAll:
         with pytest.raises(FileNotFoundError):
             select_all(config)
 
+    def test_a_configured_table_outside_data_dir_is_the_one_selection_reads(
+        self, tmp_path: Path
+    ) -> None:
+        """R1007: `select_all` reads `alias_table_path` and builds no path itself.
+
+        Two tables exist. The one under `data_dir` — where every loader looked
+        before R1007 — carries only Taichi; the configured one, outside
+        `data_dir` and not named `aliases.toml`, carries the chipsets. A title
+        hit on X670E can only come from the configured file.
+        """
+        config = make_config(tmp_path / "data")
+        write_aliases(
+            config.data_dir / "aliases.toml",
+            (Alias(canonical="Taichi", kind="family", surface_forms=("taichi",)),),
+        )
+        elsewhere = tmp_path / "inputs" / "boards.toml"
+        write_aliases(elsewhere, STANDARD_TABLE)
+        config = replace(config, alias_table_path=elsewhere)
+        write_index_lines([make_video("solo", "X670E rundown")], config.data_dir / "index.jsonl")
+
+        selections = select_all(config)
+
+        assert [s.reason for s in selections] == [TITLE_HIT]
+
 
 def round_trip_selections(config: Config) -> tuple[Selection, ...]:
     """Selections built by the real selector, spanning all three reasons."""
@@ -1117,3 +1146,25 @@ class TestSelectCommand:
         out = capsys.readouterr().out
         assert "alias" in out.lower(), f"the message must name the alias table: {out!r}"
         assert "Traceback" not in out
+
+    def test_the_missing_table_message_names_the_configured_path(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """R1007: the alias-table branch is recognised by the configured path.
+
+        With `alias_table_path` a lever, a filename suffix test is a guess about
+        a name the owner now chooses — so a configured table called anything at
+        all must still produce the alias-table message and not the generic
+        "run index and fetch" fallback.
+        """
+        config = make_config(tmp_path / "data")
+        absent = tmp_path / "inputs" / "boards.toml"
+        config = replace(config, alias_table_path=absent)
+        write_index_lines([make_video("solo", "X670E rundown")], config.data_dir / "index.jsonl")
+
+        assert run(config, Namespace()) == 1
+
+        out = capsys.readouterr().out
+        assert "No alias table at" in out
+        assert str(absent) in out
+        assert "Run `find-best-mobo index` and `find-best-mobo fetch` first." not in out

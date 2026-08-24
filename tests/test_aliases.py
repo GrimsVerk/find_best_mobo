@@ -18,6 +18,7 @@ import json
 import re
 from argparse import Namespace
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -32,13 +33,13 @@ from find_best_mobo.aliases import (
     load_aliases,
 )
 from find_best_mobo.commands.aliases import run
-from find_best_mobo.config import Config
+from find_best_mobo.config import DEFAULT_ALIAS_TABLE, Config
 from find_best_mobo.index import Video, write_index
 from find_best_mobo.normalize import normalize
 from find_best_mobo.transcripts import Cue, Transcript, cache_path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SHIPPED_TABLE = REPO_ROOT / "data" / "aliases.toml"
+SHIPPED_TABLE = REPO_ROOT / DEFAULT_ALIAS_TABLE
 
 VALID_KINDS = frozenset({"board", "family", "chipset", "cpu", "vendor"})
 
@@ -86,6 +87,11 @@ def make_config(data_dir: Path) -> Config:
         consecutive_fetch_error_limit=3,
         fetch_error_rate_limit=0.03,
         missing_caption_rate_limit=0.05,
+        # Set explicitly rather than defaulted: `alias_table_path` no longer
+        # follows `data_dir` (R1007), so these suites now exercise a configured,
+        # non-default path throughout — which is the clause of R1007 they are
+        # best placed to pin.
+        alias_table_path=data_dir / "aliases.toml",
     )
 
 
@@ -504,6 +510,41 @@ class TestAliasesCommand:
         )
         write_transcript(config, make_transcript("vid3", (1.0, "the a620 chipset")))
         return config
+
+    def test_a_configured_table_outside_data_dir_is_found_and_named(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """R1007: the loader reads the configured path and never builds one.
+
+        The table is written where nothing else would guess — outside
+        `data_dir`, and not named `aliases.toml` — so a loader that joined a
+        directory to a filename could not find it. The report's first line names
+        the file it read, which is how a run says out loud which table it used.
+        """
+        config = self.setup_corpus(tmp_path)
+        elsewhere = tmp_path / "inputs" / "boards.toml"
+        write_aliases(elsewhere, STANDARD_TABLE)
+        (config.data_dir / "aliases.toml").unlink()
+        config = replace(config, alias_table_path=elsewhere)
+
+        assert run(config, Namespace(check=True)) == 0
+
+        captured = capsys.readouterr()
+        assert captured.out.splitlines()[0] == f"Alias table: {elsewhere}"
+
+    def test_a_missing_configured_table_returns_one_naming_that_path(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The refusal names the path that was configured, not a guessed one."""
+        config = self.setup_corpus(tmp_path)
+        absent = tmp_path / "inputs" / "boards.toml"
+        config = replace(config, alias_table_path=absent)
+
+        assert run(config, Namespace(check=True)) == 1
+
+        captured = capsys.readouterr()
+        assert str(absent) in captured.out
+        assert "aliases.toml" not in captured.out.replace(str(absent), "")
 
     def test_missing_check_flag_prints_usage_and_returns_two(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

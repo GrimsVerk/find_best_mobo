@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from find_best_mobo.config import Config, load_config
+from find_best_mobo.config import DEFAULT_ALIAS_TABLE, Config, load_config
 
 # Flat top-level keys, no sections; start_date is a native TOML date and
 # data_dir a string path (settled contract, docs/plans/corpus-and-checkpoint.md).
@@ -29,6 +29,7 @@ chars_per_token = 3.5
 consecutive_fetch_error_limit = 4
 fetch_error_rate_limit = 0.1
 missing_caption_rate_limit = 0.2
+alias_table_path = "inputs/boards.toml"
 """
 
 
@@ -54,6 +55,7 @@ def test_load_config_reads_every_field(tmp_path: Path) -> None:
         consecutive_fetch_error_limit=4,
         fetch_error_rate_limit=0.1,
         missing_caption_rate_limit=0.2,
+        alias_table_path=Path("inputs/boards.toml"),
     )
 
 
@@ -81,6 +83,8 @@ def test_load_config_empty_file_yields_in_code_defaults(tmp_path: Path) -> None:
     assert config.shorts_max_seconds > 0
     assert "youtube.com" in config.channel_url
     assert config.data_dir == Path("data")
+    # R1007: the alias table is a configured path, and its default is a FILE.
+    assert config.alias_table_path == DEFAULT_ALIAS_TABLE
 
 
 def test_load_config_overrides_only_present_keys(tmp_path: Path) -> None:
@@ -94,3 +98,47 @@ def test_load_config_overrides_only_present_keys(tmp_path: Path) -> None:
     # Absent keys keep their in-code defaults.
     assert config.window_before_seconds == 120
     assert config.start_date == date(2023, 1, 1)
+
+
+def test_alias_table_path_is_read_from_the_key(tmp_path: Path) -> None:
+    """R1007: a configured path is taken as given — no directory is joined on."""
+    path = tmp_path / "config.toml"
+    path.write_text('alias_table_path = "inputs/boards.toml"\ndata_dir = "elsewhere"\n')
+
+    config = load_config(path)
+
+    assert config.alias_table_path == Path("inputs/boards.toml")
+
+
+def test_alias_table_path_does_not_follow_data_dir(tmp_path: Path) -> None:
+    """R1007: the table is input, the cache is not, so moving one never moves the other.
+
+    Before R1007 both loaders read `config.data_dir / "aliases.toml"`, so
+    pointing `data_dir` at another cache silently relocated a hand-authored file
+    with it. Setting `data_dir` alone must now leave the table exactly where it
+    was.
+    """
+    path = tmp_path / "config.toml"
+    path.write_text('data_dir = "elsewhere/cache"\n')
+
+    config = load_config(path)
+
+    assert config.data_dir == Path("elsewhere/cache")
+    assert config.alias_table_path == DEFAULT_ALIAS_TABLE
+    assert not str(config.alias_table_path).startswith("elsewhere")
+
+
+def test_the_two_alias_table_defaults_agree(tmp_path: Path) -> None:
+    """The field default and `load_config`'s fallback are one constant, not two.
+
+    `alias_table_path` is the only field carrying an in-code default as well as
+    a `load_config` fallback (OD-11's blast-radius derivation). Two defaults can
+    drift; this is what stops them.
+    """
+    path = tmp_path / "config.toml"
+    path.write_text("")
+
+    from_loader = load_config(path).alias_table_path
+    from_field = Config.__dataclass_fields__["alias_table_path"].default
+
+    assert from_loader == from_field == DEFAULT_ALIAS_TABLE
