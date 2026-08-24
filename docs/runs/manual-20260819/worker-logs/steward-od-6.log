@@ -33,7 +33,7 @@ Permission allow rule (--allowed-tools): Write(docs/plans/oracle/**) is not matc
 Permission allow rule (--allowed-tools): Write(docs/BACKLOG.md) is not matched by file permission checks — only Edit(path) rules are. Use Edit(docs/BACKLOG.md) instead (Edit rules cover all file-editing tools).
 ## What happened
 
-**The work is done; it could not be landed.** Partway through, the worktree I was running in — `/home/loke/code/GrimsVerk/find_best_mobo/.worktrees/steward-od-6` — was deleted out from under the session. The sandbox confines me to exactly that path, so I can no longer create it, write into it, or reach the repository to commit. I verified this three ways: the directory does not exist, `mkdir` on it is refused as "outside the allowed directory", and `git` against the main repository is refused too. Nothing was committed and no branch or pull request exists.
+**The work is done; it could not be landed.** Partway through, the worktree I was running in — `<repos_root>/find_best_mobo/.worktrees/steward-od-6` — was deleted out from under the session. The sandbox confines me to exactly that path, so I can no longer create it, write into it, or reach the repository to commit. I verified this three ways: the directory does not exist, `mkdir` on it is refused as "outside the allowed directory", and `git` against the main repository is refused too. Nothing was committed and no branch or pull request exists.
 
 So the plan below is the deliverable, in the only place left to put it. Recreating the worktree and pasting it into `docs/plans/oracle/caption-split-alias-matching.md` is a one-step recovery — I had already read the decision, the design, both relevant modules, and their tests before the directory vanished.
 
