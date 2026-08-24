@@ -25,7 +25,9 @@ from pathlib import Path
 import pytest
 
 from find_best_mobo.aliases import (
+    ITX_SUFFIX,
     Alias,
+    itx_forms,
     Mention,
     alias_pattern,
     compile_matcher,
@@ -526,6 +528,190 @@ class TestFindTitleHits:
         matcher = matcher_for(STANDARD_TABLE, tmp_path)
 
         assert find_title_hits(make_video("vid1", ""), matcher) == frozenset()
+
+
+ITX_TOKENS: tuple[tuple[str, str], ...] = (
+    ("b850i", "B850"),
+    ("x870i", "X870"),
+    ("b650i", "B650"),
+    ("a620i", "A620"),
+    ("x670ei", "X670E"),
+)
+
+ITX_TABLE: tuple[Mapping[str, object], ...] = (
+    {"canonical": "B850", "kind": "chipset", "surface_forms": ["b850", "b 850"]},
+    {"canonical": "X870", "kind": "chipset", "surface_forms": ["x870", "x 870"]},
+    {"canonical": "B650", "kind": "chipset", "surface_forms": ["b650", "b 650"]},
+    {"canonical": "A620", "kind": "chipset", "surface_forms": ["a620", "a 620"]},
+    {"canonical": "X670E", "kind": "chipset", "surface_forms": ["x670e", "x 670 e"]},
+    {"canonical": "ASRock", "kind": "vendor", "surface_forms": ["asrock"]},
+    {"canonical": "Taichi", "kind": "family", "surface_forms": ["taichi"]},
+    {"canonical": "9950X3D", "kind": "cpu", "surface_forms": ["9950x3d"]},
+    {"canonical": "Pro RS", "kind": "board", "surface_forms": ["pro rs"]},
+)
+
+
+class TestItxForms:
+    """`itx_forms` — R1003's derivation as a unit, before any pattern exists."""
+
+    def test_a_chipset_derives_its_form_with_a_trailing_i(self) -> None:
+        assert itx_forms(make_alias("B850", "b850")) == ("b850i",)
+
+    def test_the_derived_form_is_the_form_plus_the_single_suffix(self) -> None:
+        assert ITX_SUFFIX == "i"
+        assert itx_forms(make_alias("X870", "x870")) == ("x870" + ITX_SUFFIX,)
+
+    def test_every_declared_form_derives_one_in_declaration_order(self) -> None:
+        """Not the canonical alone: a spelling added later must derive too."""
+        assert itx_forms(make_alias("X670E", "x670e", "670e")) == ("x670ei", "670ei")
+
+    def test_forms_are_normalized_before_the_suffix(self) -> None:
+        assert itx_forms(make_alias("X670E", "X 670 E")) == ("x670ei",)
+
+    @pytest.mark.parametrize("kind", ["board", "family", "cpu", "vendor"])
+    def test_no_other_kind_derives_anything(self, kind: str) -> None:
+        """R1003 names the chipset. `asrocki` would be an invented word."""
+        assert itx_forms(make_alias("ASRock", "asrock", kind=kind)) == ()
+
+    def test_a_form_already_ending_in_the_suffix_derives_nothing(self) -> None:
+        """`b850ii` is an alternative no text can reach."""
+        assert itx_forms(make_alias("B650I", "b650i")) == ()
+
+    def test_a_form_that_normalizes_onto_a_trailing_i_derives_nothing(self) -> None:
+        assert itx_forms(make_alias("X870I", "x 870 i")) == ()
+
+    def test_the_other_forms_still_derive_when_one_is_skipped(self) -> None:
+        assert itx_forms(make_alias("B650", "b650", "b650i")) == ("b650i",)
+
+    def test_a_form_that_normalizes_to_nothing_is_skipped(self) -> None:
+        assert itx_forms(make_alias("B850", "...", "b850")) == ("b850i",)
+
+    def test_forms_colliding_within_one_alias_derive_once(self) -> None:
+        assert itx_forms(make_alias("B650", "b650", "b 650")) == ("b650i",)
+
+    def test_an_alias_with_no_forms_derives_nothing(self) -> None:
+        assert itx_forms(make_alias("B850")) == ()
+
+    def test_returns_a_tuple(self) -> None:
+        assert isinstance(itx_forms(make_alias("B850", "b850")), tuple)
+
+    def test_is_pure_and_leaves_the_alias_alone(self) -> None:
+        alias = make_alias("B850", "b850", "b 850")
+
+        assert itx_forms(alias) == itx_forms(alias)
+        assert alias.surface_forms == ("b850", "b 850")
+
+
+class TestItxChipsetVariant:
+    """R1003 through the compiled pattern: `<chipset>i` counts as the chipset."""
+
+    @pytest.mark.parametrize(("text", "canonical"), ITX_TOKENS)
+    def test_an_itx_token_is_a_title_hit_for_its_chipset(
+        self, tmp_path: Path, text: str, canonical: str
+    ) -> None:
+        matcher = matcher_for(ITX_TABLE, tmp_path)
+
+        assert find_title_hits(make_video("vid1", text), matcher) == frozenset({canonical})
+
+    @pytest.mark.parametrize(("text", "canonical"), ITX_TOKENS)
+    def test_an_itx_token_mid_title_is_a_title_hit(
+        self, tmp_path: Path, text: str, canonical: str
+    ) -> None:
+        matcher = matcher_for(ITX_TABLE, tmp_path)
+        video = make_video("vid1", f"the {text} is a tiny board")
+
+        assert find_title_hits(video, matcher) == frozenset({canonical})
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "b850i",
+            "so the b850i is a tiny board",
+            "b850i boards run hot",
+            "he would rather have the b850i",
+        ],
+    )
+    def test_an_itx_token_is_a_body_mention_wherever_it_sits(
+        self, tmp_path: Path, text: str
+    ) -> None:
+        matcher = matcher_for(ITX_TABLE, tmp_path)
+
+        mentions = find_mentions(make_transcript("vid1", (0.0, text)), matcher)
+
+        assert [(m.canonical, m.matched_form) for m in mentions] == [("B850", "b850i")]
+
+    def test_the_plain_chipset_form_is_untouched(self, tmp_path: Path) -> None:
+        matcher = matcher_for(ITX_TABLE, tmp_path)
+
+        mentions = find_mentions(make_transcript("vid1", (0.0, "the b850 board")), matcher)
+
+        assert [(m.canonical, m.matched_form) for m in mentions] == [("B850", "b850")]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "theb850i",
+            "xb850i",
+            "b850ix",
+            "b850i7",
+            "b850ie",
+            "b850ii",
+            "asrocki",
+            "taichii",
+            "9950x3di",
+            "pro rsi",
+        ],
+    )
+    def test_the_right_boundary_stays_in_force(self, tmp_path: Path, text: str) -> None:
+        """The derived form is a FORM, not a relaxed boundary.
+
+        `theb850i` and `b850ix` still start or end inside a token; `b850ii` is
+        derived by nothing; and `asrocki`, `taichii`, `9950x3di` and `pro rsi`
+        are a vendor, a family, a CPU and a board, none of which derive.
+        """
+        matcher = matcher_for(ITX_TABLE, tmp_path)
+
+        assert matcher.search(text) is None, f"{text!r} must match nothing"
+
+    @pytest.mark.parametrize("text", ["theb650", "b650ex", "xb650e", "9b650", "b6501"])
+    def test_the_negatives_the_suite_already_pinned_are_unchanged(
+        self, tmp_path: Path, text: str
+    ) -> None:
+        matcher = matcher_for(ITX_TABLE, tmp_path)
+
+        assert matcher.search(text) is None, f"{text!r} must match nothing"
+
+    @pytest.mark.parametrize("explicit_first", [True, False])
+    def test_an_explicitly_declared_itx_form_beats_the_derived_one(
+        self, tmp_path: Path, explicit_first: bool
+    ) -> None:
+        """Explicit beats derived, in either declaration order.
+
+        This is the existing first-declared-wins de-duplication doing its job
+        over a second source of forms, not a new rule: every declared form is
+        enumerated before any derived one, so the hand-written `b650i` claims
+        the form and B650's derived one drops out silently — exactly as a
+        duplicate declared form does today.
+        """
+        b650 = {"canonical": "B650", "kind": "chipset", "surface_forms": ["b650"]}
+        b650i = {"canonical": "B650I", "kind": "chipset", "surface_forms": ["b650i"]}
+        entries = [b650i, b650] if explicit_first else [b650, b650i]
+        matcher = matcher_for(entries, tmp_path)
+
+        assert find_title_hits(make_video("v", "b650i"), matcher) == frozenset({"B650I"})
+        assert len(matcher.findall("b650i")) == 1
+        assert find_title_hits(make_video("v", "b650"), matcher) == frozenset({"B650"})
+
+    def test_the_pattern_is_identical_across_compilations(self, tmp_path: Path) -> None:
+        """R23: the derived pass walks the same table in the same order."""
+        aliases = load_aliases(write_aliases(tmp_path / "aliases.toml", ITX_TABLE))
+
+        assert compile_matcher(aliases).pattern == compile_matcher(aliases).pattern
+
+    def test_an_empty_table_still_matches_nothing(self) -> None:
+        matcher = compile_matcher(())
+
+        assert matcher.search("b850i") is None
 
 
 class TestAliasesCommand:

@@ -24,6 +24,11 @@
 # prices, temperatures, and wattages. The `670e`-style forms are kept because the
 # trailing E makes them distinctive.
 
+# A chipset needs NO `<chipset>i` surface form: the matcher derives one from
+# every form declared here, so `b850i` finds B850 (OD-7, R1003). Adding one by
+# hand still works and wins — declared forms are enumerated before derived ones
+# — but it is maintenance nobody has to do.
+#
 # --- Chipsets -----------------------------------------------------------------
 
 [[alias]]
