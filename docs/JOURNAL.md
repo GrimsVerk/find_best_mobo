@@ -309,3 +309,19 @@ Next session: after the template release lands, `copier update` on a
 branches). The open owner ruling is the end-to-end dispatch smoke test's
 budget policy, and whether a project may ever patch its own driver (the
 postmortem recommends: no, and build the smoke test instead).
+
+## 2026-08-24 — Restart: rulings recorded, hand-off to the local agent
+
+The template test runs are done; `run/local`, `run/web` and the two chore
+report branches are FROZEN for the owner's post-mortem — read them, never
+write. Work continues from `claude/template-lessons-merge-26dxdn`, branched
+from `run/local`'s tip and covered by the same ruleset; after the
+post-mortem the owner merges it back into `run/local` and decides further.
+
+For the next (local) session, in order: fix BL-15 (approved — DECISIONS.md
+2026-08-24), then Stage B per BL-23 under the BL-24/25/26 rulings. The
+template stays at v0.4.42 until the freeze lifts (v0.4.49 exists upstream;
+update on a `template/` branch afterwards). Open elsewhere: a template fix
+pull request from this session, and the web-credential ruleset bypass,
+which sits with the owner. The empty "ruleset probe" commit on the work
+branch is that bypass test's record.

@@ -69,3 +69,4 @@ _(nothing yet)_
 - `BL-12` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
 - `BL-13` — approved by: owner — 2026-08-19 — blanket approval, 2026-08-19 ruling in docs/DECISIONS.md
 - `BL-23` — approved by: owner — 2026-08-20 — instructed in chat: "add stage B and mark it approved by me", after the operator confirmed Stage A runs end to end
+- `BL-15` — approved by: owner — 2026-08-24 — instructed in chat: "fix BL-15", in the post-run restart session
