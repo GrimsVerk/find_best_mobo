@@ -181,9 +181,7 @@ def lines_with(output: str, token: str) -> list[str]:
 def line_index(output: str, token: str) -> int:
     """The index of the one output line mentioning `token`."""
     hits = [
-        index
-        for index, line in enumerate(output.splitlines())
-        if token.lower() in line.lower()
+        index for index, line in enumerate(output.splitlines()) if token.lower() in line.lower()
     ]
     assert len(hits) == 1, f"expected exactly one line mentioning {token!r}:\n{output}"
     return hits[0]
@@ -268,9 +266,7 @@ class TestProjectCarriesCoverage:
             make_selection(SKIPPED, EXCLUDED, has_transcript=True),
         ]
 
-        assert project([], selections, config).coverage == Coverage(
-            considered=2, with_transcript=1
-        )
+        assert project([], selections, config).coverage == Coverage(considered=2, with_transcript=1)
 
     def test_an_excluded_selection_never_lowers_the_figure(self, tmp_path: Path) -> None:
         config = make_config(tmp_path / "data")
@@ -281,9 +277,7 @@ class TestProjectCarriesCoverage:
             make_selection(SKIPPED, EXCLUDED, has_transcript=False),
         ]
 
-        assert project([], selections, config).coverage == Coverage(
-            considered=2, with_transcript=2
-        )
+        assert project([], selections, config).coverage == Coverage(considered=2, with_transcript=2)
 
     def test_the_denominator_is_the_videos_selected_figure(self, tmp_path: Path) -> None:
         """Two numbers in one block that must never diverge, taken from one population."""
@@ -314,9 +308,7 @@ class TestProjectCarriesCoverage:
             make_selection(OLDER, TITLE_HIT, has_transcript=True),
         ]
 
-        assert project([], selections, config).coverage == Coverage(
-            considered=2, with_transcript=2
-        )
+        assert project([], selections, config).coverage == Coverage(considered=2, with_transcript=2)
 
     def test_a_file_on_disk_does_not_override_a_recorded_miss(self, tmp_path: Path) -> None:
         """The other direction of the same rule: the record decides, not the current tree.
@@ -335,9 +327,7 @@ class TestProjectCarriesCoverage:
             make_selection(OLDER, TITLE_HIT, has_transcript=False),
         ]
 
-        assert project([], selections, config).coverage == Coverage(
-            considered=2, with_transcript=0
-        )
+        assert project([], selections, config).coverage == Coverage(considered=2, with_transcript=0)
 
     def test_no_included_selections_is_zero_of_zero(self, tmp_path: Path) -> None:
         """An empty population is a real result and reports as one (R1005)."""
@@ -345,9 +335,7 @@ class TestProjectCarriesCoverage:
         write_index_lines([SKIPPED], config.data_dir / "index.jsonl")
         selections = [make_selection(SKIPPED, EXCLUDED, has_transcript=True)]
 
-        assert project([], selections, config).coverage == Coverage(
-            considered=0, with_transcript=0
-        )
+        assert project([], selections, config).coverage == Coverage(considered=0, with_transcript=0)
 
     def test_nothing_at_all_projects_zero_coverage(self, tmp_path: Path) -> None:
         config = make_config(tmp_path / "data")
@@ -402,7 +390,9 @@ class TestRenderProjectionShowsCoverage:
 
     def test_full_coverage_still_prints(self) -> None:
         """On every run, whether or not anything is wrong."""
-        text = render_projection(replace(SAMPLE, coverage=Coverage(considered=45, with_transcript=45)))
+        text = render_projection(
+            replace(SAMPLE, coverage=Coverage(considered=45, with_transcript=45))
+        )
 
         assert f"45 of 45 {SELECTED_NOUN} had a cached transcript" in text
 

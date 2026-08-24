@@ -41,7 +41,7 @@ from find_best_mobo.config import Config
 from find_best_mobo.estimate import Projection, project, render_projection
 from find_best_mobo.excerpt import Excerpt
 from find_best_mobo.index import Video
-from find_best_mobo.select import Selection, write_selected
+from find_best_mobo.select import Coverage, Selection, write_selected
 from find_best_mobo.transcripts import Cue, Transcript, cache_path
 
 TITLE_HIT = "title_hit"
@@ -110,12 +110,20 @@ def make_selection(
     video: Video,
     reason: str = THRESHOLD,
     mentions: tuple[Mention, ...] = (),
+    *,
+    has_transcript: bool = True,
 ) -> Selection:
+    """`has_transcript` defaults to True: these fixtures describe videos that were read.
+
+    The coverage tests pass it explicitly, which is the only way the flag should
+    ever be false in a fixture (R1012).
+    """
     return Selection(
         video=video,
         reason=reason,
         mentions=mentions,
         distinct_canonicals=len({mention.canonical for mention in mentions}),
+        has_transcript=has_transcript,
     )
 
 
@@ -216,6 +224,9 @@ class TestProject:
             tokens_per_batch=(10, 20, 0, 0),
             total_tokens=30,
             chars_per_token=4.0,
+            # Two INCLUDED selections, both with transcripts; the excluded
+            # video is not in the population this number annotates.
+            coverage=Coverage(considered=2, with_transcript=2),
         )
 
     def test_videos_indexed_counts_only_the_pending_ones(self, tmp_path: Path) -> None:
@@ -342,6 +353,7 @@ class TestProject:
             tokens_per_batch=(0, 0, 0, 0),
             total_tokens=0,
             chars_per_token=4.0,
+            coverage=Coverage(considered=0, with_transcript=0),
         )
 
 
@@ -353,6 +365,9 @@ SAMPLE = Projection(
     tokens_per_batch=(11, 22, 33, 0),
     total_tokens=66,
     chars_per_token=3.5,
+    # Distinct from every other number here, so a coverage line printed with
+    # the wrong field cannot be mistaken for the right one.
+    coverage=Coverage(considered=45, with_transcript=40),
 )
 
 
@@ -429,6 +444,7 @@ class TestRenderProjection:
             tokens_per_batch=(1, 0, 0, 0),
             total_tokens=1,
             chars_per_token=4.0,
+            coverage=Coverage(considered=0, with_transcript=0),
         )
 
         assert render_projection(SAMPLE) != render_projection(other)

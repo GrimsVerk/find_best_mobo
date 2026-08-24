@@ -34,7 +34,7 @@ from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
 from find_best_mobo.estimate import project, render_projection
 from find_best_mobo.excerpt import Excerpt, cap_per_video, cut_windows, merge_overlapping
-from find_best_mobo.select import EXCLUDED, Selection, read_selected
+from find_best_mobo.select import EXCLUDED, Selection, read_selected, transcript_coverage
 from find_best_mobo.transcripts import load_cached
 
 
@@ -60,8 +60,21 @@ def run(config: Config, args: Namespace) -> int:
         return 1
     selections = tuple(read_selected(path))
 
+    included = _included_recent_first(selections)
+    coverage = transcript_coverage(included)
+    if coverage.considered > 0 and coverage.with_transcript == 0:
+        # Refuse BEFORE cutting anything, so a refused run leaves data/bundles/
+        # exactly as it found it — and instead of the projection block, never
+        # above it: BL-27's whole finding is that a warning beside R7's stop
+        # sentence annotates it rather than separating it (R1012, OD-23).
+        print(
+            f"None of the {coverage.considered} selected videos has a cached transcript. "
+            "Run `find-best-mobo fetch` first."
+        )
+        return 1
+
     excerpts: list[Excerpt] = []
-    for selection in _included_recent_first(selections):
+    for selection in included:
         excerpts.extend(_excerpts_for(selection, config))
 
     bundles = assign_batches(pack_bundles(excerpts, config), config)

@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable, Iterator, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import date
 from pathlib import Path
 
@@ -52,6 +52,25 @@ class Selection:
     reason: str  # "title_hit" | "threshold" | "excluded_below_threshold"
     mentions: tuple[Mention, ...]
     distinct_canonicals: int
+    # Whether this video's transcript was in the cache when it was selected.
+    # Recorded rather than re-derived downstream: R1012 asks the projection to
+    # print "the same coverage figure", and two stages each counting for
+    # themselves would diverge the moment their populations do — `select`
+    # considers every pending video, `estimate` only the included selections.
+    has_transcript: bool
+
+
+@dataclass(frozen=True)
+class Coverage:
+    """How much of the transcript cache a stage actually had to read.
+
+    `considered` is the population the stage was working on; `with_transcript`
+    is how many of those had a cached transcript. Zero of the second over a
+    non-zero first is an unmet precondition, not a result (R1012, OD-23).
+    """
+
+    considered: int
+    with_transcript: int
 
 
 @dataclass(frozen=True)
@@ -89,6 +108,11 @@ def select_video(
         reason=reason,
         mentions=mentions,
         distinct_canonicals=distinct_canonicals,
+        # This function receives a `Transcript` and cannot tell a cached empty
+        # one from `select_all`'s stand-in, so it stays pure and says "no";
+        # the caller, which knows, overrides it. Keeping the one place that
+        # knows the one place that decides is the whole point (R1012).
+        has_transcript=False,
     )
 
 
@@ -123,8 +147,37 @@ def select_all(config: Config) -> tuple[Selection, ...]:
             continue
         cached = load_cached(video.video_id, config)
         transcript = cached if cached is not None else Transcript(video_id=video.video_id, cues=())
-        selections.append(select_video(video, transcript, matcher, config))
+        # This line is the one place that can tell a cached empty transcript
+        # from the stand-in above, so it is the one place that decides the flag.
+        # Never inferred from the mention count: a cached transcript naming no
+        # board is real coverage, not a miss.
+        selections.append(
+            replace(
+                select_video(video, transcript, matcher, config),
+                has_transcript=cached is not None,
+            )
+        )
     return tuple(selections)
+
+
+def transcript_coverage(selections: Sequence[Selection]) -> Coverage:
+    """How many of these videos had a transcript to read."""
+    return Coverage(
+        considered=len(selections),
+        with_transcript=sum(1 for selection in selections if selection.has_transcript),
+    )
+
+
+def render_coverage(coverage: Coverage, noun: str) -> str:
+    """The one line, printed on every run whether or not anything is wrong.
+
+    `noun` because the two stages count different populations — pending videos
+    at `select`, selected videos at `estimate` — and a shared renderer that
+    hard-coded one would print a false label at the other.
+    """
+    # The sentence, and only the sentence: indentation is the caller's, because
+    # the two callers sit at different depths in their own reports.
+    return f"{coverage.with_transcript} of {coverage.considered} {noun} had a cached transcript"
 
 
 def threshold_report(selections: Sequence[Selection], config: Config) -> ThresholdReport:
@@ -209,6 +262,7 @@ def read_selected(path: Path) -> Iterator[Selection]:
                     for mention in record["mentions"]
                 ),
                 distinct_canonicals=record["distinct_canonicals"],
+                has_transcript=bool(record["has_transcript"]),
             )
 
 
@@ -226,4 +280,5 @@ def _record(selection: Selection) -> dict[str, object]:
         "reason": selection.reason,
         "mentions": [asdict(mention) for mention in selection.mentions],
         "distinct_canonicals": selection.distinct_canonicals,
+        "has_transcript": selection.has_transcript,
     }

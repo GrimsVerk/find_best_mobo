@@ -331,7 +331,9 @@ class TestTranscriptCoverage:
         assert transcript_coverage(()) == Coverage(considered=0, with_transcript=0)
 
     def test_a_full_cache_covers_everything_it_considered(self) -> None:
-        selections = [make_selection(f"v{index}", THRESHOLD, has_transcript=True) for index in range(3)]
+        selections = [
+            make_selection(f"v{index}", THRESHOLD, has_transcript=True) for index in range(3)
+        ]
 
         assert transcript_coverage(selections) == Coverage(considered=3, with_transcript=3)
 
@@ -390,7 +392,7 @@ class TestRenderCoverage:
         assert text == "189 of 285 pending videos had a cached transcript"
 
     def test_the_covered_count_comes_first(self) -> None:
-        """"2 of 5" and "5 of 2" are the same characters and opposite claims."""
+        """ "2 of 5" and "5 of 2" are the same characters and opposite claims."""
         text = render_coverage(Coverage(considered=5, with_transcript=2), PENDING_NOUN)
 
         assert text.startswith("2 of 5")
@@ -405,7 +407,9 @@ class TestRenderCoverage:
 
         assert PENDING_NOUN in render_coverage(coverage, PENDING_NOUN)
         assert "selected videos" in render_coverage(coverage, "selected videos")
-        assert render_coverage(coverage, PENDING_NOUN) != render_coverage(coverage, "selected videos")
+        assert render_coverage(coverage, PENDING_NOUN) != render_coverage(
+            coverage, "selected videos"
+        )
 
     def test_zero_of_zero_renders_as_a_figure_not_an_absence(self) -> None:
         """An empty population still prints, because a run that skips the line is a run nobody can compare."""
@@ -429,7 +433,7 @@ class TestSelectAllRecordsTheCacheHit:
     def test_a_cached_transcript_naming_no_board_is_coverage_not_a_miss(
         self, tmp_path: Path
     ) -> None:
-        """"He said nothing about boards" and "we read nothing" are different facts (V12).
+        """ "He said nothing about boards" and "we read nothing" are different facts (V12).
 
         `quiet` is cached, was read, and mentions no board: it is excluded from
         the corpus and still counts as coverage. This is the assertion that
@@ -491,7 +495,9 @@ class TestSelectAllRecordsTheCacheHit:
 
         selections = select_all(config)
 
-        assert transcript_coverage(selections) == Coverage(considered=CORPUS_PENDING, with_transcript=0)
+        assert transcript_coverage(selections) == Coverage(
+            considered=CORPUS_PENDING, with_transcript=0
+        )
         assert len(selections) == CORPUS_PENDING
 
 
@@ -615,9 +621,10 @@ class TestSelectCommandPrintsCoverage:
         assert run(config, Namespace()) == 0
         capsys.readouterr()
 
-        restored = {s.video.video_id: s.has_transcript for s in read_selected(
-            config.data_dir / "selected.jsonl"
-        )}
+        restored = {
+            s.video.video_id: s.has_transcript
+            for s in read_selected(config.data_dir / "selected.jsonl")
+        }
         assert restored == {"hit": True, "pass": True, "quiet": True, "bare": False}
 
 
@@ -642,7 +649,7 @@ class TestZeroCoverageRefuses:
     def test_the_refusal_says_the_population_it_measured(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """"No transcripts" is unactionable; "none of 4 pending videos" is a measurement."""
+        """ "No transcripts" is unactionable; "none of 4 pending videos" is a measurement."""
         config = build_corpus(tmp_path, cached=())
 
         assert run(config, Namespace()) == 1
