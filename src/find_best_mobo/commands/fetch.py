@@ -8,11 +8,20 @@ owner as a named trigger, the ledger, and exit code 1 — never a traceback.
 from __future__ import annotations
 
 from argparse import Namespace
+from collections.abc import Sequence
 
+from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
 from find_best_mobo.index import read_index
 from find_best_mobo.ledger import HaltTriggered, Ledger
 from find_best_mobo.transcripts import fetch_all
+
+
+def parse_args(argv: Sequence[str]) -> Namespace:
+    """This stage declares no flags, so anything left over is its error (R1006)."""
+    return subcommand_parser(
+        "fetch", "Cache every pending video's transcript, and log what failed."
+    ).parse_args(list(argv))
 
 
 def run(config: Config, args: Namespace) -> int:
