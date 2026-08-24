@@ -63,21 +63,10 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 # `aliases` reports the alias table's recall; it is a diagnostic and produces no
-# data the pipeline reads, so it is not in ALL_STAGES.
-#
-# It is invoked through Python rather than the CLI because it REQUIRES --check
-# and the dispatcher cannot pass per-subcommand flags — logged as BL-5 in
-# docs/BACKLOG.md. This is a visible workaround for that, not a fix: when BL-5
-# is ruled on, this block should become a plain `uv run find-best-mobo aliases`.
-run_aliases() {
-  uv run python -c "
-from argparse import Namespace
-from pathlib import Path
-from find_best_mobo.config import load_config
-from find_best_mobo.commands import aliases
-raise SystemExit(aliases.run(load_config(Path('config.toml')), Namespace(check=True)))
-"
-}
+# data the pipeline reads, so it is not in ALL_STAGES. It requires --check, and
+# the flag now reaches it through the CLI like any other (OD-10, R1006). The
+# `python -c` block that used to live here was BL-5's workaround; it is gone,
+# and tests/test_run_script.py is what stops it coming back.
 
 if [ "$#" -gt 0 ]; then
   STAGES=("$@")
@@ -101,7 +90,7 @@ for stage in "${STAGES[@]}"; do
   echo "  $stage"
   echo "=============================================================="
   case "$stage" in
-    aliases) run_aliases ;;
+    aliases) uv run find-best-mobo aliases --check ;;
     *) uv run find-best-mobo "$stage" ;;
   esac
 done
