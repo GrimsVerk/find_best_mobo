@@ -2,9 +2,13 @@
 
 Written blind from the slice spec and the shared contract while the
 implementation is authored in parallel, so failing imports are the expected
-state until assembly. The only surface faked here is ``fetch_caption_track``,
-the declared caption boundary in ``find_best_mobo.ytdlp`` — patched where
+state until assembly. The only surface faked here is ``fetch_video``, the
+declared per-video boundary in ``find_best_mobo.ytdlp`` — patched where
 ``transcripts.py`` uses it, never a level deeper, and never the unit under test.
+
+``fetch_caption_track`` was that boundary until OD-8/R1004: a function that also
+returns the description is not a caption-track fetcher, so it was renamed in the
+slice that changed what it returns, and this file fakes the new name.
 """
 
 # ruff: noqa: I001
@@ -18,6 +22,7 @@ import json
 import re
 from argparse import Namespace
 from collections.abc import Callable, Iterable
+from dataclasses import FrozenInstanceError
 from datetime import date
 from pathlib import Path
 
@@ -37,6 +42,7 @@ from find_best_mobo.transcripts import (
     load_cached,
     parse_vtt,
 )
+from find_best_mobo.ytdlp import VideoFetch
 
 FIXTURE = Path(__file__).parent / "fixtures" / "captions_vtt.txt"
 
@@ -52,6 +58,13 @@ EXPECTED_CUES = (
 )
 
 SIMPLE_VTT = "WEBVTT\n\n00:00:02.000 --> 00:00:03.000\nhello there\n"
+
+# BL-11's measured description, verbatim, with invented surroundings. The
+# hashtag line is the evidence OD-8 was decided on; everything around it is
+# padding, and no assertion in this file reads the padding.
+DESCRIPTION = (
+    "Full teardown of the little board.\nLinks and timestamps below.\n#AMD #ryzen #MSI #B850 #ITX\n"
+)
 
 
 def make_config(
@@ -93,11 +106,21 @@ def make_video(video_id: str, *, inclusion: str = "pending", title: str = "") ->
 
 
 class Boundary:
-    """The faked caption boundary, plus the record of how it was called."""
+    """The faked per-video boundary, plus the record of how it was called.
+
+    Captions and description are answered together, from one call, because
+    ``fetch_video`` gets both out of one extraction (OD-8).
+    """
 
     def __init__(self) -> None:
         self.calls: list[str] = []
         self.handler: Callable[[str], str | None] = lambda video_id: SIMPLE_VTT
+        self.descriptions: dict[str, str] = {}
+        self.default_description = ""
+
+    def set_descriptions(self, mapping: dict[str, str]) -> None:
+        """Answer these video ids with these descriptions, others with ``""``."""
+        self.descriptions = dict(mapping)
 
     def set_map(self, mapping: dict[str, str | None | Exception]) -> None:
         """Answer per video id: WebVTT text, None (no captions), or an exception."""
@@ -125,24 +148,30 @@ class Boundary:
 
 @pytest.fixture
 def boundary(monkeypatch: pytest.MonkeyPatch) -> Boundary:
-    """Fake ``fetch_caption_track`` — the one surface a test may fake here."""
+    """Fake ``fetch_video`` — the one surface a test may fake here."""
     fake = Boundary()
 
-    def fake_fetch_caption_track(video_id: str, config: Config) -> str | None:
+    def fake_fetch_video(video_id: str, config: Config) -> VideoFetch:
         assert isinstance(config, Config)
         fake.calls.append(video_id)
-        return fake.handler(video_id)
+        # The handler runs first: whatever goes wrong reaching YouTube raises
+        # here rather than being folded into a returned value.
+        captions = fake.handler(video_id)
+        return VideoFetch(
+            captions=captions,
+            description=fake.descriptions.get(video_id, fake.default_description),
+        )
 
     import find_best_mobo.ytdlp as ytdlp_boundary
 
-    monkeypatch.setattr(ytdlp_boundary, "fetch_caption_track", fake_fetch_caption_track)
+    monkeypatch.setattr(ytdlp_boundary, "fetch_video", fake_fetch_video)
 
     import find_best_mobo.commands.fetch as command_module
     import find_best_mobo.transcripts as transcripts_module
 
     for module in (transcripts_module, command_module):
-        if hasattr(module, "fetch_caption_track"):
-            monkeypatch.setattr(module, "fetch_caption_track", fake_fetch_caption_track)
+        if hasattr(module, "fetch_video"):
+            monkeypatch.setattr(module, "fetch_video", fake_fetch_video)
     return fake
 
 
@@ -615,3 +644,296 @@ class TestFetchCommand:
 
         assert run(config, Namespace()) == 0
         assert boundary.calls == [], "R2: a rerun never refetches what is cached"
+
+
+class TestVideoFetch:
+    """The boundary's return type: captions as before, description beside them."""
+
+    def test_it_carries_both_fields_and_compares_by_value(self) -> None:
+        assert VideoFetch(captions=SIMPLE_VTT, description=DESCRIPTION) == VideoFetch(
+            captions=SIMPLE_VTT, description=DESCRIPTION
+        )
+
+    def test_the_field_order_is_captions_then_description(self) -> None:
+        # Positional construction is part of the declared signature.
+        positional = VideoFetch(SIMPLE_VTT, DESCRIPTION)
+
+        assert positional.captions == SIMPLE_VTT
+        assert positional.description == DESCRIPTION
+
+    def test_it_is_frozen(self) -> None:
+        fetched = VideoFetch(captions=SIMPLE_VTT, description=DESCRIPTION)
+
+        with pytest.raises(FrozenInstanceError):
+            fetched.description = "rewritten"  # type: ignore[misc]
+
+    def test_captions_may_be_none_and_description_still_stands(self) -> None:
+        # The no-caption case: R1004 hands the video to the failure ledger, but
+        # the boundary has still read a description and says so honestly.
+        fetched = VideoFetch(captions=None, description=DESCRIPTION)
+
+        assert fetched.captions is None
+        assert fetched.description == DESCRIPTION
+
+
+class TestTranscriptDescriptionField:
+    def test_the_field_defaults_to_empty_so_old_constructions_still_compile(self) -> None:
+        transcript = Transcript(video_id="vid1", cues=())
+
+        assert transcript.description == ""
+
+    def test_it_is_the_last_field_and_takes_a_positional(self) -> None:
+        transcript = Transcript("vid1", (Cue(start_seconds=1.0, text="hi"),), "notes")
+
+        assert transcript.description == "notes"
+
+    def test_two_transcripts_differing_only_in_description_are_not_equal(self) -> None:
+        assert Transcript(video_id="vid1", cues=(), description="a") != Transcript(
+            video_id="vid1", cues=(), description="b"
+        )
+
+
+class TestFetchTranscriptDescription:
+    def test_the_description_rides_along_with_the_cues(
+        self, boundary: Boundary, tmp_path: Path
+    ) -> None:
+        config = make_config(tmp_path)
+        boundary.set_map({"vid1": FIXTURE.read_text()})
+        boundary.set_descriptions({"vid1": DESCRIPTION})
+
+        transcript = fetch_transcript(make_video("vid1"), config)
+
+        assert transcript == Transcript(
+            video_id="vid1", cues=EXPECTED_CUES, description=DESCRIPTION
+        )
+
+    def test_one_boundary_call_produces_both(self, boundary: Boundary, tmp_path: Path) -> None:
+        """OD-8's whole answer to BL-11's cost objection: no second request."""
+        config = make_config(tmp_path)
+        boundary.set_descriptions({"vid1": DESCRIPTION})
+
+        transcript = fetch_transcript(make_video("vid1"), config)
+
+        assert boundary.calls == ["vid1"], "the description must cost no extra fetch"
+        assert transcript.cues != ()
+        assert transcript.description == DESCRIPTION
+
+    def test_no_description_is_the_empty_string_not_a_failure(
+        self, boundary: Boundary, tmp_path: Path
+    ) -> None:
+        transcript = fetch_transcript(make_video("vid1"), make_config(tmp_path))
+
+        assert transcript.description == ""
+
+    def test_the_description_is_taken_verbatim(self, boundary: Boundary, tmp_path: Path) -> None:
+        # No stripping, no truncation, no parsing of hashtags or links: whatever
+        # normalization matching needs is matching's business, one stage later.
+        raw = "  \n\n#B850   #ITX\nhttps://example.com/a-very-long-affiliate-link?x=1\n  "
+        boundary.set_descriptions({"vid1": raw})
+
+        transcript = fetch_transcript(make_video("vid1"), make_config(tmp_path))
+
+        assert transcript.description == raw
+
+    def test_no_captions_still_raises_even_with_a_description(
+        self, boundary: Boundary, tmp_path: Path
+    ) -> None:
+        """R1004: a description cannot conjure a transcript."""
+        boundary.always_none()
+        boundary.set_descriptions({"vid1": DESCRIPTION})
+
+        with pytest.raises(NoCaptions):
+            fetch_transcript(make_video("vid1"), make_config(tmp_path))
+
+    def test_a_fetch_error_still_propagates_even_with_a_description(
+        self, boundary: Boundary, tmp_path: Path
+    ) -> None:
+        error = RuntimeError("HTTP 429 from YouTube")
+        boundary.always_raise(error)
+        boundary.set_descriptions({"vid1": DESCRIPTION})
+
+        with pytest.raises(RuntimeError) as caught:
+            fetch_transcript(make_video("vid1"), make_config(tmp_path))
+
+        assert caught.value is error
+
+
+class TestDescriptionInTheCache:
+    def test_it_is_written_and_read_back(self, boundary: Boundary, tmp_path: Path) -> None:
+        config = make_config(tmp_path)
+        boundary.set_map({"vid1": SIMPLE_VTT})
+        boundary.set_descriptions({"vid1": DESCRIPTION})
+
+        fetch_all([make_video("vid1")], config, make_ledger(config, 1))
+
+        assert load_cached("vid1", config) == Transcript(
+            video_id="vid1",
+            cues=(Cue(start_seconds=2.0, text="hello there"),),
+            description=DESCRIPTION,
+        )
+
+    def test_each_video_keeps_its_own(self, boundary: Boundary, tmp_path: Path) -> None:
+        config = make_config(tmp_path)
+        boundary.set_map({"vid1": SIMPLE_VTT, "vid2": SIMPLE_VTT})
+        boundary.set_descriptions({"vid1": DESCRIPTION, "vid2": "a different one"})
+
+        fetch_all([make_video("vid1"), make_video("vid2")], config, make_ledger(config, 2))
+
+        first = load_cached("vid1", config)
+        second = load_cached("vid2", config)
+        assert first is not None and second is not None
+        assert first.description == DESCRIPTION
+        assert second.description == "a different one"
+
+    def test_the_record_gains_exactly_one_key(self, boundary: Boundary, tmp_path: Path) -> None:
+        config = make_config(tmp_path)
+        boundary.set_descriptions({"vid1": DESCRIPTION})
+
+        fetch_all([make_video("vid1")], config, make_ledger(config, 1))
+
+        record = json.loads(cache_path("vid1", config).read_text())
+        assert set(record) == {"video_id", "cues", "description"}
+        assert record["description"] == DESCRIPTION
+
+    def test_the_file_is_still_deterministic_json_with_one_trailing_newline(
+        self, boundary: Boundary, tmp_path: Path
+    ) -> None:
+        """R23: two runs over the same video produce byte-identical files."""
+        first = make_config(tmp_path / "one")
+        second = make_config(tmp_path / "two")
+        boundary.set_map({"vid1": FIXTURE.read_text()})
+        boundary.set_descriptions({"vid1": DESCRIPTION})
+
+        fetch_all([make_video("vid1")], first, make_ledger(first, 1))
+        boundary.set_map({"vid1": FIXTURE.read_text()})
+        fetch_all([make_video("vid1")], second, make_ledger(second, 1))
+
+        text = cache_path("vid1", first).read_text()
+        assert text == cache_path("vid1", second).read_text()
+        assert text.endswith("\n")
+        assert not text.endswith("\n\n")
+        assert text == json.dumps(json.loads(text), sort_keys=True) + "\n"
+
+    def test_an_empty_description_is_still_written_as_a_key(
+        self, boundary: Boundary, tmp_path: Path
+    ) -> None:
+        # A key that appears only when it fired cannot be told from one that
+        # never ran, and the shape on disk should not vary per video.
+        config = make_config(tmp_path)
+
+        fetch_all([make_video("vid1")], config, make_ledger(config, 1))
+
+        assert json.loads(cache_path("vid1", config).read_text())["description"] == ""
+
+    def test_a_video_with_no_captions_caches_nothing_however_long_its_description(
+        self, boundary: Boundary, tmp_path: Path
+    ) -> None:
+        config = make_config(tmp_path, missing_caption_rate_limit=0.9)
+        boundary.always_none()
+        boundary.set_descriptions({"vid1": DESCRIPTION})
+        # A corpus large enough that one missing track cannot trip R24's rate.
+        ledger = make_ledger(config, 100)
+
+        assert fetch_all([make_video("vid1")], config, ledger) == 0
+
+        assert not cache_path("vid1", config).exists()
+        assert [failure.failure_class for failure in ledger.failures()] == ["no_captions"]
+
+
+class TestLoadCachedWithoutADescription:
+    """The single most important behaviour in the slice.
+
+    Every cache entry the owner already has was written before this field
+    existed. `load_cached` catches `KeyError` and reads it as "no usable cache
+    entry", so a strict read would silently invalidate the whole corpus and
+    refetch it — the exact opposite of R1004's "no forced refetch".
+    """
+
+    def write_legacy_record(self, video_id: str, config: Config) -> Path:
+        """A cache file in the pre-slice shape: `video_id` and `cues`, nothing else."""
+        path = cache_path(video_id, config)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "cues": [
+                        {"start_seconds": 1.5, "text": "first"},
+                        {"start_seconds": 9.0, "text": "second"},
+                    ],
+                    "video_id": video_id,
+                },
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def test_a_record_with_no_description_key_still_loads_with_its_cues(
+        self, tmp_path: Path
+    ) -> None:
+        config = make_config(tmp_path)
+        self.write_legacy_record("old1", config)
+
+        loaded = load_cached("old1", config)
+
+        assert loaded == Transcript(
+            video_id="old1",
+            cues=(Cue(start_seconds=1.5, text="first"), Cue(start_seconds=9.0, text="second")),
+            description="",
+        )
+
+    def test_it_is_not_read_as_an_unusable_entry(self, tmp_path: Path) -> None:
+        config = make_config(tmp_path)
+        self.write_legacy_record("old1", config)
+
+        assert load_cached("old1", config) is not None, (
+            "a pre-slice cache entry must not read as absent: that refetches the whole corpus"
+        )
+
+    def test_fetch_all_still_skips_it(self, boundary: Boundary, tmp_path: Path) -> None:
+        """Nothing backfills — the cache-hit skip is what R1004 relies on."""
+        config = make_config(tmp_path)
+        path = self.write_legacy_record("old1", config)
+        before = path.read_bytes()
+        boundary.set_descriptions({"old1": DESCRIPTION})
+
+        fetched = fetch_all([make_video("old1")], config, make_ledger(config, 1))
+
+        assert fetched == 0
+        assert boundary.calls == [], "an old entry must never be refetched to acquire a description"
+        assert path.read_bytes() == before
+
+    def test_a_non_string_description_is_coerced_rather_than_rejected(self, tmp_path: Path) -> None:
+        # `video_id` is already read through `str`; a number here is a damaged
+        # record, not a reason to throw the cues away.
+        config = make_config(tmp_path)
+        path = cache_path("odd1", config)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"cues": [], "description": 850, "video_id": "odd1"}, sort_keys=True) + "\n"
+        )
+
+        loaded = load_cached("odd1", config)
+
+        assert loaded is not None
+        assert loaded.description == "850"
+
+    def test_a_null_description_loads_as_a_string(self, tmp_path: Path) -> None:
+        config = make_config(tmp_path)
+        path = cache_path("null1", config)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {"cues": [{"start_seconds": 1.0, "text": "kept"}], "video_id": "null1"}
+                | {"description": None},
+                sort_keys=True,
+            )
+            + "\n"
+        )
+
+        loaded = load_cached("null1", config)
+
+        assert loaded is not None, "a null description is not a reason to lose the cues"
+        assert loaded.cues == (Cue(start_seconds=1.0, text="kept"),)
+        assert isinstance(loaded.description, str)

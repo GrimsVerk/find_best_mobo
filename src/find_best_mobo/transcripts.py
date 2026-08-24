@@ -27,7 +27,7 @@ from find_best_mobo.config import Config
 from find_best_mobo.index import Video
 from find_best_mobo.ledger import FetchFailure as FetchFailure
 from find_best_mobo.ledger import HaltTriggered, Ledger
-from find_best_mobo.ytdlp import fetch_caption_track
+from find_best_mobo.ytdlp import fetch_video
 
 # `FetchFailure` is re-exported above in mypy's explicit `X as X` form. It is
 # the ledger's record type and is defined there, but this module is where a
@@ -66,6 +66,12 @@ class Cue:
 class Transcript:
     video_id: str
     cues: tuple[Cue, ...]
+    # The video's description, verbatim, from the same per-video extraction that
+    # fetched the captions — no additional request (OD-8, R1004). Defaults to
+    # `""` so that a cache entry written before descriptions were recorded still
+    # loads: R1004 forbids a forced refetch, and a record with no description
+    # simply has no description signal.
+    description: str = ""
 
 
 def parse_vtt(raw: str) -> tuple[Cue, ...]:
@@ -108,6 +114,12 @@ def load_cached(video_id: str, config: Config) -> Transcript | None:
                 Cue(start_seconds=float(cue["start_seconds"]), text=str(cue["text"]))
                 for cue in record["cues"]
             ),
+            # `.get`, and this is the single most important line here: today a
+            # KeyError is caught below and read as "no usable cache entry", so a
+            # strict read would silently invalidate every cache entry the owner
+            # already has and refetch the whole corpus — the opposite of
+            # R1004's "no forced refetch".
+            description=str(record.get("description", "")),
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -120,10 +132,16 @@ def fetch_transcript(video: Video, config: Config) -> Transcript:
     every other exception propagate untouched so that the caller — which owns
     the ledger — is the one place that decides what a failure means.
     """
-    raw = fetch_caption_track(video.video_id, config)
-    if raw is None:
+    fetched = fetch_video(video.video_id, config)
+    if fetched.captions is None:
+        # Before the description is used for anything: R1004 says a description
+        # cannot conjure a transcript, and the failure ledger governs this video.
         raise NoCaptions(video.video_id)
-    return Transcript(video_id=video.video_id, cues=parse_vtt(raw))
+    return Transcript(
+        video_id=video.video_id,
+        cues=parse_vtt(fetched.captions),
+        description=fetched.description,
+    )
 
 
 def fetch_all(videos: Iterable[Video], config: Config, ledger: Ledger) -> int:
@@ -185,6 +203,7 @@ def _write_cache(transcript: Transcript, config: Config) -> None:
     record = {
         "video_id": transcript.video_id,
         "cues": [{"start_seconds": cue.start_seconds, "text": cue.text} for cue in transcript.cues],
+        "description": transcript.description,
     }
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(record, sort_keys=True))

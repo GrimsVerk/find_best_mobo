@@ -32,6 +32,7 @@ from find_best_mobo.aliases import (
     Mention,
     alias_pattern,
     compile_matcher,
+    find_description_hits,
     find_mentions,
     find_title_hits,
     load_aliases,
@@ -186,6 +187,15 @@ def write_transcript(config: Config, transcript: Transcript) -> None:
         + "\n",
         encoding="utf-8",
     )
+
+
+# The standard table plus the chipset BL-11 measured, for the description tests.
+# `#AMD`, `#ryzen`, `#MSI` and `#ITX` deliberately have no forms here: the
+# measured hashtag line must hit on B850 and on nothing else, or the test would
+# pass on a signal that is not the one under examination.
+DESCRIPTION_TABLE: tuple[Mapping[str, object], ...] = STANDARD_TABLE + (
+    {"canonical": "B850", "kind": "chipset", "surface_forms": ["b850"]},
+)
 
 
 def matcher_for(entries: Sequence[Mapping[str, object]], tmp_path: Path) -> re.Pattern[str]:
@@ -1261,6 +1271,112 @@ class TestCountCrossCueCandidates:
         assert count_cross_cue_candidates(
             transcript, shipped_matcher
         ) == count_cross_cue_candidates(transcript, shipped_matcher)
+
+
+class TestFindDescriptionHits:
+    """`find_title_hits` over another string (OD-8, R1004).
+
+    It takes a plain `str` rather than a `Transcript`, so every case here is a
+    literal — no cache entry, no video record, no I/O.
+    """
+
+    def test_the_measured_hashtag_line_hits(self, tmp_path: Path) -> None:
+        """BL-11's evidence, verbatim: `#B850` is the only signal on that video.
+
+        The hashtag line is what BL-11 measured; the video it came from is not
+        reconstructed here, because this function sees nothing but the string.
+        `#` is not alphanumeric, so the matcher's boundary is satisfied with no
+        hashtag-specific rule anywhere in the code.
+        """
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+
+        assert find_description_hits("#AMD #ryzen #MSI #B850 #ITX", matcher) == frozenset({"B850"})
+
+    def test_a_plain_sentence_naming_a_board_hits(self, tmp_path: Path) -> None:
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+
+        hits = find_description_hits("A full review of the B850 board, at last.", matcher)
+
+        assert hits == frozenset({"B850"})
+
+    def test_a_name_on_its_own_line_hits(self, tmp_path: Path) -> None:
+        description = "Timestamps below.\n\nB850\n\nThanks for watching."
+
+        hits = find_description_hits(description, matcher_for(DESCRIPTION_TABLE, tmp_path))
+
+        assert hits == frozenset({"B850"})
+
+    def test_every_canonical_named_comes_back(self, tmp_path: Path) -> None:
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+
+        hits = find_description_hits("x670e versus b650e, with a taichi thrown in", matcher)
+
+        assert hits == frozenset({"X670E", "B650E", "Taichi"})
+
+    def test_repeated_hits_collapse_to_one_canonical(self, tmp_path: Path) -> None:
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+
+        assert find_description_hits("#b850 #b850 b850", matcher) == frozenset({"B850"})
+
+    def test_a_mangled_form_still_hits(self, tmp_path: Path) -> None:
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+
+        assert find_description_hits("the X-670-E boards", matcher) == frozenset({"X670E"})
+
+    def test_an_empty_description_returns_an_empty_frozenset(self, tmp_path: Path) -> None:
+        result = find_description_hits("", matcher_for(DESCRIPTION_TABLE, tmp_path))
+
+        assert result == frozenset()
+        assert isinstance(result, frozenset)
+
+    def test_nothing_matching_returns_an_empty_frozenset(self, tmp_path: Path) -> None:
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+
+        result = find_description_hits("Subscribe for more power supply teardowns!", matcher)
+
+        assert result == frozenset()
+        assert isinstance(result, frozenset)
+
+    def test_a_fused_token_yields_nothing(self, tmp_path: Path) -> None:
+        """The boundary rule is not relaxed for descriptions."""
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+
+        assert find_description_hits("theb850", matcher) == frozenset()
+        assert find_description_hits("b850x", matcher) == frozenset()
+
+    def test_boilerplate_and_links_are_matched_like_any_other_text(self, tmp_path: Path) -> None:
+        """R1004 says "a normalized alias hit in the description", unqualified."""
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+        description = (
+            "Patreon: https://example.com/patreon\n"
+            "Board bought here: https://example.com/b850-mobo?ref=1\n"
+        )
+
+        assert find_description_hits(description, matcher) == frozenset({"B850"})
+
+    def test_an_empty_table_matches_nothing(self, tmp_path: Path) -> None:
+        matcher = matcher_for((), tmp_path)
+
+        assert find_description_hits("#B850 x670e taichi", matcher) == frozenset()
+
+    def test_it_is_the_same_answer_as_a_title_carrying_the_same_words(self, tmp_path: Path) -> None:
+        """Same matcher, same rules, another string — that is the whole function."""
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+        text = "x670e and the b850, plus a taichi"
+
+        assert find_description_hits(text, matcher) == find_title_hits(
+            make_video("vid1", text), matcher
+        )
+
+    def test_it_reads_nothing_from_disk(self, tmp_path: Path) -> None:
+        # Pure and total: given a compiled matcher it needs no file, and this
+        # test hands it none — `tmp_path` holds only the table the matcher came
+        # from, which is already compiled by the time the call happens.
+        matcher = matcher_for(DESCRIPTION_TABLE, tmp_path)
+        for entry in tmp_path.iterdir():
+            entry.unlink()
+
+        assert find_description_hits("#B850", matcher) == frozenset({"B850"})
 
 
 class TestAliasesCommand:

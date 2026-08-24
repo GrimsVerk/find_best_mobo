@@ -63,8 +63,22 @@ STANDARD_TABLE: tuple[Alias, ...] = (
 CANONICALS = ("X670E", "B650E", "A620", "Taichi", "X870E", "B840")
 
 TITLE_HIT = "title_hit"
+DESCRIPTION_HIT = "description_hit"
 THRESHOLD = "threshold"
 EXCLUDED = "excluded_below_threshold"
+
+# The standard table plus the chipset BL-11 measured. Nothing here has a form
+# reachable from `#AMD`, `#ryzen`, `#MSI` or `#ITX`, so a video admitted on the
+# measured hashtag line was admitted by `#B850` and by nothing else — and no
+# title used below hits any of these either, which is what makes the pre-slice
+# exclusion of the BL-11 case a demonstration rather than an assumption (OD-9).
+DESCRIPTION_TABLE: tuple[Alias, ...] = STANDARD_TABLE + (
+    Alias(canonical="B850", kind="chipset", surface_forms=("b850",)),
+)
+
+# BL-11's measured description, verbatim. Only the surroundings are invented,
+# and nothing asserts on them.
+BL11_DESCRIPTION = "#AMD #ryzen #MSI #B850 #ITX"
 
 # Vocabulary the what-if lines are allowed to use. Deliberately generous: the
 # test is that the DIRECTION is unmistakable, not that a particular sentence was
@@ -129,10 +143,11 @@ def make_video(
     )
 
 
-def make_transcript(video_id: str, *cues: tuple[float, str]) -> Transcript:
+def make_transcript(video_id: str, *cues: tuple[float, str], description: str = "") -> Transcript:
     return Transcript(
         video_id=video_id,
         cues=tuple(Cue(start_seconds=start, text=text) for start, text in cues),
+        description=description,
     )
 
 
@@ -142,6 +157,10 @@ def empty_transcript(video_id: str) -> Transcript:
 
 def make_matcher() -> re.Pattern[str]:
     return compile_matcher(STANDARD_TABLE)
+
+
+def make_b850_matcher() -> re.Pattern[str]:
+    return compile_matcher(DESCRIPTION_TABLE)
 
 
 def make_mention(canonical: str, video_id: str = "vid", start: float = 0.0) -> Mention:
@@ -235,7 +254,32 @@ def write_index_lines(videos: Sequence[Video], path: Path) -> Path:
 
 
 def write_transcript(config: Config, transcript: Transcript) -> None:
-    """Write the cache file in the shape slice 2 documents for `load_cached`."""
+    """Write the cache file in the shape slice 1 of this plan documents."""
+    path = cache_path(transcript.video_id, config)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "video_id": transcript.video_id,
+                "cues": [
+                    {"start_seconds": cue.start_seconds, "text": cue.text}
+                    for cue in transcript.cues
+                ],
+                "description": transcript.description,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_legacy_transcript(config: Config, transcript: Transcript) -> None:
+    """Write the cache file as it was written before descriptions were recorded.
+
+    Every entry in the owner's 285-video cache has this shape, and R1004 forbids
+    a forced refetch — so a corpus of these must select exactly as it does today.
+    """
     path = cache_path(transcript.video_id, config)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -593,6 +637,8 @@ class TestThresholdReport:
         assert threshold_report(selections, config) == ThresholdReport(
             threshold=3,
             title_hits=2,
+            description_hits=0,
+            description_only_includes=0,
             threshold_passes=3,
             excluded=4,
             would_include_at_minus_one=2,
@@ -606,6 +652,8 @@ class TestThresholdReport:
         assert threshold_report([], config) == ThresholdReport(
             threshold=3,
             title_hits=0,
+            description_hits=0,
+            description_only_includes=0,
             threshold_passes=0,
             excluded=0,
             would_include_at_minus_one=0,
@@ -1531,6 +1579,8 @@ class TestItxSelection:
         assert threshold_report(select_all(config), config) == ThresholdReport(
             threshold=3,
             title_hits=1,
+            description_hits=0,
+            description_only_includes=0,
             threshold_passes=1,
             excluded=1,
             would_include_at_minus_one=0,
@@ -1839,6 +1889,652 @@ class TestSelectCommandCrossCueLine:
         assert written["c1"].cross_cue_candidates == 1
         assert written["t1"].cross_cue_candidates == 0
 
+
+# Vocabulary the second new report line is allowed to use. The plan quotes it as
+# "M of them would not have been selected any other way"; the alternatives are
+# other honest ways to say the same thing, and a line stating a bare number with
+# none of them is exactly the ambiguity the report exists to avoid.
+DESCRIPTION_ONLY_MARKERS = (
+    "any other way",
+    "no other rule",
+    "nothing else",
+    "would not have been selected",
+    "not have come in",
+)
+
+
+class TestTheDescriptionReason:
+    def test_the_module_constant_is_the_wire_value(self) -> None:
+        """The reason string is what lands in `data/selected.jsonl`."""
+        from find_best_mobo.select import DESCRIPTION_HIT as MODULE_CONSTANT
+
+        assert MODULE_CONSTANT == DESCRIPTION_HIT == "description_hit"
+
+
+class TestSelectVideoDescriptionHits:
+    """The order in `select_video` is title, description, threshold, excluded."""
+
+    def test_a_description_hit_admits_a_video_nothing_else_would(self) -> None:
+        """BL-11's measured case, at the unit that decides it.
+
+        The title names no board, the body names none, and the description
+        carries `#B850`. Before this plan the video is excluded; the hashtag
+        line is the only thing that changes the answer.
+        """
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "The little board that keeps coming up")
+        transcript = make_transcript(
+            "vid1", (12.0, "the vrm gets quite warm"), description=BL11_DESCRIPTION
+        )
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == DESCRIPTION_HIT
+
+    def test_the_same_video_without_the_description_is_excluded(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "The little board that keeps coming up")
+        transcript = make_transcript("vid1", (12.0, "the vrm gets quite warm"))
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == EXCLUDED
+
+    def test_a_title_hit_beats_a_description_hit(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "X670E rundown")
+        transcript = make_transcript("vid1", description=BL11_DESCRIPTION)
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == TITLE_HIT
+
+    def test_a_title_hit_record_is_unchanged_by_a_description(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "X670E rundown")
+        body = ((10.0, "the b650e is fine"), (20.0, "and the a620 is not"))
+
+        with_description = select_video(
+            video,
+            make_transcript("vid1", *body, description=BL11_DESCRIPTION),
+            make_b850_matcher(),
+            config,
+        )
+        without = select_video(video, make_transcript("vid1", *body), make_b850_matcher(), config)
+
+        assert with_description == without
+
+    def test_a_description_hit_beats_the_threshold(self) -> None:
+        # Four distinct canonicals in the body would pass on their own; the
+        # description is decided first, so the reason is the description's.
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript("vid1", (1.0, "x670e b650e a620 taichi"), description="#b850")
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == DESCRIPTION_HIT
+        assert selection.distinct_canonicals == 4
+
+    def test_an_empty_description_falls_through_to_the_threshold(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript("vid1", (1.0, "x670e b650e a620"), description="")
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == THRESHOLD
+
+    def test_a_description_that_names_nothing_falls_through_to_exclusion(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript(
+            "vid1", (1.0, "the vrm is fine"), description="Subscribe, and thanks for watching!"
+        )
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == EXCLUDED
+
+    def test_a_fused_token_in_the_description_admits_nothing(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript("vid1", description="theb850 is not a board name")
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == EXCLUDED
+
+    def test_boilerplate_and_links_count_as_the_whole_description(self) -> None:
+        """R1004 says "a normalized alias hit in the description", unqualified.
+
+        Narrowing this — hashtags only, links ignored — is a fresh ruling on the
+        first real run's evidence, not a behaviour to assume here. If channel
+        boilerplate admits videos wholesale, the two new report counts are what
+        make that visible.
+        """
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript(
+            "vid1",
+            (1.0, "the vrm is fine"),
+            description="Support the channel: https://example.com/b850-mobo?ref=1",
+        )
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == DESCRIPTION_HIT
+
+    def test_the_selection_carries_the_video_it_was_given(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript("vid1", description=BL11_DESCRIPTION)
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.video == video
+
+
+class TestDescriptionHitsConjureNoMentions:
+    """The load-bearing negative of the slice.
+
+    `Mention` carries `start_seconds`, R5 cuts every excerpt window from it, and
+    a description has no cue — so a description-derived mention would have to
+    invent that number. `mentions` and `distinct_canonicals` are the body's, for
+    every reason including `description_hit`.
+    """
+
+    def test_a_description_hit_with_no_body_has_no_mentions_at_all(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript("vid1", description=BL11_DESCRIPTION)
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == DESCRIPTION_HIT
+        assert selection.mentions == ()
+        assert selection.distinct_canonicals == 0
+
+    def test_a_description_naming_four_boards_moves_the_count_by_zero(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript(
+            "vid1", description="x670e b650e a620 taichi b850 all in the description"
+        )
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.mentions == ()
+        assert selection.distinct_canonicals == 0
+
+    def test_the_body_mentions_are_exactly_what_they_would_have_been(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        body = ((9.0, "the b650e is fine"), (3.0, "and the a620 is not"))
+
+        hit = select_video(
+            video,
+            make_transcript("vid1", *body, description=BL11_DESCRIPTION),
+            make_b850_matcher(),
+            config,
+        )
+        without = select_video(video, make_transcript("vid1", *body), make_b850_matcher(), config)
+
+        assert hit.reason == DESCRIPTION_HIT
+        assert without.reason == EXCLUDED
+        assert hit.mentions == without.mentions
+        assert hit.distinct_canonicals == without.distinct_canonicals == 2
+        assert [mention.start_seconds for mention in hit.mentions] == [9.0, 3.0]
+
+    def test_no_mention_ever_names_the_canonical_only_the_description_carried(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript(
+            "vid1", (5.0, "the a620 came up once"), description=BL11_DESCRIPTION
+        )
+
+        selection = select_video(video, transcript, make_b850_matcher(), config)
+
+        assert selection.reason == DESCRIPTION_HIT
+        assert [mention.canonical for mention in selection.mentions] == ["A620"]
+        assert "B850" not in {mention.canonical for mention in selection.mentions}
+        assert all(mention.start_seconds == 5.0 for mention in selection.mentions)
+
+
+class TestThresholdReportDescriptionCounts:
+    def test_the_two_numbers_differ_when_a_description_hit_also_passes(self) -> None:
+        """The point of carrying both: the raw count overstates what was added."""
+        config = make_config(Path("data"), mention_threshold=3)
+        selections = [
+            make_selection(DESCRIPTION_HIT, 0, "d1"),
+            make_selection(DESCRIPTION_HIT, 2, "d2"),
+            make_selection(DESCRIPTION_HIT, 5, "d3"),
+            make_selection(TITLE_HIT, 0, "t1"),
+            make_selection(THRESHOLD, 4, "p1"),
+            make_selection(EXCLUDED, 1, "e1"),
+        ]
+
+        report = threshold_report(selections, config)
+
+        assert report.description_hits == 3
+        assert report.description_only_includes == 2
+
+    def test_they_are_equal_only_when_no_description_hit_also_passes(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        selections = [
+            make_selection(DESCRIPTION_HIT, 0, "d1"),
+            make_selection(DESCRIPTION_HIT, 2, "d2"),
+        ]
+
+        report = threshold_report(selections, config)
+
+        assert report.description_hits == report.description_only_includes == 2
+
+    def test_exactly_at_the_threshold_is_not_a_description_only_include(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+
+        report = threshold_report([make_selection(DESCRIPTION_HIT, 3, "d1")], config)
+
+        assert report.description_hits == 1
+        assert report.description_only_includes == 0
+
+    def test_both_are_zero_without_description_hits(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        selections = [
+            make_selection(TITLE_HIT, 0, "t1"),
+            make_selection(THRESHOLD, 4, "p1"),
+            make_selection(EXCLUDED, 1, "e1"),
+        ]
+
+        report = threshold_report(selections, config)
+
+        assert report.description_hits == 0
+        assert report.description_only_includes == 0
+
+    def test_a_description_hit_is_none_of_the_other_three_counts(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        selections = [
+            make_selection(DESCRIPTION_HIT, 0, "d1"),
+            make_selection(DESCRIPTION_HIT, 9, "d2"),
+        ]
+
+        report = threshold_report(selections, config)
+
+        assert report.title_hits == 0
+        assert report.threshold_passes == 0
+        assert report.excluded == 0
+
+    def test_a_description_hit_never_drops_out_at_plus_one(self) -> None:
+        """The threshold no longer decides these videos, either way."""
+        config = make_config(Path("data"), mention_threshold=3)
+        selections = [
+            make_selection(DESCRIPTION_HIT, 0, "d1"),
+            make_selection(DESCRIPTION_HIT, 3, "d2"),
+        ]
+
+        assert threshold_report(selections, config).would_exclude_at_plus_one == 0
+
+    def test_a_description_hit_never_joins_at_minus_one(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        selections = [
+            make_selection(DESCRIPTION_HIT, 2, "d1"),
+            make_selection(EXCLUDED, 2, "e1"),
+        ]
+
+        assert threshold_report(selections, config).would_include_at_minus_one == 1
+
+    def test_every_count_over_a_mixed_set_including_descriptions(self) -> None:
+        config = make_config(Path("data"), mention_threshold=3)
+        selections = [
+            make_selection(TITLE_HIT, 0, "t1"),
+            make_selection(DESCRIPTION_HIT, 0, "d1"),
+            make_selection(DESCRIPTION_HIT, 2, "d2"),
+            make_selection(DESCRIPTION_HIT, 4, "d3"),
+            make_selection(THRESHOLD, 3, "p1"),
+            make_selection(EXCLUDED, 2, "e1"),
+            make_selection(EXCLUDED, 2, "e2"),
+            make_selection(EXCLUDED, 0, "e3"),
+        ]
+
+        assert threshold_report(selections, config) == ThresholdReport(
+            threshold=3,
+            title_hits=1,
+            description_hits=3,
+            description_only_includes=2,
+            threshold_passes=1,
+            excluded=3,
+            would_include_at_minus_one=2,
+            would_exclude_at_plus_one=1,
+            cross_cue_candidates=0,
+        )
+
+
+def build_bl11_corpus(tmp_path: Path, *, description: str | None) -> Config:
+    """BL-11's measured case as a one-video corpus, with or without the field.
+
+    `description=None` writes the cache entry in the pre-slice shape — no
+    `description` key at all — which is the state of every entry in the cache
+    the owner already has, and the state of the world before this plan. The
+    title and the cues are invented; only the hashtag line is measured, and
+    nothing here asserts on the invented wording. No form in `DESCRIPTION_TABLE`
+    is reachable from either, so the pre-slice exclusion is demonstrated rather
+    than assumed (OD-9).
+    """
+    config = make_config(tmp_path / "data", mention_threshold=3)
+    write_aliases(config.alias_table_path, DESCRIPTION_TABLE)
+    video = make_video("b850vid", "The little board that keeps coming up")
+    write_index_lines([video], config.data_dir / "index.jsonl")
+    transcript = make_transcript(
+        "b850vid",
+        (12.0, "the vrm gets quite warm under load"),
+        (30.0, "and the thermals are fine"),
+        description=description or "",
+    )
+    if description is None:
+        write_legacy_transcript(config, transcript)
+    else:
+        write_transcript(config, transcript)
+    return config
+
+
+def build_description_corpus(tmp_path: Path, *, mention_threshold: int = 3) -> Config:
+    """An eight-video corpus whose every reported number is checkable by hand.
+
+    1 title hit, 3 description hits, 1 threshold pass, 3 exclusions. Two of the
+    description hits sit below the threshold and one sits above it, so the two
+    new numbers are 3 and 2 — deliberately different, which is what lets a test
+    tell one printed line from the other. Of the exclusions two sit at 2
+    distinct canonicals, so lowering the threshold would add exactly those two;
+    the single pass sits at 3, so raising it would drop exactly one.
+    """
+    config = make_config(tmp_path / "data", mention_threshold=mention_threshold)
+    write_aliases(config.alias_table_path, DESCRIPTION_TABLE)
+    videos = [
+        make_video("t1", "X670E rundown"),
+        make_video("d1", "A little board rant"),
+        make_video("d2", "Deep dive seven"),
+        make_video("d3", "Deep dive eight"),
+        make_video("p1", "Deep dive nine"),
+        make_video("e1", "Deep dive ten"),
+        make_video("e2", "Deep dive eleven"),
+        make_video("e3", "Power supply teardown"),
+    ]
+    write_index_lines(videos, config.data_dir / "index.jsonl")
+    write_transcript(config, make_transcript("t1", description="#b850 in here as well"))
+    write_transcript(
+        config,
+        make_transcript("d1", (4.0, "the vrm gets quite warm"), description=BL11_DESCRIPTION),
+    )
+    write_transcript(
+        config,
+        make_transcript("d2", (1.0, "b650e and a620"), description="b850 board on the bench"),
+    )
+    write_transcript(
+        config,
+        make_transcript(
+            "d3",
+            (1.0, "x670e b650e a620 taichi"),
+            description="Links below:\nhttps://example.com/b850-mobo",
+        ),
+    )
+    write_transcript(config, make_transcript("p1", (1.0, "x670e b650e a620")))
+    write_transcript(config, make_transcript("e1", (1.0, "x670e and b650e")))
+    write_transcript(config, make_transcript("e2", (1.0, "a620 and taichi")))
+    # e3's entry predates the field entirely: no `description` key on disk.
+    write_legacy_transcript(config, make_transcript("e3", (1.0, "nothing to see here")))
+    return config
+
+
+DESC_CORPUS_TITLE_HITS = 1
+DESC_CORPUS_DESCRIPTION_HITS = 3
+DESC_CORPUS_DESCRIPTION_ONLY = 2
+DESC_CORPUS_PASSES = 1
+DESC_CORPUS_EXCLUDED = 3
+DESC_CORPUS_SELECTED = DESC_CORPUS_TITLE_HITS + DESC_CORPUS_DESCRIPTION_HITS + DESC_CORPUS_PASSES
+DESC_CORPUS_MINUS_ONE = 2
+DESC_CORPUS_PLUS_ONE = 1
+
+
+class TestSelectAllDescriptionHits:
+    def test_the_measured_case_comes_in_on_its_description(self, tmp_path: Path) -> None:
+        """BL-11's regression, through the real `select_all` path."""
+        config = build_bl11_corpus(tmp_path, description=BL11_DESCRIPTION)
+
+        (selection,) = select_all(config)
+
+        assert selection.reason == DESCRIPTION_HIT
+        assert selection.mentions == ()
+        assert selection.distinct_canonicals == 0
+
+    def test_the_same_corpus_without_the_description_excludes_it(self, tmp_path: Path) -> None:
+        """The state of the world before this plan, and of the existing cache."""
+        config = build_bl11_corpus(tmp_path, description=None)
+
+        (selection,) = select_all(config)
+
+        assert selection.reason == EXCLUDED
+
+    def test_a_description_with_no_alias_in_it_excludes_it_too(self, tmp_path: Path) -> None:
+        config = build_bl11_corpus(tmp_path, description="Thanks for watching. Patreon below.")
+
+        (selection,) = select_all(config)
+
+        assert selection.reason == EXCLUDED
+
+    def test_the_whole_corpus_is_classified(self, tmp_path: Path) -> None:
+        config = build_description_corpus(tmp_path)
+
+        selections = select_all(config)
+
+        by_id = {selection.video.video_id: selection.reason for selection in selections}
+        assert by_id == {
+            "t1": TITLE_HIT,
+            "d1": DESCRIPTION_HIT,
+            "d2": DESCRIPTION_HIT,
+            "d3": DESCRIPTION_HIT,
+            "p1": THRESHOLD,
+            "e1": EXCLUDED,
+            "e2": EXCLUDED,
+            "e3": EXCLUDED,
+        }
+
+    def test_the_counts_are_the_two_new_numbers(self, tmp_path: Path) -> None:
+        config = build_description_corpus(tmp_path)
+
+        report = threshold_report(select_all(config), config)
+
+        assert report == ThresholdReport(
+            threshold=3,
+            title_hits=DESC_CORPUS_TITLE_HITS,
+            description_hits=DESC_CORPUS_DESCRIPTION_HITS,
+            description_only_includes=DESC_CORPUS_DESCRIPTION_ONLY,
+            threshold_passes=DESC_CORPUS_PASSES,
+            excluded=DESC_CORPUS_EXCLUDED,
+            would_include_at_minus_one=DESC_CORPUS_MINUS_ONE,
+            would_exclude_at_plus_one=DESC_CORPUS_PLUS_ONE,
+            cross_cue_candidates=0,
+        )
+
+    def test_a_cache_entry_written_before_the_field_selects_as_it_did(self, tmp_path: Path) -> None:
+        config = build_description_corpus(tmp_path)
+
+        (legacy,) = [s for s in select_all(config) if s.video.video_id == "e3"]
+
+        assert legacy.reason == EXCLUDED
+        assert legacy.distinct_canonicals == 0
+
+    def test_a_video_with_no_cached_transcript_at_all_still_selects(self, tmp_path: Path) -> None:
+        config = make_config(tmp_path / "data", mention_threshold=3)
+        write_aliases(config.alias_table_path, DESCRIPTION_TABLE)
+        write_index_lines([make_video("bare", "Deep dive")], config.data_dir / "index.jsonl")
+        fetched(config)
+
+        (selection,) = select_all(config)
+
+        assert selection.reason == EXCLUDED
+
+    def test_two_runs_over_the_same_corpus_agree(self, tmp_path: Path) -> None:
+        config = build_description_corpus(tmp_path)
+
+        assert select_all(config) == select_all(config)
+
+    def test_a_corpus_with_no_descriptions_is_unmoved(self, tmp_path: Path) -> None:
+        """Nothing else moves: the pre-plan corpus selects exactly as before."""
+        config = build_corpus(tmp_path)
+
+        report = threshold_report(select_all(config), config)
+
+        assert report.description_hits == 0
+        assert report.description_only_includes == 0
+        assert report.title_hits == CORPUS_TITLE_HITS
+        assert report.threshold_passes == CORPUS_PASSES
+        assert report.excluded == CORPUS_EXCLUDED
+
+
+class TestSelectedFileCarriesTheNewReason:
+    def test_the_reason_survives_the_round_trip_and_carries_no_mentions(
+        self, tmp_path: Path
+    ) -> None:
+        config = build_bl11_corpus(tmp_path, description=BL11_DESCRIPTION)
+        path = config.data_dir / "selected.jsonl"
+
+        write_selected(select_all(config), path)
+
+        (restored,) = read_selected(path)
+        assert restored.reason == DESCRIPTION_HIT
+        assert restored.mentions == ()
+        assert restored.distinct_canonicals == 0
+
+    def test_the_record_gains_no_field_and_no_mention(self, tmp_path: Path) -> None:
+        """`selected.jsonl` gains nothing: the new value is in the `reason` string.
+
+        The description text itself is not copied in — it is already on disk in
+        the cache, it can be long, and nothing downstream reads it.
+        """
+        config = build_bl11_corpus(tmp_path, description=BL11_DESCRIPTION)
+        path = config.data_dir / "selected.jsonl"
+        write_selected(select_all(config), path)
+
+        record = json.loads(path.read_text().splitlines()[0])
+
+        # R1004 adds no field. The two beyond the original four come from
+        # R1012 (`has_transcript`) and R1010 (`cross_cue_candidates`), slices
+        # this test's author could not see; what it pins — that the description
+        # reason rides the existing `reason` string and the description TEXT is
+        # never copied into the record — is unchanged.
+        assert set(record) == {
+            "video",
+            "reason",
+            "mentions",
+            "distinct_canonicals",
+            "has_transcript",
+            "cross_cue_candidates",
+        }
+        assert record["reason"] == "description_hit"
+        assert record["mentions"] == []
+        assert "B850" not in path.read_text(), (
+            "no mention may be conjured from the description, and the text is not copied in"
+        )
+
+
+class TestSelectCommandDescriptionReport:
+    def description_line(self, output: str) -> str:
+        for line in lines_with(output, "description"):
+            if "unaffected" not in line.lower():
+                return line
+        raise AssertionError(f"the report never says how many came in on a description:\n{output}")
+
+    def description_only_line(self, output: str) -> str:
+        for line in output.splitlines():
+            lowered = without_paths(line).lower()
+            if any(marker in lowered for marker in DESCRIPTION_ONLY_MARKERS):
+                return line
+        raise AssertionError(f"the report never says how many nothing else admitted:\n{output}")
+
+    def test_the_report_states_both_new_numbers(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = build_description_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+
+        out = capsys.readouterr().out
+        assert has_number(self.description_line(out), DESC_CORPUS_DESCRIPTION_HITS), (
+            f"{DESC_CORPUS_DESCRIPTION_HITS} videos came in on a description hit: {out!r}"
+        )
+        assert has_number(self.description_only_line(out), DESC_CORPUS_DESCRIPTION_ONLY), (
+            f"{DESC_CORPUS_DESCRIPTION_ONLY} of them nothing else would have admitted: {out!r}"
+        )
+
+    def test_the_total_selected_counts_the_description_hits(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = build_description_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+
+        out = capsys.readouterr().out
+        candidates = lines_with(out, "select") + lines_with(out, "total")
+        assert any(has_number(line, DESC_CORPUS_SELECTED) for line in candidates), (
+            f"{DESC_CORPUS_SELECTED} videos are in the corpus: {out!r}"
+        )
+
+    def test_the_raise_line_says_title_and_description_hits_are_unaffected(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = build_description_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+
+        out = capsys.readouterr().out
+        assert "Title and description hits are unaffected either way." in out, (
+            f"the closing sentence must name both automatic includes: {out!r}"
+        )
+
+    def test_both_lines_print_at_zero_too(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A count that prints only when it fired cannot be told from one that never ran."""
+        config = build_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+
+        out = capsys.readouterr().out
+        assert has_number(self.description_line(out), 0), (
+            f"the description-hit line must print at zero: {out!r}"
+        )
+        assert has_number(self.description_only_line(out), 0), (
+            f"the description-only line must print at zero: {out!r}"
+        )
+
+    def test_a_corpus_with_no_descriptions_reports_as_it_did(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = build_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+
+        out = capsys.readouterr().out
+        assert any(has_number(line, CORPUS_TITLE_HITS) for line in lines_with(out, "title"))
+        assert any(has_number(line, CORPUS_EXCLUDED) for line in lines_with(out, "exclud"))
+        candidates = lines_with(out, "select") + lines_with(out, "total")
+        assert any(has_number(line, CORPUS_SELECTED) for line in candidates)
+        assert directional_line(out, LOWER_MARKERS, CORPUS_MINUS_ONE)
+        assert directional_line(out, RAISE_MARKERS, CORPUS_PLUS_ONE)
+
+    def test_the_what_if_lines_still_read_in_their_directions(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = build_description_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+
+        out = capsys.readouterr().out
+        lower = directional_line(out, LOWER_MARKERS, DESC_CORPUS_MINUS_ONE)
+        assert any(marker in lower.lower() for marker in ADDITIONAL_MARKERS)
+        raise_line = directional_line(out, RAISE_MARKERS, DESC_CORPUS_PLUS_ONE)
+        assert any(marker in raise_line.lower() for marker in DROP_MARKERS)
+
     def test_two_runs_print_identically(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -1852,3 +2548,18 @@ class TestSelectCommandCrossCueLine:
 
         assert first == second
         assert first.strip() != ""
+
+    def test_the_written_file_carries_the_new_reason(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = build_description_corpus(tmp_path)
+
+        assert run(config, Namespace()) == 0
+        capsys.readouterr()
+
+        restored = list(read_selected(config.data_dir / "selected.jsonl"))
+        assert len(restored) == 8
+        assert sum(1 for s in restored if s.reason == DESCRIPTION_HIT) == (
+            DESC_CORPUS_DESCRIPTION_HITS
+        )
+        assert all(s.mentions == () for s in restored if s.video.video_id == "d1")

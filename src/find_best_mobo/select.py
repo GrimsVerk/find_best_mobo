@@ -33,6 +33,7 @@ from find_best_mobo.aliases import (
     Mention,
     compile_matcher,
     count_cross_cue_candidates,
+    find_description_hits,
     find_mentions,
     find_title_hits,
     load_aliases,
@@ -43,6 +44,7 @@ from find_best_mobo.index import Video, read_index
 from find_best_mobo.transcripts import Transcript, load_cached
 
 TITLE_HIT = "title_hit"
+DESCRIPTION_HIT = "description_hit"
 THRESHOLD = "threshold"
 EXCLUDED = "excluded_below_threshold"
 
@@ -50,7 +52,7 @@ EXCLUDED = "excluded_below_threshold"
 @dataclass(frozen=True)
 class Selection:
     video: Video
-    reason: str  # "title_hit" | "threshold" | "excluded_below_threshold"
+    reason: str  # "title_hit" | "description_hit" | "threshold" | "excluded_below_threshold"
     mentions: tuple[Mention, ...]
     distinct_canonicals: int
     # Whether this video's transcript was in the cache when it was selected.
@@ -84,6 +86,11 @@ class Coverage:
 class ThresholdReport:
     threshold: int
     title_hits: int
+    description_hits: int
+    # How many of those no other rule would have admitted — R1004's "how many
+    # videos the signal ADDED". Only this second number reads that way, because
+    # a video can satisfy two rules at once.
+    description_only_includes: int
     threshold_passes: int
     excluded: int
     would_include_at_minus_one: int
@@ -105,8 +112,14 @@ def select_video(
     """
     mentions = find_mentions(transcript, matcher)
     distinct_canonicals = len({mention.canonical for mention in mentions})
+    # Title, description, threshold, excluded. A description hit is an automatic
+    # include like a title hit, on the same reasoning — an author-written field
+    # naming a board is stronger evidence than a count of body mentions (OD-8,
+    # R1004).
     if find_title_hits(video, matcher):
         reason = TITLE_HIT
+    elif find_description_hits(transcript.description, matcher):
+        reason = DESCRIPTION_HIT
     elif distinct_canonicals >= config.mention_threshold:
         reason = THRESHOLD
     else:
@@ -208,11 +221,16 @@ def threshold_report(selections: Sequence[Selection], config: Config) -> Thresho
     """
     threshold = config.mention_threshold
     title_hits = sum(1 for selection in selections if selection.reason == TITLE_HIT)
+    description_hit_selections = [s for s in selections if s.reason == DESCRIPTION_HIT]
     threshold_passes = [selection for selection in selections if selection.reason == THRESHOLD]
     excluded = [selection for selection in selections if selection.reason == EXCLUDED]
     return ThresholdReport(
         threshold=threshold,
         title_hits=title_hits,
+        description_hits=len(description_hit_selections),
+        description_only_includes=sum(
+            1 for s in description_hit_selections if s.distinct_canonicals < threshold
+        ),
         threshold_passes=len(threshold_passes),
         excluded=len(excluded),
         would_include_at_minus_one=sum(

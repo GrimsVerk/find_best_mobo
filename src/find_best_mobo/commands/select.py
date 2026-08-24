@@ -94,9 +94,13 @@ def _missing(config: Config, error: FileNotFoundError) -> str:
 
 def _print_report(report: ThresholdReport) -> None:
     """Print the counts, then each what-if as a direction and a resulting total."""
-    selected = report.title_hits + report.threshold_passes
+    selected = report.title_hits + report.description_hits + report.threshold_passes
     print(f"Threshold in force: {report.threshold} distinct canonicals in the body")
     print(f"  {report.title_hits} videos included on a title hit")
+    print(f"  {report.description_hits} videos included on a description hit")
+    print(
+        f"  {report.description_only_includes} of them would not have been selected any other way"
+    )
     print(f"  {report.threshold_passes} videos included on the mention threshold")
     print(f"  {selected} videos selected in total")
     print(f"  {report.excluded} videos excluded below the threshold")
@@ -116,5 +120,5 @@ def _print_report(report: ThresholdReport) -> None:
         f"Raising the threshold to {report.threshold + 1} would DROP "
         f"{report.would_exclude_at_plus_one} of the {report.threshold_passes} "
         f"threshold passes, for {selected - report.would_exclude_at_plus_one} "
-        "selected in total. Title hits are unaffected either way."
+        "selected in total. Title and description hits are unaffected either way."
     )
