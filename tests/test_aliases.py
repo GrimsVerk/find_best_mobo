@@ -247,6 +247,34 @@ def shipped_matcher() -> re.Pattern[str]:
     return compile_matcher(load_aliases(SHIPPED_TABLE))
 
 
+# A RECONSTRUCTED title. `MSI MPG B850I Edge TI` is verbatim from BL-9 and is
+# the only wording here with measured provenance; everything around it is
+# invented, is asserted on nowhere, and carries no form the pre-R1003 matcher
+# resolves to B850. See `TestShippedTable.test_the_reconstructed_itx_title_hits
+# _its_chipset` for the full provenance statement (BL-18, OD-17).
+RECONSTRUCTED_B850I_TITLE = "Taking a look at the MSI MPG B850I Edge TI and how it runs"
+
+ITX_TOKENS: tuple[tuple[str, str], ...] = (
+    ("b850i", "B850"),
+    ("x870i", "X870"),
+    ("b650i", "B650"),
+    ("a620i", "A620"),
+    ("x670ei", "X670E"),
+)
+
+ITX_TABLE: tuple[Mapping[str, object], ...] = (
+    {"canonical": "B850", "kind": "chipset", "surface_forms": ["b850", "b 850"]},
+    {"canonical": "X870", "kind": "chipset", "surface_forms": ["x870", "x 870"]},
+    {"canonical": "B650", "kind": "chipset", "surface_forms": ["b650", "b 650"]},
+    {"canonical": "A620", "kind": "chipset", "surface_forms": ["a620", "a 620"]},
+    {"canonical": "X670E", "kind": "chipset", "surface_forms": ["x670e", "x 670 e"]},
+    {"canonical": "ASRock", "kind": "vendor", "surface_forms": ["asrock"]},
+    {"canonical": "Taichi", "kind": "family", "surface_forms": ["taichi"]},
+    {"canonical": "9950X3D", "kind": "cpu", "surface_forms": ["9950x3d"]},
+    {"canonical": "Pro RS", "kind": "board", "surface_forms": ["pro rs"]},
+)
+
+
 class TestLoadAliases:
     def test_returns_entries_in_file_order(self, tmp_path: Path) -> None:
         path = write_aliases(tmp_path / "aliases.toml", STANDARD_TABLE)
@@ -375,6 +403,83 @@ class TestShippedTable:
         video = make_video("vid1", "so the x 670 e board is good")
 
         assert "X670E" in find_title_hits(video, matcher)
+
+    @pytest.mark.parametrize(("text", "canonical"), ITX_TOKENS)
+    def test_every_shipped_chipset_matches_its_itx_token(self, text: str, canonical: str) -> None:
+        """R1003 against the table this repository actually ships."""
+        matcher = compile_matcher(load_aliases(SHIPPED_TABLE))
+        video = make_video("vid1", f"the {text} is a tiny board")
+
+        assert find_title_hits(video, matcher) == frozenset({canonical})
+
+    @pytest.mark.parametrize("text", ["theb850i", "xb850i", "b850ix", "b850ii", "asrocki"])
+    def test_the_shipped_table_keeps_the_right_boundary(self, text: str) -> None:
+        """R1003's other half: the boundary stays in force for everything else."""
+        matcher = compile_matcher(load_aliases(SHIPPED_TABLE))
+
+        assert matcher.search(text) is None, f"{text!r} must match nothing"
+
+    def test_the_shipped_table_hand_lists_no_itx_form(self) -> None:
+        """OD-7 rejected hand-listed `b850i` entries; the table must stay that way.
+
+        The variant is derived in code, which is what makes it self-maintaining
+        — a chipset added tomorrow brings its ITX spelling with it. A form
+        written into the table would be the maintenance burden OD-7 declined,
+        and would silently shadow the derived one.
+        """
+        aliases = load_aliases(SHIPPED_TABLE)
+        declared = {normalize(form) for alias in aliases for form in alias.surface_forms}
+        derived = {form for alias in aliases for form in itx_forms(alias)}
+
+        assert declared & derived == set()
+
+    def test_the_reconstructed_itx_title_hits_its_chipset(self) -> None:
+        """R1003's regression, over a LABELLED RECONSTRUCTION of the title.
+
+        The real B850I review's title is not recoverable from this repository:
+        it is in no commit, no journal entry and no run record, and
+        `data/index.jsonl`, the one artifact that would hold it, is gitignored
+        and absent from a fresh clone. That is BL-18, ruled LOW and proceeded on
+        under OD-17. Absent, note, not unknowable — the video is public, so
+        recovering the measured string later is a supersession with logged
+        evidence, never a silent swap of this constant.
+
+        `MSI MPG B850I Edge TI` is verbatim from BL-9 and is the ONLY wording
+        here with measured provenance. What BL-9 measured is the provenance of
+        the CASE, not of the string: on a real 33-minute review of that board,
+        `B850` matched ZERO times, in title and body both, so even the automatic
+        title include missed it. The surrounding wording is invented, nothing
+        asserts on it, and it carries no form the pre-R1003 matcher resolves to
+        B850 — otherwise this test would be green before the fix and would
+        demonstrate nothing.
+
+        The reconstruction does NOT reproduce the real video's recorded
+        invisibility to title matching, and must not be read as claiming to:
+        `msi` is a vendor form in the shipped table, so this title hits MSI
+        before and after R1003. It reproduces the one property the regression
+        turns on — the chipset spelled only inside an unseparated `B850I` token.
+        """
+        matcher = compile_matcher(load_aliases(SHIPPED_TABLE))
+        video = make_video("vid1", RECONSTRUCTED_B850I_TITLE)
+
+        assert "B850" in find_title_hits(video, matcher)
+
+    def test_the_reconstructed_itx_body_mentions_its_chipset_by_the_itx_form(self) -> None:
+        """The body half of BL-9's measured zero, on the same reconstruction.
+
+        Provenance and its limits are stated in full on
+        `test_the_reconstructed_itx_title_hits_its_chipset`: only
+        `MSI MPG B850I Edge TI` is measured wording (BL-9), the rest is invented
+        and unasserted (BL-18, OD-17). The assertions here are the canonical and
+        the matched form — `b850i`, the spelling the caption actually used, which
+        is what has to survive into `selected.jsonl` and the recall report.
+        """
+        matcher = compile_matcher(load_aliases(SHIPPED_TABLE))
+        transcript = make_transcript("vid1", (0.0, RECONSTRUCTED_B850I_TITLE))
+
+        mentions = [m for m in find_mentions(transcript, matcher) if m.canonical == "B850"]
+
+        assert [mention.matched_form for mention in mentions] == ["b850i"]
 
 
 class TestCompileMatcher:
@@ -579,27 +684,6 @@ class TestFindTitleHits:
         matcher = matcher_for(STANDARD_TABLE, tmp_path)
 
         assert find_title_hits(make_video("vid1", ""), matcher) == frozenset()
-
-
-ITX_TOKENS: tuple[tuple[str, str], ...] = (
-    ("b850i", "B850"),
-    ("x870i", "X870"),
-    ("b650i", "B650"),
-    ("a620i", "A620"),
-    ("x670ei", "X670E"),
-)
-
-ITX_TABLE: tuple[Mapping[str, object], ...] = (
-    {"canonical": "B850", "kind": "chipset", "surface_forms": ["b850", "b 850"]},
-    {"canonical": "X870", "kind": "chipset", "surface_forms": ["x870", "x 870"]},
-    {"canonical": "B650", "kind": "chipset", "surface_forms": ["b650", "b 650"]},
-    {"canonical": "A620", "kind": "chipset", "surface_forms": ["a620", "a 620"]},
-    {"canonical": "X670E", "kind": "chipset", "surface_forms": ["x670e", "x 670 e"]},
-    {"canonical": "ASRock", "kind": "vendor", "surface_forms": ["asrock"]},
-    {"canonical": "Taichi", "kind": "family", "surface_forms": ["taichi"]},
-    {"canonical": "9950X3D", "kind": "cpu", "surface_forms": ["9950x3d"]},
-    {"canonical": "Pro RS", "kind": "board", "surface_forms": ["pro rs"]},
-)
 
 
 class TestItxForms:
@@ -1397,6 +1481,36 @@ class TestAliasesCommand:
         out = capsys.readouterr().out
         assert "Traceback" not in out
         assert re.search(r"\b3\b", line_with(out, "X670E"))
+
+    def test_an_itx_token_counts_for_its_chipset_and_is_named_as_the_form(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """OD-7's stated measurement: the ITX spelling reaches `aliases --check`.
+
+        A fourth video says `a620i` and nothing else, so A620 goes from one
+        video to two. The report must also NAME the spelling that fired — the
+        recall report is what tells the owner which forms carried the weight,
+        and it measures nothing about R1003 if the derived form vanishes from it.
+        A620 is deliberately the canonical here rather than B850: this class runs
+        against `STANDARD_TABLE`, so the assertion is about the report, not about
+        the shipped table.
+        """
+        config = self.setup_corpus(tmp_path)
+        videos = [
+            make_video("vid1", "Deep dive number one"),
+            make_video("vid2", "Deep dive number two"),
+            make_video("vid3", "X670E rundown"),
+            make_video("vid4", "Deep dive number four"),
+        ]
+        write_index(videos, config.data_dir / "index.jsonl")
+        write_transcript(config, make_transcript("vid4", (3.0, "the a620i is a tiny board")))
+
+        assert run(config, Namespace(check=True)) == 0
+
+        out = capsys.readouterr().out
+        line = line_with(out, "A620")
+        assert "videos=2" in line, f"the ITX video must be counted for A620: {out!r}"
+        assert "a620i" in line, f"the form that actually fired must be shown: {out!r}"
 
 
 class TestAliasPattern:
