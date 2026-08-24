@@ -138,7 +138,7 @@ surface_forms = ["aorus master", "aorus masters", "orus master"]
 [[alias]]
 canonical = "Aorus Elite"
 kind = "family"
-surface_forms = ["aorus elite", "orus elite"]
+surface_forms = ["aorus elite", "orus elite", "airus elite"]
 
 [[alias]]
 canonical = "MPG Carbon"
@@ -153,7 +153,7 @@ surface_forms = ["mag tomahawk", "tomahawk", "tomohawk", "m a g tomahawk"]
 [[alias]]
 canonical = "Pro RS"
 kind = "family"
-surface_forms = ["pro rs", "pro r s", "pro-rs"]
+surface_forms = ["pro rs", "pro r s"]
 
 # --- CPUs ---------------------------------------------------------------------
 
