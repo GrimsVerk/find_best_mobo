@@ -33,6 +33,7 @@ from find_best_mobo.config import Config
 from find_best_mobo.index import Video, write_index
 from find_best_mobo.ledger import HaltTriggered, Ledger
 from find_best_mobo.transcripts import (
+    UNKNOWN_FORMAT,
     Cue,
     NoCaptions,
     Transcript,
@@ -42,7 +43,7 @@ from find_best_mobo.transcripts import (
     load_cached,
     parse_vtt,
 )
-from find_best_mobo.ytdlp import VideoFetch
+from find_best_mobo.ytdlp import VTT, VideoFetch
 
 FIXTURE = Path(__file__).parent / "fixtures" / "captions_vtt.txt"
 
@@ -116,7 +117,13 @@ class Boundary:
         self.calls: list[str] = []
         self.handler: Callable[[str], str | None] = lambda video_id: SIMPLE_VTT
         self.descriptions: dict[str, str] = {}
+        self.caption_formats: dict[str, str] = {}
+        self.default_caption_format = VTT
         self.default_description = ""
+
+    def set_caption_formats(self, mapping: dict[str, str]) -> None:
+        """Answer these video ids with these caption formats, others with `vtt`."""
+        self.caption_formats = dict(mapping)
 
     def set_descriptions(self, mapping: dict[str, str]) -> None:
         """Answer these video ids with these descriptions, others with ``""``."""
@@ -160,6 +167,10 @@ def boundary(monkeypatch: pytest.MonkeyPatch) -> Boundary:
         return VideoFetch(
             captions=captions,
             description=fake.descriptions.get(video_id, fake.default_description),
+            # R1013 made this required. The existing fixtures answer with WebVTT
+            # bodies, so `vtt` is what this fake is honestly reporting; the
+            # json3 tests set it explicitly.
+            caption_format=fake.caption_formats.get(video_id, fake.default_caption_format),
         )
 
     import find_best_mobo.ytdlp as ytdlp_boundary
@@ -302,6 +313,7 @@ class TestLoadCached:
         assert load_cached("abc123", config) == Transcript(
             video_id="abc123",
             cues=(Cue(start_seconds=1.5, text="first"), Cue(start_seconds=9.0, text="second")),
+            source_format=UNKNOWN_FORMAT,
         )
 
     @pytest.mark.parametrize("junk", ["{not json at all", "", "[1, 2, 3]"])
@@ -324,7 +336,7 @@ class TestFetchTranscript:
         transcript = fetch_transcript(make_video("vid1"), config)
 
         assert boundary.calls == ["vid1"]
-        assert transcript == Transcript(video_id="vid1", cues=EXPECTED_CUES)
+        assert transcript == Transcript(video_id="vid1", cues=EXPECTED_CUES, source_format=VTT)
 
     def test_raises_no_captions_when_the_boundary_returns_none(
         self, boundary: Boundary, tmp_path: Path
@@ -379,9 +391,13 @@ class TestFetchAll:
         assert fetched == 2
         assert boundary.calls == ["vid1", "vid2"]
         assert ledger.failures() == ()
-        assert load_cached("vid1", config) == Transcript(video_id="vid1", cues=EXPECTED_CUES)
+        assert load_cached("vid1", config) == Transcript(
+            video_id="vid1", cues=EXPECTED_CUES, source_format=VTT
+        )
         assert load_cached("vid2", config) == Transcript(
-            video_id="vid2", cues=(Cue(start_seconds=2.0, text="hello there"),)
+            video_id="vid2",
+            cues=(Cue(start_seconds=2.0, text="hello there"),),
+            source_format=VTT,
         )
 
     def test_cache_file_is_deterministic_json_with_a_trailing_newline(
@@ -650,19 +666,19 @@ class TestVideoFetch:
     """The boundary's return type: captions as before, description beside them."""
 
     def test_it_carries_both_fields_and_compares_by_value(self) -> None:
-        assert VideoFetch(captions=SIMPLE_VTT, description=DESCRIPTION) == VideoFetch(
-            captions=SIMPLE_VTT, description=DESCRIPTION
-        )
+        assert VideoFetch(
+            captions=SIMPLE_VTT, description=DESCRIPTION, caption_format=VTT
+        ) == VideoFetch(captions=SIMPLE_VTT, description=DESCRIPTION, caption_format=VTT)
 
     def test_the_field_order_is_captions_then_description(self) -> None:
         # Positional construction is part of the declared signature.
-        positional = VideoFetch(SIMPLE_VTT, DESCRIPTION)
+        positional = VideoFetch(SIMPLE_VTT, DESCRIPTION, VTT)
 
         assert positional.captions == SIMPLE_VTT
         assert positional.description == DESCRIPTION
 
     def test_it_is_frozen(self) -> None:
-        fetched = VideoFetch(captions=SIMPLE_VTT, description=DESCRIPTION)
+        fetched = VideoFetch(captions=SIMPLE_VTT, description=DESCRIPTION, caption_format=VTT)
 
         with pytest.raises(FrozenInstanceError):
             fetched.description = "rewritten"  # type: ignore[misc]
@@ -670,7 +686,7 @@ class TestVideoFetch:
     def test_captions_may_be_none_and_description_still_stands(self) -> None:
         # The no-caption case: R1004 hands the video to the failure ledger, but
         # the boundary has still read a description and says so honestly.
-        fetched = VideoFetch(captions=None, description=DESCRIPTION)
+        fetched = VideoFetch(captions=None, description=DESCRIPTION, caption_format=VTT)
 
         assert fetched.captions is None
         assert fetched.description == DESCRIPTION
@@ -688,8 +704,16 @@ class TestTranscriptDescriptionField:
         assert transcript.description == "notes"
 
     def test_two_transcripts_differing_only_in_description_are_not_equal(self) -> None:
-        assert Transcript(video_id="vid1", cues=(), description="a") != Transcript(
-            video_id="vid1", cues=(), description="b"
+        assert Transcript(
+            video_id="vid1",
+            cues=(),
+            description="a",
+            source_format=VTT,
+        ) != Transcript(
+            video_id="vid1",
+            cues=(),
+            description="b",
+            source_format=VTT,
         )
 
 
@@ -704,7 +728,10 @@ class TestFetchTranscriptDescription:
         transcript = fetch_transcript(make_video("vid1"), config)
 
         assert transcript == Transcript(
-            video_id="vid1", cues=EXPECTED_CUES, description=DESCRIPTION
+            video_id="vid1",
+            cues=EXPECTED_CUES,
+            description=DESCRIPTION,
+            source_format=VTT,
         )
 
     def test_one_boundary_call_produces_both(self, boundary: Boundary, tmp_path: Path) -> None:
@@ -770,6 +797,7 @@ class TestDescriptionInTheCache:
             video_id="vid1",
             cues=(Cue(start_seconds=2.0, text="hello there"),),
             description=DESCRIPTION,
+            source_format=VTT,
         )
 
     def test_each_video_keeps_its_own(self, boundary: Boundary, tmp_path: Path) -> None:
@@ -792,7 +820,11 @@ class TestDescriptionInTheCache:
         fetch_all([make_video("vid1")], config, make_ledger(config, 1))
 
         record = json.loads(cache_path("vid1", config).read_text())
-        assert set(record) == {"video_id", "cues", "description"}
+        # R1013 adds `source_format`. The set stays EXACT rather than being
+        # widened to a subset check — that is the assertion that catches a
+        # stray key, and relaxing it to accommodate one addition would retire
+        # it.
+        assert set(record) == {"video_id", "cues", "description", "source_format"}
         assert record["description"] == DESCRIPTION
 
     def test_the_file_is_still_deterministic_json_with_one_trailing_newline(
@@ -881,6 +913,7 @@ class TestLoadCachedWithoutADescription:
             video_id="old1",
             cues=(Cue(start_seconds=1.5, text="first"), Cue(start_seconds=9.0, text="second")),
             description="",
+            source_format=UNKNOWN_FORMAT,
         )
 
     def test_it_is_not_read_as_an_unusable_entry(self, tmp_path: Path) -> None:

@@ -30,7 +30,7 @@ import pytest
 
 from find_best_mobo import ytdlp
 from find_best_mobo.config import Config
-from find_best_mobo.ytdlp import VideoFetch
+from find_best_mobo.ytdlp import VTT, VideoFetch
 
 VTT_BODY = b"WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nhello\n"
 
@@ -169,7 +169,9 @@ class TestWhatFetchVideoReturns:
 
         fetched = ytdlp.fetch_video("aaa11111111", make_config(tmp_path))
 
-        assert fetched == VideoFetch(captions=VTT_BODY.decode("utf-8"), description=DESCRIPTION)
+        assert fetched == VideoFetch(
+            captions=VTT_BODY.decode("utf-8"), description=DESCRIPTION, caption_format=VTT
+        )
 
     def test_a_video_with_no_english_track_returns_none_captions(
         self, fake_youtubedl: type[FakeClient], tmp_path: Path

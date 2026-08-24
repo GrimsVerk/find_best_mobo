@@ -27,7 +27,21 @@ from find_best_mobo.config import Config
 from find_best_mobo.index import Video
 from find_best_mobo.ledger import FetchFailure as FetchFailure
 from find_best_mobo.ledger import HaltTriggered, Ledger
-from find_best_mobo.ytdlp import fetch_video
+from find_best_mobo.ytdlp import JSON3, fetch_video
+
+# What a cached record says about where its cues came from. `json3` is
+# YouTube's own segment format — one event per line of speech, with per-segment
+# timing. `vtt` is the same track rendered for display, which for automatic
+# captions means ROLL-UP: a cue per display frame, so every line arrives three
+# times and a name inside a two-line frame inherits the FIRST line's timestamp
+# (BL-28, OD-24). `unknown` is a record written before this field existed —
+# never guessed at, because guessing would be true today and a lie the moment
+# anyone replays the reasoning.
+# `JSON3` and `VTT` are the boundary's, because they name what it asks YouTube
+# for. `UNKNOWN_FORMAT` is this module's, because it describes a CACHED RECORD
+# whose provenance was never written down — never guessed at as `vtt`, which
+# would be true today and a lie the moment anyone replays the reasoning.
+UNKNOWN_FORMAT = "unknown"
 
 # `FetchFailure` is re-exported above in mypy's explicit `X as X` form. It is
 # the ledger's record type and is defined there, but this module is where a
@@ -72,6 +86,9 @@ class Transcript:
     # loads: R1004 forbids a forced refetch, and a record with no description
     # simply has no description signal.
     description: str = ""
+    # Which caption format this transcript was parsed from, so a later question
+    # about one claim's timestamp has an answer (R1013).
+    source_format: str = UNKNOWN_FORMAT
 
 
 def parse_vtt(raw: str) -> tuple[Cue, ...]:
@@ -82,11 +99,104 @@ def parse_vtt(raw: str) -> tuple[Cue, ...]:
     markup. Anything unparseable is skipped rather than raised on, because one
     malformed cue in a two-hour video is not a reason to lose the video.
     """
-    cues: list[Cue] = []
+    parsed: list[Cue] = []
     for block in re.split(r"\n\s*\n", raw.replace("\r\n", "\n").replace("\r", "\n")):
         cue = _parse_block(block)
         if cue is not None:
-            cues.append(cue)
+            parsed.append(cue)
+    return _without_rollup_frames(parsed)
+
+
+def _without_rollup_frames(cues: list[Cue]) -> tuple[Cue, ...]:
+    """Drop the display frames a roll-up caption track repeats (R1013, OD-24).
+
+    YouTube renders AUTOMATIC captions as roll-up: two lines scroll on screen
+    and the track emits a cue per display FRAME rather than per line of speech.
+    The sequence is `A`, `A B`, `B`, `B C`, `C` — so every line arrives three
+    times, and BL-28 measured that at 2.84x across all 285 cached transcripts,
+    with no video escaping it.
+
+    A cue that merely EXTENDS the previous kept one is such a frame and is
+    dropped; so is one wholly contained in it, which is the same frame seen from
+    the other side. What survives is `A`, `B`, `C`, each carrying the start time
+    it was displayed ALONE at — the timing the frames cannot give, and the one
+    R5 cuts every excerpt window from.
+
+    Comparison is against the last SURVIVING cue, not the last raw one. In
+    `A`, `A B`, `B` the solo `B` is contained in its raw predecessor `A B`, so
+    comparing against the raw one would drop the line itself.
+
+    THE LAST LINE IS KEPT. If the final cue is a frame extending its
+    predecessor, its new tail has no solo cue to follow it, so that tail becomes
+    its own cue. Without this the last line of every fallback transcript
+    disappears silently.
+
+    Structural, and only ever applied to ADJACENT cues, so genuinely repeated
+    speech survives unless a speaker repeats exactly the words at a cue
+    boundary. A non-roll-up track is untouched: no cue in an ordinary WebVTT
+    extends its predecessor, so every rule here is a no-op.
+    """
+    kept: list[Cue] = []
+    for index, cue in enumerate(cues):
+        if not kept:
+            kept.append(cue)
+            continue
+        previous = kept[-1].text
+        if cue.text == previous or previous.endswith(f" {cue.text}"):
+            continue
+        if cue.text.startswith(f"{previous} "):
+            if index == len(cues) - 1:
+                kept.append(
+                    Cue(start_seconds=cue.start_seconds, text=cue.text[len(previous) + 1 :])
+                )
+            continue
+        kept.append(cue)
+    return tuple(kept)
+
+
+def parse_json3(raw: str) -> tuple[Cue, ...]:
+    """Parse YouTube's json3 caption document into cues, in event order (R1013).
+
+    ONE CUE PER TEXT-BEARING EVENT. An event's text is the concatenation of its
+    segments' `utf8` in order, and its start is `tStartMs / 1000`.
+
+    Segments are concatenated VERBATIM, never stripped: json3 puts the leading
+    space on the following word (`'Hey'`, `' guys,'`), so stripping per segment
+    would fuse every word in the event.
+
+    An event whose concatenated text is empty or whitespace contributes no cue.
+    That is what an `aAppend` event is — every one of the 2,257 measured on a
+    real track carries a single newline and nothing else. They are the LINE
+    BREAK, which is why the break must not be dropped from the text of the cues
+    around them: cue texts are joined with a single space downstream, so a break
+    that became nothing would fuse `we're` and `going`.
+
+    A document that is not JSON at all RAISES, unlike `parse_vtt`, which
+    tolerates one malformed cue because one bad cue in a two-hour video is not
+    worth losing the video. A json3 payload that does not parse is a different
+    failure, and a transcript of zero cues from a video that has captions would
+    be indistinguishable from a video with none — a line the failure ledger
+    already draws and this keeps drawn.
+    """
+    try:
+        document: Any = json.loads(raw)
+    except (ValueError, TypeError) as error:
+        raise ValueError(f"not a json3 caption document: {error}") from error
+    if not isinstance(document, dict):
+        raise ValueError("json3 caption document is not an object")
+
+    cues: list[Cue] = []
+    for event in document.get("events") or ():
+        if not isinstance(event, dict):
+            continue
+        text = "".join(
+            str(segment.get("utf8", ""))
+            for segment in (event.get("segs") or ())
+            if isinstance(segment, dict)
+        )
+        if not text.strip():
+            continue
+        cues.append(Cue(start_seconds=float(event.get("tStartMs", 0)) / 1000.0, text=text))
     return tuple(cues)
 
 
@@ -120,6 +230,7 @@ def load_cached(video_id: str, config: Config) -> Transcript | None:
             # already has and refetch the whole corpus — the opposite of
             # R1004's "no forced refetch".
             description=str(record.get("description", "")),
+            source_format=str(record.get("source_format", UNKNOWN_FORMAT)),
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -137,10 +248,19 @@ def fetch_transcript(video: Video, config: Config) -> Transcript:
         # Before the description is used for anything: R1004 says a description
         # cannot conjure a transcript, and the failure ledger governs this video.
         raise NoCaptions(video.video_id)
+    # The parser is chosen from what the boundary ASKED FOR, never by sniffing
+    # the payload: the boundary knows, and a sniffer is a second reader of one
+    # answer — the shape ESC-21 and BL-28 both punish.
+    cues = (
+        parse_json3(fetched.captions)
+        if fetched.caption_format == JSON3
+        else parse_vtt(fetched.captions)
+    )
     return Transcript(
         video_id=video.video_id,
-        cues=parse_vtt(fetched.captions),
+        cues=cues,
         description=fetched.description,
+        source_format=fetched.caption_format,
     )
 
 
@@ -154,6 +274,7 @@ def fetch_all(videos: Iterable[Video], config: Config, ledger: Ledger) -> int:
 
     Raises `HaltTriggered` as soon as a trigger fires. The ledger file is
     already on disk by then, because it is rewritten on every record.
+
     """
     fetched = 0
     for video in videos:
@@ -176,6 +297,8 @@ def fetch_all(videos: Iterable[Video], config: Config, ledger: Ledger) -> int:
         ledger.record(failure)
         trigger = ledger.check_triggers()
         if trigger is not None:
+            # The counts so far ride the exception: a halt must not hide the
+            # provenance of what DID land (R1013).
             raise HaltTriggered(trigger, ledger.failures())
     return fetched
 
@@ -204,6 +327,7 @@ def _write_cache(transcript: Transcript, config: Config) -> None:
         "video_id": transcript.video_id,
         "cues": [{"start_seconds": cue.start_seconds, "text": cue.text} for cue in transcript.cues],
         "description": transcript.description,
+        "source_format": transcript.source_format,
     }
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(record, sort_keys=True))
