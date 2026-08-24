@@ -40,9 +40,9 @@ excerpting and no model involvement — those are the last slice of the
 | `fetch` subcommand (`commands/fetch.py`) | The stage itself: read the index, fetch what is pending and uncached, print the summary — or, on a halt, the trigger and the ledger. |
 | Normalization (`normalize.py`) | Folding caption text and titles into one comparable form: case, scattered punctuation, and above all the spacing damage that renders `X670E` as `x 670 e`. Pure and total. |
 | Alias table (`aliases.py`, path from `alias_table_path`) | Mapping many surface forms onto one canonical entity, and finding those entities in normalized text with a single compiled pattern. The table is hand-authored input, not derived data, and every loader takes its path from configuration rather than building one (OD-11, R1007). |
-| `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. |
+| `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. Requires the table, the index and the transcript-cache DIRECTORY; an empty cache yields a report of zeros rather than a refusal (OD-9, R1005). |
 | Selection (`select.py`) | Deciding which videos are actually about AM5 boards, and saying what the threshold currently costs. A title hit is an automatic include; otherwise the video needs enough DISTINCT boards mentioned in the body. Pure decision logic, plus its own deterministic JSONL. |
-| `select` subcommand (`commands/select.py`) | The stage itself: read index and cached transcripts, write `data/selected.jsonl`, print the threshold's effect. |
+| `select` subcommand (`commands/select.py`) | The stage itself: require the index, the alias table and the transcript-cache directory before deciding anything (OD-9, R1005), then read index and cached transcripts, write `data/selected.jsonl`, and print the threshold's effect. |
 | Excerpting (`excerpt.py`) | Cutting a wide asymmetric window around each mention, merging windows that overlap, and capping how many survive per video. Pure — it never reads the disk. |
 | Bundling (`bundle.py`) | Grouping excerpts into token-capped work bundles, assigning them to a calibration batch and larger batches after it, and rendering each as XML on disk. |
 | Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it. |
@@ -108,7 +108,10 @@ video id, keys sorted within each record).
 ### Fetching transcripts
 
 1. The owner runs `uv run find-best-mobo fetch`. Without an index it says so and
-   stops — the stages are deliberately separate commands.
+   stops — the stages are deliberately separate commands. It then creates
+   `data/transcripts/` whether or not it goes on to cache anything, including
+   when the run halts part-way on an R24 trigger: the directory's existence is
+   how every later stage knows fetch has RUN (OD-9, R1005).
 2. Only videos the index kept as pending are considered. Anything already in the
    cache is skipped without a network call, which is what makes a rerun cheap
    and resumable.
@@ -149,11 +152,12 @@ memory, so a 1000-video channel costs no more than one video's worth.
 
 Ordering is deterministic, so two runs over the same cache print identically.
 
-**This stage is not reachable from the command line yet.** The top-level parser
-rejects `--check` before dispatch, because the dispatcher deliberately holds no
-subcommand table and this slice does not touch it. The stage works and is
-tested through its entry point; the wiring is an open plan question recorded in
-`docs/BACKLOG.md`.
+**The stage runs as `uv run find-best-mobo aliases --check`.** It was
+unreachable from the command line until 2026-08-24: the top-level parser
+rejected `--check` before dispatch, because the dispatcher deliberately holds
+no subcommand table (BL-5). OD-10/R1006 fixed that without adding one — the
+dispatcher forwards what it does not recognise, and the stage owns its own
+parsing.
 
 ### Narrowing the corpus
 
@@ -193,6 +197,14 @@ the stage re-run from cache, with no refetching (R17).
 
 ### Estimating the cost, and stopping
 
+0. Before anything is cut, the stage requires all three upstream artifacts in
+   pipeline order — `data/index.jsonl` (`index`), `data/transcripts/` (`fetch`),
+   `data/selected.jsonl` (`select`) — and refuses naming the first that is
+   absent (OD-9, R1005). Pipeline order is what makes the message actionable:
+   told to run `select` first, the owner would run a stage that itself refuses.
+   Nothing is written on a refusal, so `data/bundles/` is left exactly as it
+   was found. A present-but-EMPTY artifact is a real value and projects real
+   zeros.
 1. The `estimate` stage reads the selections and takes only the included ones,
    most recent video first — recency is what the batches are ordered by, so the
    first batch is the most useful one to spend on.
@@ -234,7 +246,12 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
   the whole `data/` tree will be: the corpus never enters git.
 - `data/transcripts/<video_id>.json` — one cached transcript per video, timed
   cues in file order. The cache is the resumability story: it is what a rerun
-  reads instead of refetching.
+  reads instead of refetching. **The DIRECTORY is itself an artifact.** `fetch`
+  creates it whether or not it caches anything, so its absence means fetch has
+  not run and `select` and `estimate` refuse; an empty directory means fetch ran
+  and got nothing, which is a real state they both accept (OD-9, R1005). Before
+  that rule the directory appeared only on the first successful write, so the
+  two were indistinguishable on disk.
 - `data/failures.jsonl` — this run's fetch failures, rewritten on every record.
   It doubles as the next run's retry list.
 - `data/selected.jsonl` — one record per pending video: the video, why it was
@@ -246,6 +263,27 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
   they already do (R1012).
 - `data/bundles/batch-N/bundle-NNN.xml` — the work bundles, one file each,
   byte-identical across runs given the same cache and configuration.
+
+## Absence is not emptiness
+
+Every stage boundary in this pipeline is a file, and the two ways a file can
+fail to give you data are different facts. BL-7 measured what happens when they
+are conflated: `estimate` read a missing `data/index.jsonl` as zero videos
+indexed, and the projection — the one number the owner spends against — was
+silently wrong in a way indistinguishable from a real empty corpus.
+
+`artifacts.py` holds the rule. An ABSENT artifact names itself and the command
+that produces it, and the stage exits 1. A PRESENT-but-empty one is a real value
+and is reported as what it is: an empty index is a channel with nothing in
+range, an empty transcript cache is a corpus with no captions, and a recall
+report over the latter is all zeros rather than a refusal. `MissingArtifact`
+subclasses `FileNotFoundError`, so no existing handler had to learn a new
+exception.
+
+The per-video tolerance is a different rule and is untouched: a selected video
+with no cached transcript has nothing to excerpt and is not an error, because a
+title hit needs no caption track (R2, R24). What R1005 governs is the absence of
+the cache ITSELF.
 
 ## Known rough edges
 
