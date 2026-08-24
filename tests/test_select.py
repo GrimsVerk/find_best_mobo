@@ -29,9 +29,15 @@ from pathlib import Path
 import pytest
 
 from find_best_mobo.artifacts import MissingArtifact
-from find_best_mobo.aliases import Alias, Mention, compile_matcher
+from find_best_mobo.aliases import (
+    Alias,
+    Mention,
+    compile_matcher,
+    find_title_hits,
+    load_aliases,
+)
 from find_best_mobo.commands.select import run
-from find_best_mobo.config import Config
+from find_best_mobo.config import DEFAULT_ALIAS_TABLE, Config
 from find_best_mobo.index import Video
 from find_best_mobo.select import (
     Selection,
@@ -279,6 +285,21 @@ def directional_line(output: str, markers: Sequence[str], value: int) -> str:
         if has_number(line, value) and any(marker in lowered for marker in markers):
             return line
     raise AssertionError(f"no line states {value} together with any of {tuple(markers)}:\n{output}")
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SHIPPED_TABLE = REPO_ROOT / DEFAULT_ALIAS_TABLE
+
+
+def shipped_matcher() -> re.Pattern[str]:
+    """The matcher this repository ships.
+
+    The split-spelling selection effects are the end of the path OD-6 names as
+    its measurement, so they are measured against the REAL table: a split form
+    that only reaches its canonical through a table written for the test
+    measures the test.
+    """
+    return compile_matcher(load_aliases(SHIPPED_TABLE))
 
 
 class TestReportMatchingIgnoresPaths:
@@ -1444,6 +1465,95 @@ def build_itx_corpus(tmp_path: Path, *, mention_threshold: int = 3) -> Config:
         ),
     )
     return config
+
+
+class TestSplitSpellingsReachTheSelection:
+    """The end of the path OD-6 names as its measurement (R1002).
+
+    A matcher change only matters if it moves R4's selection counts, and these
+    two videos are exactly the ones it moves: both were EXCLUDED before this
+    plan, on a table that already carried their boards. Nothing in `select.py`
+    changes to make them pass — that is the point of asserting it here.
+    """
+
+    def test_a_split_title_form_brings_the_video_in_on_its_title(self) -> None:
+        """`MSI MAG toma hawk MAX WIFI review` — a real caption-shaped title.
+
+        One honest caveat, stated so the test is not read as proving more than
+        it does: the shipped table carries `msi` as a vendor, so this title is a
+        title hit today too, on the vendor alone. The assertion that is RED
+        before the split-tolerant matcher lands is the second one — that the
+        board itself is seen.
+        """
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "MSI MAG toma hawk MAX WIFI review")
+        matcher = shipped_matcher()
+
+        selection = select_video(video, empty_transcript("vid1"), matcher, config)
+
+        assert selection.reason == TITLE_HIT
+        assert "MAG Tomahawk" in find_title_hits(video, matcher)
+
+    def test_a_body_spelled_only_in_split_forms_passes_the_threshold(self) -> None:
+        """Three distinct canonicals, every one of them spelled the way a caption breaks it.
+
+        Before this plan the same video has zero mentions and is excluded: its
+        boards are in the table and invisible anyway, which is the silent loss
+        BL-8 measured.
+        """
+        config = make_config(Path("data"), mention_threshold=3)
+        video = make_video("vid1", "Deep dive")
+        transcript = make_transcript(
+            "vid1",
+            (10.0, "the aor us master is the one to get"),
+            (20.0, "the toma hawk is fine too"),
+            (30.0, "and the air us elite is the cheap one"),
+        )
+
+        selection = select_video(video, transcript, shipped_matcher(), config)
+
+        assert {mention.canonical for mention in selection.mentions} == {
+            "Aorus Master",
+            "MAG Tomahawk",
+            "Aorus Elite",
+        }
+        assert selection.distinct_canonicals == 3
+        assert selection.reason == THRESHOLD
+
+    def test_both_videos_land_as_includes_in_a_whole_corpus_run(self, tmp_path: Path) -> None:
+        """The same two videos through `select_all`, against the shipped table.
+
+        A threshold pass rather than an exclusion is what R4's counts — and the
+        selection report OD-6 measures this by — actually record.
+        """
+        config = make_config(tmp_path / "data", mention_threshold=3)
+        write_aliases(config.data_dir / "aliases.toml", load_aliases(SHIPPED_TABLE))
+        videos = [
+            make_video("titled", "MSI MAG toma hawk MAX WIFI review"),
+            make_video("spoken", "Deep dive"),
+        ]
+        write_index_lines(videos, config.data_dir / "index.jsonl")
+        write_transcript(config, empty_transcript("titled"))
+        write_transcript(
+            config,
+            make_transcript(
+                "spoken",
+                (10.0, "the aor us master is the one to get"),
+                (20.0, "the toma hawk is fine too"),
+                (30.0, "and the air us elite is the cheap one"),
+            ),
+        )
+
+        selections = select_all(config)
+
+        assert [selection.reason for selection in selections] == [TITLE_HIT, THRESHOLD]
+        report = threshold_report(selections, config)
+        assert (report.title_hits, report.threshold_passes, report.excluded) == (1, 1, 0)
+
+
+def cross_cue_transcript(video_id: str = "vid1") -> Transcript:
+    """`the mag toma` | `hawk has a twelve phase vrm` — the pair R1010 demands."""
+    return make_transcript(video_id, (0.0, "the mag toma"), (3.0, "hawk has a twelve phase vrm"))
 
 
 class TestItxSelection:

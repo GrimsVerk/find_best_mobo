@@ -196,6 +196,52 @@ def line_with(output: str, token: str) -> str:
     raise AssertionError(f"no line of the report mentions {token!r}:\n{output}")
 
 
+CAPTION_VARIANTS_PATH = Path(__file__).resolve().parent / "fixtures" / "caption_variants.json"
+
+
+def _load_caption_variants() -> tuple[str, list[dict[str, str]], list[str]]:
+    """The fixture, unpacked into the three things the suite reads."""
+    document = json.loads(CAPTION_VARIANTS_PATH.read_text(encoding="utf-8"))
+    note: str = document["note"]
+    variants: list[dict[str, str]] = document["variants"]
+    never_match: list[str] = document["never_match"]
+    return note, variants, never_match
+
+
+FIXTURE_NOTE, CAPTION_VARIANTS, NEVER_MATCH = _load_caption_variants()
+
+VARIANT_CASES = [
+    pytest.param(variant["text"], variant["canonical"], id=variant["text"])
+    for variant in CAPTION_VARIANTS
+]
+NEVER_MATCH_CASES = [pytest.param(text, id=text) for text in NEVER_MATCH]
+
+
+CARRIER = "the {text} board"
+
+MARKED_FAILURES = (
+    "toma hawk",
+    "aor us master",
+    "air us elite",
+    "steel-legend",
+    "as-rock",
+)
+
+VALID_DAMAGE = frozenset(
+    {"spacing", "digit-split", "hyphen", "split", "spelled-out", "mishearing", "plural", "partial"}
+)
+
+
+@pytest.fixture(scope="module")
+def shipped_matcher() -> re.Pattern[str]:
+    """The matcher this repository ships, compiled once for the whole module.
+
+    The recall set is measured against the REAL table, not a fixture table: a
+    variant that only matches a table written for the test measures the test.
+    """
+    return compile_matcher(load_aliases(SHIPPED_TABLE))
+
+
 class TestLoadAliases:
     def test_returns_entries_in_file_order(self, tmp_path: Path) -> None:
         path = write_aliases(tmp_path / "aliases.toml", STANDARD_TABLE)
@@ -712,6 +758,211 @@ class TestItxChipsetVariant:
         matcher = compile_matcher(())
 
         assert matcher.search("b850i") is None
+
+
+class TestCaptionVariantFixture:
+    """The measured recall set, pinned against the table this repository ships.
+
+    **Provenance, and the reason it is stated here rather than assumed.** BL-8
+    tested 52 mangled caption spellings against the shipped table and recorded
+    that 49 matched; the three that did not (`toma hawk`, `aor us master`,
+    `air us elite`) are named there, as is the related hyphen observation
+    (`steel-legend`). The list itself is in no commit, no journal entry and no
+    run record — BL-17 established that, and OD-16 ruled the honest response: a
+    RECONSTRUCTION that declares itself. So the number 52 below is a floor taken
+    from the backlog entry's history, never a claim that these 52 strings are
+    the ones BL-8 measured. `tests/fixtures/caption_variants.json` says the same
+    in its own `note`, which is where a reader who never opens this file will
+    look.
+
+    A later addition to the fixture is welcome and this floor still holds; a
+    LOSS is a regression, which is exactly what the floor exists to catch —
+    OD-16's point is that the class most exposed to a silent recall loss is the
+    already-matching majority, not the three famous failures.
+    """
+
+    def test_the_fixture_declares_itself_a_reconstruction(self) -> None:
+        """OD-16: the fixture may not wear measured provenance it does not have."""
+        lowered = FIXTURE_NOTE.lower()
+
+        assert "reconstruct" in lowered, FIXTURE_NOTE
+        assert "bl-8" in lowered and "bl-17" in lowered, FIXTURE_NOTE
+
+    def test_the_fixture_holds_at_least_the_fifty_two_bl_8_counted(self) -> None:
+        """52 is BL-8's recorded count, and here it is a FLOOR, not a measurement.
+
+        BL-8's arithmetic — 49 matched plus 3 failures — is where the number
+        comes from. It sizes the reconstruction and nothing else in this suite
+        rests on it.
+        """
+        assert len(CAPTION_VARIANTS) >= 52
+
+    def test_every_variant_record_has_the_three_documented_fields(self) -> None:
+        for variant in CAPTION_VARIANTS:
+            assert set(variant) == {"text", "canonical", "damage"}, variant
+            assert variant["text"], variant
+            assert variant["canonical"], variant
+            assert variant["damage"] in VALID_DAMAGE, variant
+
+    def test_no_variant_is_listed_twice(self) -> None:
+        texts = [variant["text"] for variant in CAPTION_VARIANTS]
+
+        assert sorted(texts) == sorted(set(texts))
+
+    def test_the_marked_failures_are_present_by_exact_text(self) -> None:
+        """The cases the evidence was written about, kept verbatim.
+
+        Three of these carry BL-8's measured provenance (`toma hawk`,
+        `aor us master`, `air us elite`); `steel-legend` is BL-8's related
+        parenthetical; `as-rock` is the reconstruction's own hyphen case and
+        claims no provenance at all. All five were observed FAILING against the
+        pre-fix matcher when this file was written, which is the
+        demonstrated-or-labelled rule OD-16 applies to a failing-today mark.
+        """
+        texts = {variant["text"] for variant in CAPTION_VARIANTS}
+
+        assert set(MARKED_FAILURES) <= texts
+
+    def test_every_canonical_named_by_the_fixture_is_in_the_shipped_table(self) -> None:
+        """A variant pointing at a canonical the table does not carry can never go green."""
+        canonicals = {alias.canonical for alias in load_aliases(SHIPPED_TABLE)}
+        wanted = {variant["canonical"] for variant in CAPTION_VARIANTS}
+
+        assert wanted <= canonicals, sorted(wanted - canonicals)
+
+    @pytest.mark.parametrize(("text", "canonical"), VARIANT_CASES)
+    def test_a_variant_is_found_in_a_cue_bare_and_in_a_sentence(
+        self, shipped_matcher: re.Pattern[str], text: str, canonical: str
+    ) -> None:
+        bare = find_mentions(make_transcript("vid1", (0.0, text)), shipped_matcher)
+        carried = find_mentions(
+            make_transcript("vid1", (0.0, CARRIER.format(text=text))), shipped_matcher
+        )
+
+        assert canonical in {mention.canonical for mention in bare}, f"bare: {text!r}"
+        assert canonical in {mention.canonical for mention in carried}, f"in a sentence: {text!r}"
+
+    @pytest.mark.parametrize(("text", "canonical"), VARIANT_CASES)
+    def test_a_variant_is_found_in_a_title_bare_and_in_a_sentence(
+        self, shipped_matcher: re.Pattern[str], text: str, canonical: str
+    ) -> None:
+        bare = find_title_hits(make_video("vid1", text), shipped_matcher)
+        carried = find_title_hits(make_video("vid1", CARRIER.format(text=text)), shipped_matcher)
+
+        assert canonical in bare, f"bare title: {text!r}"
+        assert canonical in carried, f"title sentence: {text!r}"
+
+    @pytest.mark.parametrize("text", NEVER_MATCH_CASES)
+    def test_a_reject_yields_no_mention_at_all(
+        self, shipped_matcher: re.Pattern[str], text: str
+    ) -> None:
+        """R1002's never-a-proper-substring clause: ANY mention here is the bug.
+
+        Asserting "not the obvious canonical" would pass a matcher that found
+        some other entity inside the fused token, which is the same defect one
+        name over.
+        """
+        bare = find_mentions(make_transcript("vid1", (0.0, text)), shipped_matcher)
+        carried = find_mentions(
+            make_transcript("vid1", (0.0, CARRIER.format(text=text))), shipped_matcher
+        )
+
+        assert bare == (), f"bare: {text!r} produced {[m.canonical for m in bare]}"
+        assert carried == (), f"in a sentence: {text!r} produced {[m.canonical for m in carried]}"
+
+    @pytest.mark.parametrize("text", NEVER_MATCH_CASES)
+    def test_a_reject_yields_no_title_hit_at_all(
+        self, shipped_matcher: re.Pattern[str], text: str
+    ) -> None:
+        assert find_title_hits(make_video("vid1", text), shipped_matcher) == frozenset()
+        assert (
+            find_title_hits(make_video("vid1", CARRIER.format(text=text)), shipped_matcher)
+            == frozenset()
+        )
+
+
+class TestShippedTableCaptionSplitEdits:
+    """The two data edits slice 3 makes, and the guard that keeps the fold honest."""
+
+    def shipped_forms(self) -> list[tuple[str, str]]:
+        """Every `(canonical, surface_form)` the shipped table declares, in file order."""
+        return [
+            (alias.canonical, form)
+            for alias in load_aliases(SHIPPED_TABLE)
+            for form in alias.surface_forms
+        ]
+
+    def test_aorus_elite_carries_the_airus_mishearing(self) -> None:
+        """`air us` for `aorus` is a mishearing no join rule can recover.
+
+        R1002 leaves exactly that class to the table, and only the Elite
+        spelling was ever heard — `airus master` is deliberately NOT added.
+        """
+        forms = {
+            canonical: form for canonical, form in self.shipped_forms() if form == "airus elite"
+        }
+
+        assert forms == {"Aorus Elite": "airus elite"}
+
+    def test_aorus_master_does_not_carry_the_airus_mishearing(self) -> None:
+        """The table gains the OBSERVED spoken forms and no more (R1002)."""
+        (master,) = [
+            alias for alias in load_aliases(SHIPPED_TABLE) if alias.canonical == "Aorus Master"
+        ]
+
+        assert not any("airus" in form for form in master.surface_forms), master.surface_forms
+
+    def test_the_airus_form_reaches_aorus_elite_however_the_caption_broke_it(
+        self, shipped_matcher: re.Pattern[str]
+    ) -> None:
+        """One table line covers all three spellings, which is why one line is enough."""
+        for text in ("air us elite", "airus elite", "air-us elite"):
+            hits = find_title_hits(make_video("vid1", f"the {text} board"), shipped_matcher)
+            assert "Aorus Elite" in hits, text
+
+    def test_pro_rs_no_longer_carries_the_hyphenated_form(self) -> None:
+        """It folds onto the `pro rs` beside it, so de-duplication drops it silently.
+
+        A line the matcher can never use is worse than absent: it reads as
+        coverage in `aliases --check` while carrying none.
+        """
+        (pro_rs,) = [alias for alias in load_aliases(SHIPPED_TABLE) if alias.canonical == "Pro RS"]
+
+        assert "pro-rs" not in pro_rs.surface_forms
+        assert "pro rs" in pro_rs.surface_forms
+
+    def test_the_hyphenated_spelling_still_reaches_pro_rs(
+        self, shipped_matcher: re.Pattern[str]
+    ) -> None:
+        """Removing the line removes no recall — that is the whole argument for it."""
+        assert "Pro RS" in find_title_hits(make_video("vid1", "the pro-rs board"), shipped_matcher)
+
+    def test_no_hyphenated_shipped_form_is_left_dead_by_the_fold(self) -> None:
+        """Scoped to HYPHENATED forms, deliberately.
+
+        The joining rule already makes many forms redundant — `x 870 e` folds
+        onto `x870e` — and every one of those is kept on purpose: they are
+        distinct normalized forms that still fire on their own, and deleting
+        them would move `aliases --check`'s per-form counts for reasons nothing
+        to do with this change. What the HYPHEN fold newly creates is different:
+        a hyphenated form that now collides with a form beside it is dropped by
+        global de-duplication and never fires again, silently.
+        """
+        forms = self.shipped_forms()
+        collisions = {}
+        for canonical, form in forms:
+            if "-" not in form:
+                continue
+            twins = [
+                (other_canonical, other)
+                for other_canonical, other in forms
+                if (other_canonical, other) != (canonical, form)
+                and normalize(other) == normalize(form)
+            ]
+            if twins:
+                collisions[f"{canonical}: {form}"] = twins
+
+        assert collisions == {}, f"hyphenated forms the fold makes dead: {collisions}"
 
 
 class TestAliasesCommand:
