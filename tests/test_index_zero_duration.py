@@ -1,13 +1,19 @@
-"""Tests for the zero-duration report in the ``index`` command's summary.
+"""The index tells the flat listing's Shorts shape from a silent drop (OD-14, R1009).
 
-Written blind from the slice-1 addendum in ``docs/plans/corpus-and-checkpoint.md``
-while the implementation is authored in parallel, so failures are the expected
-state until assembly.
+**This module was rewritten on 2026-08-24, and the old rule is why.** It used to
+assert that a zero-duration count above ONE triggers a loud banner, on the
+reasoning that only one video can legitimately lack a duration — a stream in
+progress, and he can only be live in one place at a time. BL-15 measured that
+premise false on the first real run after the `timestamp` fix: **eight** videos
+reported no duration and all eight were genuine Shorts, so the banner is a
+permanent false positive and a ninth id inside a list of eight expected ones is
+invisible. OD-14 replaced the count test with an evidence test, and these tests
+follow the rule rather than the other way round.
 
-The rule under test: a missing duration is read as 0, which classifies the video
-as a Short and drops it. That is acceptable for exactly one video — he can only
-be live in one place at a time — so the command always reports the zero-duration
-count, and warns loudly, naming the affected ids, once the count exceeds one.
+The rule now: an entry with no duration AND no date in either listing field
+(`upload_date`, `timestamp`) is the flat listing's Shorts shape — counted on one
+line, no banner. An entry with a real date and no duration is a video being
+silently dropped — banner, at any count, naming each id.
 
 The only surface faked here is ``list_channel_entries``, patched where
 ``find_best_mobo.index`` uses it, because that module imports the name directly.
@@ -15,7 +21,6 @@ The only surface faked here is ``list_channel_entries``, patched where
 
 from __future__ import annotations
 
-import re
 from argparse import Namespace
 from collections.abc import Iterator
 from datetime import date
@@ -23,9 +28,9 @@ from pathlib import Path
 
 import pytest
 
-from find_best_mobo.commands.index import run
+from find_best_mobo.commands.index import ZeroDuration, classify_zero_duration, run
 from find_best_mobo.config import Config
-from find_best_mobo.index import read_index
+from find_best_mobo.index import Video, read_index
 
 START_DATE = date(2023, 1, 1)
 
@@ -71,12 +76,54 @@ def entry(
     return record
 
 
+def shorts_shape(video_id: str, title: str = "clip") -> dict[str, object]:
+    """The flat listing's Shorts shape, exactly as BL-15 measured it.
+
+    No `duration` key, no `upload_date` key and no `timestamp` key. All three
+    absences matter: `classify` reads `upload_date` then `timestamp`, so an
+    entry missing both records `date.min`, and that is what marks the entry as
+    the listing's Shorts shape rather than an anomaly.
+    """
+    return {
+        "id": video_id,
+        "title": title,
+        "was_live": False,
+        "live_status": "not_live",
+    }
+
+
+def dated_no_duration(video_id: str, upload_date: str = "20240715") -> dict[str, object]:
+    """The silent-drop shape: a real upload date, and no duration at all.
+
+    Its duration reads as 0, so it classifies as a Short and is excluded — but
+    it is not the listing's Shorts shape, so something else zeroed it and a real
+    video is leaving the corpus. This is the case the banner was written for.
+    """
+    return entry(video_id, upload_date, omit_duration=True)
+
+
 # Videos with a real, non-zero duration. Counts chosen so the summary numbers
 # are unambiguous: 1 kept, 1 out of range, 1 genuine Short.
 BACKDROP: list[dict[str, object]] = [
     entry("keptVideo01", "20240310", 3600),
     entry("oldVideo002", "20220601", 2400),
     entry("shortVid003", "20240501", 45),
+]
+
+# BL-15's eight, measured on the 2026-08-20 local-lane run against the real
+# channel. The ids and titles are the real ones and are recorded as provenance;
+# nothing asserts on the titles, because the rule turns on the listing SHAPE and
+# not on wording. Every one of these was a genuine Short — two say so in their
+# own hashtags, the rest are the short-form collection clips.
+BL15_MEASURED: list[dict[str, object]] = [
+    shorts_shape("0pgWWFCvf6w", "simple and effective DDR5 cooling"),
+    shorts_shape("FUCLMRq5oOM", "motherboard collection: ASUS WS Z390 PRO #motherboard"),
+    shorts_shape("OffiCcQMK-4", "Adding a POST code display to the Gigabyte B850M Force"),
+    shorts_shape("PB1iPWcibbw", "stock MSI 3060Ti Gaming X vcore regulation. #Shorts"),
+    shorts_shape("T94q9a4JZiI", "Buildzoid's collection: Gigabyte B850M Force"),
+    shorts_shape("qd3flkh_eg0", "My first LN2 overclocking motherboard"),
+    shorts_shape("rNMZqqg1NI4", "VRM cooling upgrade for an itx motherboard #overclocking"),
+    shorts_shape("wEFp9Eo-QZ4", "Buildzoid's collection: ASRock 970M Pro3"),
 ]
 
 
@@ -133,14 +180,15 @@ def assert_summary_block(
 
 
 def assert_no_warning(out: str) -> None:
-    """No warning text anywhere in the output.
+    """No banner anywhere in the output.
 
-    The header line ends in a ``tmp_path`` built from the test's own name, so
-    it is truncated before the check rather than searched.
+    Asserted on the banner's own marker rather than on the whole text, so
+    rewording the message does not fail the test. The header line ends in a
+    ``tmp_path`` built from the test's own name, so it is truncated first.
     """
     body = "\n".join(line.split("; index written to ")[0] for line in out.splitlines())
+    assert "!" * 72 not in body, out
     assert "WARNING" not in body, out
-    assert "warning" not in body.lower(), out
 
 
 def warning_text(out: str) -> str:
@@ -152,8 +200,165 @@ def warning_text(out: str) -> str:
     raise AssertionError(f"no WARNING line in output: {out!r}")
 
 
-class TestZeroDurationCountLine:
-    def test_line_is_printed_when_no_video_reports_zero(
+class TestClassifyZeroDuration:
+    """The split itself, as a function, on the evidence in each entry."""
+
+    def test_a_dateless_durationless_video_is_the_shorts_shape(self) -> None:
+        video = Video(
+            video_id="clip",
+            title="clip",
+            upload_date=date.min,
+            duration_seconds=0,
+            was_live=False,
+            classification="short",
+            inclusion="excluded_short",
+        )
+
+        assert classify_zero_duration([video]) == ZeroDuration(("clip",), ())
+
+    def test_a_dated_durationless_video_is_an_anomaly(self) -> None:
+        video = Video(
+            video_id="dropped",
+            title="dropped",
+            upload_date=date(2024, 7, 15),
+            duration_seconds=0,
+            was_live=False,
+            classification="short",
+            inclusion="excluded_short",
+        )
+
+        assert classify_zero_duration([video]) == ZeroDuration((), ("dropped",))
+
+    def test_a_video_with_a_duration_is_neither_shape(self) -> None:
+        """Whatever its date. A dateless entry with a real duration is out of range."""
+        videos = [
+            Video("real", "t", date(2024, 1, 1), 3600, False, "regular", "pending"),
+            Video("dateless", "t", date.min, 3600, False, "regular", "excluded_out_of_range"),
+        ]
+
+        assert classify_zero_duration(videos) == ZeroDuration((), ())
+
+    def test_ids_sort_the_way_the_index_file_sorts(self) -> None:
+        """So an id printed here is findable in index.jsonl at the position printed."""
+        videos = [
+            Video("zzz", "t", date.min, 0, False, "short", "excluded_short"),
+            Video("aaa", "t", date.min, 0, False, "short", "excluded_short"),
+            Video("later", "t", date(2025, 1, 1), 0, False, "short", "excluded_short"),
+            Video("earlier", "t", date(2024, 1, 1), 0, False, "short", "excluded_short"),
+        ]
+
+        result = classify_zero_duration(videos)
+
+        assert result.expected_shorts == ("aaa", "zzz")
+        assert result.anomalies == ("earlier", "later")
+
+
+class TestTheDistinguishingPair:
+    """R1009 names this pair explicitly, and it is what tells the two cases apart."""
+
+    def test_a_dateless_durationless_entry_does_not_trip_the_warning(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        code, config = run_index(monkeypatch, tmp_path, [*BACKDROP, shorts_shape("clip000001")])
+        out = summary(capsys)
+
+        assert code == 0
+        assert "  1 Shorts reported no duration (expected)" in out.splitlines(), out
+        assert_no_warning(out)
+        assert_summary_block(out, config, total=4, out_of_range=1, shorts=2, kept=1)
+
+    def test_a_dated_durationless_entry_does_trip_the_warning(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """ONE is enough. The old rule needed two, which is the rule OD-14 retired."""
+        code, _ = run_index(monkeypatch, tmp_path, [*BACKDROP, dated_no_duration("dr0pped0001")])
+        out = summary(capsys)
+
+        assert code == 0
+        assert "  1 dated videos reported no duration" in out.splitlines(), out
+        assert "dr0pped0001" in warning_text(out)
+
+
+class TestBL15Regression:
+    """The measured run, pinned. This is what the old rule got wrong every time."""
+
+    def test_bl15s_eight_produce_a_count_and_no_banner(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Eight entries, eight false alarms per run, every run. Now silent."""
+        code, _ = run_index(monkeypatch, tmp_path, [*BACKDROP, *BL15_MEASURED])
+        out = summary(capsys)
+
+        assert code == 0
+        assert "  8 Shorts reported no duration (expected)" in out.splitlines(), out
+        assert "  0 dated videos reported no duration" in out.splitlines(), out
+        assert_no_warning(out)
+
+    def test_a_ninth_dated_entry_is_visible_among_the_eight(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """BL-15's second cost, undone.
+
+        Under the old rule the eight already tripped the banner, so a ninth id
+        appeared inside a list the operator had learned to ignore. It is now the
+        only id named.
+        """
+        entries = [*BACKDROP, *BL15_MEASURED, dated_no_duration("dr0pped0001")]
+
+        code, _ = run_index(monkeypatch, tmp_path, entries)
+        out = summary(capsys)
+
+        assert code == 0
+        assert "  8 Shorts reported no duration (expected)" in out.splitlines(), out
+        assert "  1 dated videos reported no duration" in out.splitlines(), out
+        banner = warning_text(out)
+        assert "dr0pped0001" in banner
+        for measured in BL15_MEASURED:
+            video_id = str(measured["id"])
+            assert video_id not in banner, f"{video_id} should not be named"
+
+    def test_the_eight_are_still_classified_and_recorded_exactly_as_before(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """R1009 changes what is REPORTED. Classification is untouched (OD-14)."""
+        _, config = run_index(monkeypatch, tmp_path, [*BACKDROP, *BL15_MEASURED])
+        capsys.readouterr()
+
+        by_id = {video.video_id: video for video in read_index(config.data_dir / "index.jsonl")}
+
+        for measured in BL15_MEASURED:
+            video = by_id[str(measured["id"])]
+            assert video.inclusion == "excluded_short"
+            assert video.upload_date == date.min
+
+    def test_a_dated_zero_duration_video_is_still_excluded_as_a_short(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The banner makes the drop visible; it does not undo it (OD-14)."""
+        _, config = run_index(monkeypatch, tmp_path, [*BACKDROP, dated_no_duration("dr0pped0001")])
+        capsys.readouterr()
+
+        by_id = {video.video_id: video for video in read_index(config.data_dir / "index.jsonl")}
+
+        assert by_id["dr0pped0001"].inclusion == "excluded_short"
+
+
+class TestTheCountsAlwaysPrint:
+    """A number present on every run is comparable across runs (R1009)."""
+
+    def test_both_lines_print_as_zero_when_nothing_lacks_a_duration(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
@@ -163,160 +368,24 @@ class TestZeroDurationCountLine:
         out = summary(capsys)
 
         assert code == 0
-        assert "  0 with no duration reported" in out.splitlines(), out
+        assert "  0 Shorts reported no duration (expected)" in out.splitlines(), out
+        assert "  0 dated videos reported no duration" in out.splitlines(), out
+        assert_no_warning(out)
         assert_summary_block(out, config, total=3, out_of_range=1, shorts=1, kept=1)
 
-    def test_no_warning_when_no_video_reports_zero(
+    def test_the_warning_comes_after_the_summary_block(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        run_index(monkeypatch, tmp_path, list(BACKDROP))
-
-        assert_no_warning(summary(capsys))
-
-    @pytest.mark.parametrize(
-        ("label", "zero_entry"),
-        [
-            ("null", entry("nu11Durat05", "20250102", None)),
-            ("absent", entry("nu11Durat05", "20250102", omit_duration=True)),
-            ("explicit_zero", entry("nu11Durat05", "20250102", 0)),
-        ],
-    )
-    def test_single_zero_duration_is_counted_but_not_warned_about(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-        label: str,
-        zero_entry: dict[str, object],
-    ) -> None:
-        # One zero is expected — a stream in progress reports no duration.
-        code, config = run_index(monkeypatch, tmp_path, [*BACKDROP, dict(zero_entry)])
-        out = summary(capsys)
-
-        assert code == 0, label
-        assert "  1 with no duration reported" in out.splitlines(), out
-        assert_no_warning(out)
-        # The zero-duration video counts toward the Shorts total as well: the
-        # new line reports it in addition, it does not remove it.
-        assert_summary_block(out, config, total=4, out_of_range=1, shorts=2, kept=1)
-
-    def test_zero_duration_video_is_still_indexed_as_an_excluded_short(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        zero = entry("nu11Durat05", "20250102", None)
-        _, config = run_index(monkeypatch, tmp_path, [*BACKDROP, zero])
-        summary(capsys)
-
-        records = {video.video_id: video for video in read_index(config.data_dir / "index.jsonl")}
-
-        assert records["nu11Durat05"].duration_seconds == 0
-        assert records["nu11Durat05"].inclusion == "excluded_short"
-
-
-# Three zero-duration entries whose input order differs from the order the
-# index is written in (upload date, then video id), so a warning that echoed
-# the listing order would be caught.
-ZERO_ENTRIES: list[dict[str, object]] = [
-    entry("zzz99nodur1", "20230303", 0),
-    entry("aaa11nodur2", "20240701", None),
-    entry("mmm55nodur3", "20230303", omit_duration=True),
-]
-ZERO_IDS_IN_INDEX_ORDER = ["mmm55nodur3", "zzz99nodur1", "aaa11nodur2"]
-ZERO_IDS_IN_INPUT_ORDER = [str(item["id"]) for item in ZERO_ENTRIES]
-
-
-def test_fixture_orders_differ() -> None:
-    # Guards the ordering test below against being silently trivial.
-    assert ZERO_IDS_IN_INPUT_ORDER != ZERO_IDS_IN_INDEX_ORDER
-
-
-class TestZeroDurationWarning:
-    def test_two_zeroes_trigger_a_warning_naming_both(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        zeroes = [dict(item) for item in ZERO_ENTRIES[:2]]
-        code, config = run_index(monkeypatch, tmp_path, [*BACKDROP, *zeroes])
-        out = summary(capsys)
-
-        assert code == 0
-        assert "  2 with no duration reported" in out.splitlines(), out
-        assert_summary_block(out, config, total=5, out_of_range=1, shorts=3, kept=1)
-
-        warning = warning_text(out)
-        assert re.search(r"\b2\b", warning), f"warning omits the count: {warning!r}"
-        for video_id in ("zzz99nodur1", "aaa11nodur2"):
-            assert video_id in warning, f"warning omits {video_id}: {warning!r}"
-
-    def test_three_zeroes_warn_and_leave_the_summary_intact(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        entries = [*BACKDROP, *(dict(item) for item in ZERO_ENTRIES)]
-        code, config = run_index(monkeypatch, tmp_path, entries)
-        out = summary(capsys)
-
-        # The warning is not an error: the exit code is unchanged.
-        assert code == 0
-        # 6 found = 1 kept + 4 Shorts (3 of them zero-duration) + 1 out of range.
-        assert_summary_block(out, config, total=6, out_of_range=1, shorts=4, kept=1)
-        assert "  3 with no duration reported" in out.splitlines(), out
-
-        warning = warning_text(out)
-        assert re.search(r"\b3\b", warning), f"warning omits the count: {warning!r}"
-
-    def test_warning_comes_after_the_summary_block(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        entries = [*BACKDROP, *(dict(item) for item in ZERO_ENTRIES)]
-        run_index(monkeypatch, tmp_path, entries)
-        out = summary(capsys)
-        lines = out.splitlines()
-
-        warning_line = next(number for number, line in enumerate(lines) if "WARNING" in line)
-        count_line = lines.index("  3 with no duration reported")
-        kept_line = lines.index("  1 kept")
-
-        assert warning_line > kept_line
-        assert warning_line > count_line
-        # Distinguishable from the ordinary detail lines, which are indented
-        # two spaces and carry no such marker.
-        assert "WARNING" not in "\n".join(lines[:warning_line])
-
-    def test_affected_ids_are_listed_in_index_order(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        entries = [*BACKDROP, *(dict(item) for item in ZERO_ENTRIES)]
-        _, config = run_index(monkeypatch, tmp_path, entries)
-        out = summary(capsys)
-
-        warning = warning_text(out)
-        for video_id in ZERO_IDS_IN_INDEX_ORDER:
-            assert video_id in warning, f"warning omits {video_id}: {warning!r}"
-
-        positions = [warning.index(video_id) for video_id in ZERO_IDS_IN_INDEX_ORDER]
-        assert positions == sorted(positions), (
-            f"ids not listed in index order {ZERO_IDS_IN_INDEX_ORDER}: {warning!r}"
+        code, config = run_index(
+            monkeypatch, tmp_path, [*BACKDROP, dated_no_duration("dr0pped0001")]
         )
+        out = summary(capsys)
 
-        # The same order the records are written to the index in.
-        written = [video.video_id for video in read_index(config.data_dir / "index.jsonl")]
-        assert [
-            video_id for video_id in written if video_id in ZERO_IDS_IN_INPUT_ORDER
-        ] == ZERO_IDS_IN_INDEX_ORDER
+        assert code == 0
+        lines = out.splitlines()
+        assert lines.index("  0 Shorts reported no duration (expected)") < next(
+            number for number, line in enumerate(lines) if "WARNING" in line
+        )

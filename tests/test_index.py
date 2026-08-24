@@ -655,23 +655,26 @@ WARNING_MARKER = re.compile(r"warn", re.IGNORECASE)
 
 
 class TestZeroDurationReporting:
-    """Owner's ruling (plan amendment): at most one zero duration is benign.
+    """OD-14 / R1009: the report judges the listing SHAPE, never the count.
 
-    A missing duration reads as 0 and excludes the video as a Short. Exactly
-    one such video is explained — a stream in progress reports no duration,
-    and he can only be live in one place at a time. Two or more mean the zero
-    has some other cause and videos are being dropped silently, so the summary
-    must always report the zero-duration count and warn loudly, naming the
-    affected video ids, when it exceeds one.
+    **Rewritten on 2026-08-24, and the old rule is why.** This class used to
+    assert the owner's earlier ruling — at most one zero duration is benign,
+    because a stream in progress reports none and he can only be live in one
+    place at a time. BL-15 measured that premise false: eight videos reported no
+    duration on the first real run and all eight were genuine Shorts, so the
+    banner fired every run and a real silent drop would have been invisible
+    inside it. The fixtures here all carry a REAL upload date with no duration,
+    which under R1009 is the anomaly shape — so they warn at any count now,
+    including at one. Nothing is weakened; the tests follow the rule.
     """
 
     @pytest.fixture
     def channel_entries(self, request: pytest.FixtureRequest) -> list[dict[str, object]]:
-        """Override the module fixture: a listing with N zero-duration entries.
+        """A listing with N dated, zero-duration entries — the anomaly shape.
 
-        The parameter is the number of zero-duration entries. Both ways a zero
-        can arrive — a null duration and a literal 0 — are represented, since
-        the ruling counts videos that "report a zero duration" either way.
+        The parameter is that count. Both ways a zero can arrive — a null
+        duration and a literal 0 — are represented, since the rule counts a
+        video that reports no duration either way.
         """
         zero_count: int = request.param
         entries = [
@@ -696,7 +699,7 @@ class TestZeroDurationReporting:
 
     @staticmethod
     def _zero_ids(channel_entries: list[dict[str, object]]) -> list[str]:
-        return [str(entry["id"]) for entry in channel_entries if not entry["duration"]]
+        return [str(entry["id"]) for entry in channel_entries if not entry.get("duration")]
 
     @staticmethod
     def _zero_duration_report(out: str) -> str:
@@ -704,39 +707,39 @@ class TestZeroDurationReporting:
         assert lines, f"summary never reports the zero-duration count: {out!r}"
         return "\n".join(lines)
 
-    @pytest.mark.parametrize("channel_entries", [0, 1], indirect=True)
-    def test_counts_of_zero_and_one_are_reported_without_warning(
+    @pytest.mark.parametrize("channel_entries", [0], indirect=True)
+    def test_a_clean_listing_reports_zero_and_does_not_warn(
         self,
         boundary_calls: list[tuple[str, date]],
         channel_entries: list[dict[str, object]],
         tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        zero_count = len(self._zero_ids(channel_entries))
-
         assert run(make_config(tmp_path / "data"), Namespace()) == 0
 
         captured = capsys.readouterr()
-        # The count is reported even when it is 0, on the same line that names
-        # the zero-duration concept, so 0 cannot be confused with silence.
+        # Reported even at 0, so 0 cannot be confused with silence.
         report = self._zero_duration_report(captured.out)
-        assert re.search(rf"\b{zero_count}\b", report), (
-            f"zero-duration report omits the count {zero_count}: {report!r}"
-        )
-        # One zero is the live-stream-in-progress case: explained, no warning.
+        assert re.search(r"\b0\b", report), report
         assert not WARNING_MARKER.search(captured.out + captured.err)
 
-    @pytest.mark.parametrize("channel_entries", [2, 3], indirect=True)
-    def test_two_or_more_warn_and_name_the_affected_videos(
+    @pytest.mark.parametrize("channel_entries", [1, 2, 3], indirect=True)
+    def test_a_dated_zero_duration_video_warns_at_any_count(
         self,
         boundary_calls: list[tuple[str, date]],
         channel_entries: list[dict[str, object]],
         tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
+        """ONE is enough now. The "more than one" threshold is what OD-14 retired.
+
+        These entries carry a real upload date and no duration, so they are not
+        the flat listing's Shorts shape and something else zeroed them — which
+        is the silent drop the banner exists for.
+        """
         zero_ids = self._zero_ids(channel_entries)
 
-        # A warning, not a failure: the ruling changes reporting only.
+        # A warning, not a failure: the rule changes reporting only.
         assert run(make_config(tmp_path / "data"), Namespace()) == 0
 
         captured = capsys.readouterr()
@@ -744,7 +747,7 @@ class TestZeroDurationReporting:
         report = self._zero_duration_report(captured.out)
         assert re.search(rf"\b{len(zero_ids)}\b", report)
         assert WARNING_MARKER.search(everything), (
-            f"no warning for {len(zero_ids)} zero-duration videos: {everything!r}"
+            f"no warning for {len(zero_ids)} dated zero-duration videos: {everything!r}"
         )
         # The ids are what let the cause be chased; the calm summary never
         # prints ids, so their presence is attributable to the warning.
