@@ -487,6 +487,100 @@ whose videos have NO transcripts does not.
 — filed by: the attended session of 2026-08-24, from the state the 2026-08-20
 local-lane run left on disk; reproduced by re-running `select` and `estimate`
 
+### BL-28 — Every caption is stored three times, because YouTube's roll-up VTT repeats every line
+
+Measured on 2026-08-24 against the whole cached corpus, and it is not an
+estimate: **285 of 285 transcripts carry roughly three copies of every spoken
+word.**
+
+| | characters |
+| --- | --- |
+| stored in `data/transcripts/` | 38,767,230 |
+| actual speech | 13,645,734 |
+| **ratio** | **2.84x** |
+
+Per video the ratio runs from 2.54x to 3.00x, median 2.96x. Not one video
+escapes it.
+
+**The mechanism.** YouTube's automatic captions use a **roll-up** presentation:
+two lines scroll on screen, and the track emits a new cue for every *display
+frame* rather than for every line of speech. The real cue sequence looks like
+this:
+
+```
+   1.87  "Hey guys, Buildzoid here and today we're"
+   1.88  "Hey guys, Buildzoid here and today we're going to be doing a very rambly video"
+   4.51  "going to be doing a very rambly video"
+   4.52  "going to be doing a very rambly video sort of going through my motherboard"
+   6.07  "sort of going through my motherboard"
+```
+
+Every line appears three times: alone, as the tail of the previous frame, and
+as the head of the next. The structure is exact, not noisy — of 4,430 cues in
+one video, **50%** extend the previous cue, **49%** are a suffix of it, and
+**50%** start within 0.02s of it.
+
+`parse_vtt` is not defective. It faithfully keeps every cue, which is correct
+for an ordinary WebVTT file and wrong for a roll-up one.
+
+**Why no gate saw it.** `tests/fixtures/captions_vtt.txt` — the only WebVTT the
+suite has ever parsed — has clean, non-overlapping cues. YouTube has never sent
+this project captions that look like that fixture. That is **ESC-21** repeating
+exactly: the fixture agreed with the code, and both disagreed with what yt-dlp
+actually returns.
+
+**Confirmed against the source.** The same caption track was fetched in both
+formats offered for it:
+
+| | characters | words |
+| --- | --- | --- |
+| `vtt`, as stored today | 217,427 | 40,966 |
+| `json3`, every segment concatenated | 73,159 | 13,791 |
+
+Four videos were checked and all four give 2.97x–3.00x. All four offer `json3`.
+The rebuilt text reads as clean prose at 151 words per minute, which is an
+ordinary speaking rate.
+
+**Two costs, and the second is not about money.**
+
+1. The projection. After R1000's re-cut the corpus projects 4,967,112 tokens;
+   removing the duplication takes it to roughly 1,700,000.
+2. **Timestamps.** R5 cuts every excerpt window from a mention's
+   `start_seconds`, and V11 and V14 make the timestamp the thing the owner acts
+   on. In roll-up VTT a board name found inside a two-line frame inherits the
+   **first** line's timestamp — up to about 2.5 seconds early. `json3` carries
+   per-word offsets (`tOffsetMs` on 72% of segments), so the timestamp lands on
+   the word. Beyond that, the model currently reads text in which every sentence
+   appears three times, which is unlikely to help it.
+
+**Direction, agreed with the owner on 2026-08-24:**
+
+1. **Request `json3` and prefer it.** It is duplicate-free when every segment is
+   concatenated, and it carries the per-word timing VTT cannot express. Note
+   that `aAppend` events must be **kept**: they hold real speech, and dropping
+   them loses 2,257 words on the measured video. The roll-up structure lives in
+   `wWinId`/`wpWinPosId`, not in the text.
+2. **Keep VTT as a fallback**, with de-duplication. The reconstruction was
+   validated against `json3` as ground truth and lands within **0.05%** — 73,121
+   characters against 73,159 — so it is a sound fallback. A conservative,
+   purely structural rule recovers 13,646,892 characters against the aggressive
+   word-overlap merge's 13,645,734, a difference of 0.008%, so the version that
+   could eat genuinely repeated speech is never needed.
+3. **The fallback must announce itself loudly.** A run has to say which format
+   it used, per video and in the summary, so it is never a question later
+   whether a given transcript came from `json3` or from a reconstruction. A
+   silent fallback would put two different provenance classes in one cache with
+   nothing to tell them apart.
+
+`json3` is an undocumented internal format and can change without notice, which
+is exactly why the VTT path stays rather than being deleted.
+
+**This needs a fresh fetch**, and one fetch serves three things at once: the
+descriptions R1004 records, this de-duplication, and the word-level timestamps.
+
+— filed by: the attended session of 2026-08-24, from the whole cached corpus and
+from a two-format comparison of the same caption track
+
 ## Uncertainties awaiting oracle ruling
 
 _(nothing yet — filed by `/plan` when a design leaves a question open; format:_
