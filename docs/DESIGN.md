@@ -139,8 +139,15 @@ specific fact I would need to confirm myself before buying.
   then larger batches.
 - **R7** — Before any model is invoked, print a cost projection: videos indexed,
   videos selected, total and per-batch excerpt volume, bundle count, projected
-  token load, and the chars-per-token factor used, stated openly. The pipeline
-  stops here and does not continue without an explicit separate command.
+  token load, and the chars-per-token factor used, stated openly. The projection
+  is printed on every run and always before anything is spent, so no spend is
+  ever unannounced. **What bounds the spend is R26's ceiling, not a human
+  standing between the stages**: the real subscription meter is read before a
+  batch, part-way through a long one, and after it, and a run stops before
+  crossing the line rather than after. An automatic bound holds while nobody is
+  watching and a manual one does not, which is the whole reason to prefer it —
+  the manual stop protected an unattended overspend only by making unattended
+  running impossible.
 - **R8** — After the calibration batch, record two quantities and keep them
   apart. **Tokens:** the projection's figure against the token counts the run's
   own model calls report, summed across every call the batch made, including any
@@ -326,8 +333,11 @@ claim categories, about which subject (VRM capacity, voltage/firmware safety,
 memory behaviour, features, value), with the short verbatim snippet, its
 timestamp, and its video's title and id. Low effort, because this is reading
 comprehension, not reasoning. An ingest step validates each file against the
-schema and appends it to the append-only claim store, tagged by batch. Between
-batches the pipeline stops.
+schema and appends it to the append-only claim store, tagged by batch. Batches
+run in order until the corpus is extracted or R26's ceiling is reached,
+whichever comes first; each batch's claims land before the next one starts, so
+a run stopped at the ceiling leaves every batch it finished intact and every
+batch it did not reach untouched.
 
 **Stage C — Synthesis (agents, medium effort).** Claims are grouped per board
 into a dossier: capacity assessment, safety assessment, the strongest supporting
@@ -586,9 +596,9 @@ flags the staleness; a cutoff throws both away.
   cumulative fetch errors crossing 3% of indexed videos, with the no-caption
   class counted separately against its own 5% trigger.
   *(Mechanically checkable.)*
-- **S2** — The cost projection is printed and the pipeline stops before any
-  inference; continuing requires a separate explicit command. *(Mechanically
-  checkable.)*
+- **S2** — The cost projection is printed before any inference on every run, and
+  a batch that would carry the spend past R26's ceiling is stopped before it
+  starts rather than after it has run. *(Mechanically checkable.)*
 - **S3** — After the calibration batch, the token projection, the token actual
   the run's own calls reported, their delta and the corrected factor are recorded
   together, and the R26 points readings taken around the batch are recorded
