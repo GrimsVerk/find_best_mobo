@@ -106,5 +106,75 @@ Stage order is fixed and is the contract: `index → fetch → select → estima
   plan question about `cli.py` and stays the owner's.
 - **Any change to the pipeline itself.** No stage's behaviour moves; the scripts
   only sequence what already exists.
-- **Anything that invokes a model.** The run stops at the projection because
-  there is no code path past it (`R20`), and these scripts add none.
+- **Anything that invokes a model.** True when slice 1 was written and false
+  now: Stage B exists. Slice 2 below is where that changes, and it changes
+  because `docs/DESIGN.md` R7 changed, not because these scripts route around
+  it.
+
+
+## Slice 2 — `run.sh` runs the whole pipeline, including extraction
+
+Slice 1 said the run "stops at the cost projection because there is no code that
+continues". That was a statement of fact, not a policy: no command could spend,
+so the wrapper could not. Stage B's slices 1-3 built one, and the sentence became
+false without anyone deciding it should.
+
+The owner's own words for what `run.sh` is: **the thing to run when you want to
+run the software.** A wrapper that omits a third of the pipeline is not that; it
+is a list of the parts that existed when it was written.
+
+**This slice depends on the R7 amendment landing first.** R7 required a human
+between the projection and the first model call. It now requires the projection
+on every run and puts the bound on R26's ceiling instead — read from the real
+subscription meter before a batch, part-way through a long one, and after it.
+Built before that lands, this slice contradicts the design at its own base
+commit and the review gate should block it.
+
+- **Delivers:** `./scripts/run.sh` runs `index → fetch → select → estimate →
+  extract` in order, skipping what is already done at every step — cached
+  transcripts are not refetched, and batches already in the claim store are not
+  re-extracted. It ends when the corpus is extracted or when R26's ceiling stops
+  it, and says which. `./scripts/run.sh extract --batch 1` still runs exactly one
+  named batch.
+- **Files:** `scripts/run.sh`, `src/find_best_mobo/commands/extract.py`, `tests/test_run_script.py`, `tests/test_extract_all_batches.py`, `docs/architecture.md`
+- **Estimate:** ~260 lines
+
+### Signatures
+
+No new module. `commands/extract.py` keeps `parse_args` and `run`; `--batch`
+becomes optional and `pending_batches` is added beside them.
+
+```python
+# find_best_mobo/commands/extract.py
+
+
+def pending_batches(config: Config) -> tuple[int, ...]: ...
+```
+
+### Behaviour the signatures cannot carry
+
+- **`--batch` becomes optional, and omitting it means every pending batch in
+  order.** The loop belongs in Python, not in the shell: `run.sh` cannot read the
+  claim store, and a wrapper that guessed batch numbers would drift from the
+  store the moment either changed.
+- **A batch already in the claim store is skipped, not refused.** Slice 1 of
+  `stage-b-extraction` makes re-ingesting a stored batch an error, and that
+  refusal stays exactly as it is for an explicit `--batch N`. What changes is
+  that the no-argument form never asks: it extracts the batches that are
+  pending, which is what makes a second `./scripts/run.sh` cheap rather than
+  fatal. That distinction is the whole of R2's restartability applied to a stage
+  that spends.
+- **The ceiling stops the loop, not just the batch.** A run halted by R26 does
+  not try the next batch. It reports which batches landed, which are still
+  pending, and what the meter read, and exits non-zero.
+- **`run.sh` forwards arguments after a stage name.** Today it treats every
+  argument as a stage name, so `./scripts/run.sh extract --batch 1` would fail
+  validation on `--batch`. Everything after the first non-stage token is
+  forwarded to that stage.
+- **The header stops promising what it cannot.** `run.sh` currently states that
+  "Nothing in this script spends money." It will spend money. The replacement
+  says what is actually true: the projection is printed before anything is spent,
+  and R26's ceiling bounds what a run can cost.
+- **Nothing about the guard, the retry policy or the store changes.** This slice
+  adds a loop and an argument. Every protection Stage B built is untouched, which
+  is the point of putting the loop where the store can be read.
