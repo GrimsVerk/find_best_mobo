@@ -46,7 +46,7 @@ excerpting and no model involvement — those are the last slice of the
 | Excerpting (`excerpt.py`) | Cutting a wide asymmetric window around each mention, merging windows that overlap, and capping how many survive per video. Also the one definition of a transcript's text as a single line (`transcript_text`), which the saturation ratio's denominator and the whole path's own text both read, so the two cannot drift. Pure — it never reads the disk. |
 | Routing (`submission.py`) | Deciding whether a video is sent as excerpts or as its whole transcript, and cutting a whole transcript into bundle-sized parts at cue boundaries (OD-13, R28, R1008). The ratio decides and size never does; a `VideoSubmission` carries the chosen blocks and their projected cost. Pure — it never reads the disk. |
 | Bundling (`bundle.py`) | Grouping blocks into token-capped work bundles, assigning them to a calibration batch and larger batches after it, and rendering each as XML on disk. Every `<excerpt>` states its `form`, `part` and `parts` (R28, R1008), always present and never inferred from an absent attribute, so a reader can be told whether it is holding a window or one part of a whole transcript. |
-| Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it. |
+| Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it, and the per-path routing figures R1008 asks for — counts, characters and tokens per path, and every whole transcript that spans more than one bundle, by id. |
 | `estimate` subcommand (`commands/estimate.py`) | The stage itself, and the end of the milestone: cut, merge, cap, pack, batch, write, print the projection, stop. |
 
 ## Data flow
@@ -254,7 +254,17 @@ the stage re-run from cache, with no refetching (R17).
    and can never share a bundle.
 9. The projection prints: videos indexed and selected, excerpt volume, bundle
    count, tokens per batch and in total, and **the chars-per-token factor
-   itself**, stated openly as an estimate rather than buried as a constant.
+   itself**, stated openly as an estimate rather than buried as a constant. It
+   also splits the corpus by path (R1008): how many videos went whole and how
+   many as excerpts, the characters and projected tokens each path accounts
+   for, how many whole transcripts exceed one bundle's cap, and each of those by
+   id with the number of bundles it spans. **The cap is printed beside the
+   spans**, for the same reason the token factor is printed beside the totals: a
+   span reported without the bound that produced it reads as a property of the
+   corpus rather than of the configuration. The path figures are derived from
+   the submissions and the span figures from the bundles, and the suite asserts
+   the two agree — intent and outcome disagreeing is a defect the projection
+   should surface, not smooth over.
 
 Then it stops. Nothing downstream of this exists yet, deliberately.
 

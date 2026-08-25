@@ -267,7 +267,9 @@ class TestProjectCarriesCoverage:
             make_selection(SKIPPED, EXCLUDED, has_transcript=True),
         ]
 
-        assert project([], selections, config).coverage == Coverage(considered=2, with_transcript=1)
+        assert project([], selections, (), config).coverage == Coverage(
+            considered=2, with_transcript=1
+        )
 
     def test_an_excluded_selection_never_lowers_the_figure(self, tmp_path: Path) -> None:
         config = make_config(tmp_path / "data")
@@ -278,7 +280,9 @@ class TestProjectCarriesCoverage:
             make_selection(SKIPPED, EXCLUDED, has_transcript=False),
         ]
 
-        assert project([], selections, config).coverage == Coverage(considered=2, with_transcript=2)
+        assert project([], selections, (), config).coverage == Coverage(
+            considered=2, with_transcript=2
+        )
 
     def test_the_denominator_is_the_videos_selected_figure(self, tmp_path: Path) -> None:
         """Two numbers in one block that must never diverge, taken from one population."""
@@ -290,7 +294,7 @@ class TestProjectCarriesCoverage:
             make_selection(SKIPPED, EXCLUDED, has_transcript=True),
         ]
 
-        projection = project([], selections, config)
+        projection = project([], selections, (), config)
 
         assert projection.coverage.considered == projection.videos_selected
 
@@ -309,7 +313,9 @@ class TestProjectCarriesCoverage:
             make_selection(OLDER, TITLE_HIT, has_transcript=True),
         ]
 
-        assert project([], selections, config).coverage == Coverage(considered=2, with_transcript=2)
+        assert project([], selections, (), config).coverage == Coverage(
+            considered=2, with_transcript=2
+        )
 
     def test_a_file_on_disk_does_not_override_a_recorded_miss(self, tmp_path: Path) -> None:
         """The other direction of the same rule: the record decides, not the current tree.
@@ -328,7 +334,9 @@ class TestProjectCarriesCoverage:
             make_selection(OLDER, TITLE_HIT, has_transcript=False),
         ]
 
-        assert project([], selections, config).coverage == Coverage(considered=2, with_transcript=0)
+        assert project([], selections, (), config).coverage == Coverage(
+            considered=2, with_transcript=0
+        )
 
     def test_no_included_selections_is_zero_of_zero(self, tmp_path: Path) -> None:
         """An empty population is a real result and reports as one (R1005)."""
@@ -336,13 +344,15 @@ class TestProjectCarriesCoverage:
         write_index_lines([SKIPPED], config.data_dir / "index.jsonl")
         selections = [make_selection(SKIPPED, EXCLUDED, has_transcript=True)]
 
-        assert project([], selections, config).coverage == Coverage(considered=0, with_transcript=0)
+        assert project([], selections, (), config).coverage == Coverage(
+            considered=0, with_transcript=0
+        )
 
     def test_nothing_at_all_projects_zero_coverage(self, tmp_path: Path) -> None:
         config = make_config(tmp_path / "data")
         write_index_lines([], config.data_dir / "index.jsonl")
 
-        assert project([], [], config).coverage == Coverage(considered=0, with_transcript=0)
+        assert project([], [], (), config).coverage == Coverage(considered=0, with_transcript=0)
 
 
 SAMPLE = Projection(
@@ -354,6 +364,17 @@ SAMPLE = Projection(
     total_tokens=66,
     chars_per_token=3.5,
     coverage=Coverage(considered=45, with_transcript=17),
+    # R1008's routing figures. This fixture is about the COVERAGE line, so the
+    # routing side is held at a neutral all-excerpts corpus; the routing figures
+    # are exercised in tests/test_estimate.py, which is slice 3's own file.
+    videos_whole=0,
+    videos_excerpted=45,
+    whole_characters=0,
+    whole_tokens=0,
+    excerpt_tokens=66,
+    videos_over_bundle_cap=0,
+    bundles_spanned=(),
+    bundle_token_cap=24000,
 )
 
 
