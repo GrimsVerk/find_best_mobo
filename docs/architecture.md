@@ -27,7 +27,8 @@ command extracts one batch of bundles into claims, validates them against a
 schema Python owns, appends them to an append-only store, and stops before it
 has spent 10% of the weekly subscription limit. Everything between the two —
 excerpting, routing, bundling and the projection — runs in `estimate`, which
-stops at the projection and hands the decision to continue to `extract`.
+stops at the projection and hands the decision to continue to `extract`, which
+does the number of batches it was given and then stops, reports and waits.
 
 ## Components
 
@@ -35,7 +36,7 @@ stops at the projection and hands the decision to continue to `extract`.
 | --- | --- |
 | CLI dispatcher (`cli.py`) | Parsing the arguments it owns — `--config`, `--help`, the command name — loading configuration, and handing off to the subcommand module named on the command line. Everything it does not recognise is forwarded to that module, which owns its parsing and its errors (OD-10, R1006); a module may declare `parse_args`, and one that does not gets a parser accepting nothing, so a typo is still an exit-2 error naming the stage. It holds no list of subcommands and no flag names: adding a stage, or a flag to one, means editing a module and never the dispatcher. Every shipped stage declares `parse_args`, so `find-best-mobo <stage> --help` documents that stage; `tests/test_cli_stages.py` walks the package and fails if a later stage does not. |
 | Shared refusals (`artifacts.py`) | Saying what each stage requires of the one before it, in one message shape. An ABSENT artifact names itself and the command that produces it, and the stage exits 1; a PRESENT-but-empty one is a real value and is reported as what it is (OD-9, R1005). `MissingArtifact` subclasses `FileNotFoundError`, so no existing handler had to change. |
-| Configuration (`config.py`) | Declaring every lever the whole pipeline will ever have — including ones no stage uses yet — and reading them from `config.toml`, with in-code defaults so an absent key or file is never a crash. Paths are levers too: `data_dir` for the corpus cache and `alias_table_path` for the hand-authored alias table, which is why the two can be moved independently. One lever has no default and cannot get one: `extraction_model` is empty until `config.toml` names a model, and extraction REFUSES rather than choosing — a chars-per-token factor measured against one model does not transfer to another, so no model name appears anywhere in `src/`. |
+| Configuration (`config.py`) | Declaring every lever the whole pipeline will ever have — including ones no stage uses yet — and reading them from `config.toml`, with in-code defaults so an absent key or file is never a crash. Paths are levers too: `data_dir` for the corpus cache and `alias_table_path` for the hand-authored alias table, which is why the two can be moved independently. One lever has no default and cannot get one: `extraction_model` is empty until `config.toml` names a model, and extraction REFUSES rather than choosing — `docs/DESIGN.md` §6 fixes it by owner ruling (Opus 5, low effort), and the calibration record names the model it measured because a chars-per-token factor measured against one model does not transfer to another. |
 | Network boundary (`ytdlp.py`) | The only code that touches `yt-dlp` or the network. Lists a channel's uploads via flat playlist extraction (no downloads), reusing one client for the whole run, and yields raw entry dicts. |
 | Index (`index.py`) | Classifying each raw entry into a video record (regular or Short; pending, excluded-as-Short, or out-of-range) and reading/writing the index as deterministic JSONL. Classification is pure — no I/O. |
 | `index` subcommand (`commands/index.py`) | The stage itself: enumerate, write `data/index.jsonl`, print the summary counts. |
@@ -497,10 +498,14 @@ the cache ITSELF.
   number without moving the store aside. Nothing model-produced is lost either
   way — every claims file is on disk as it was produced (R27) — but the store's
   record of that batch is closed once the run that opened it ends.
-- **`./scripts/run.sh` has no `extract` stage.** The wrapper validates a fixed
-  list of stage names and forwards no flags, and its own text promises that
-  nothing in it spends money. Extraction is run directly, one batch at a time:
-  `uv run find-best-mobo extract --batch 1`.
+- **`./scripts/run.sh` runs the whole pipeline, extraction included, and so it
+  spends money.** Its header says so rather than promising otherwise. A bare run
+  does `index → fetch → select → estimate → extract`, each skipping what is
+  already done — cached transcripts are not refetched, batches already in the
+  claim store are not re-extracted. Arguments after a stage name are forwarded to
+  that stage, so `./scripts/run.sh extract --batches all` works; arguments with
+  more than one stage named are an error, because a flag one stage declared is
+  not a flag the others did (R1006).
 - **A run with no failures does not rewrite `data/failures.jsonl`.** The ledger
   is written when a failure is recorded, so a clean rerun after a failing one
   leaves the old file in place and it reads as current. Raised for a ruling
