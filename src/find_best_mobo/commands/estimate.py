@@ -88,7 +88,7 @@ def run(config: Config, args: Namespace) -> int:
     bundles = assign_batches(pack_bundles(blocks, config), config)
     written = write_bundles(bundles, config)
     print(f"Wrote {written} bundles to {config.data_dir / 'bundles'}")
-    print(render_projection(project(bundles, selections, config)))
+    print(render_projection(project(bundles, selections, submissions, config)))
     return 0
 
 
