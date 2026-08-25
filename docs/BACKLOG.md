@@ -581,6 +581,42 @@ descriptions R1004 records, this de-duplication, and the word-level timestamps.
 — filed by: the attended session of 2026-08-24, from the whole cached corpus and
 from a two-format comparison of the same caption track
 
+### BL-29 — Nothing makes an unattended run confirm its budget before it spends
+
+The owner ruled on 2026-08-24, recorded in `docs/DECISIONS.md`, that before
+EVERY unattended run the agent asks which limit governs the run and what value
+to use for it — and that the owner prefers that confirmation even where a
+default exists. The ruling arrived as part of BL-24, whose subject is where a
+usage reading comes from. It was recorded there and nowhere else.
+
+That leaves it as a sentence inside a decision about readings, in a project
+about motherboards. Nothing enforces it, and nothing carries it to the next
+project. **It says nothing about this pipeline** — it is a rule about how an
+agent behaves before spending someone's subscription, which is true of every
+project the template produces.
+
+**Proposed home: `AGENTS.md`, and therefore the template.** `AGENTS.md` here is
+template-synced, so the durable form is a rule in the template's copy that every
+generated project inherits. A rule written only into this repository's copy is
+lost at the next sync, or survives only here — which is the same failure the
+escapes ledger keeps recording about fixes applied to an instance while the
+generator stays unchanged.
+
+**Filed here rather than as an escape, deliberately.** An escape row answers
+"what went wrong that a gate should have caught". Nothing has gone wrong: Stage
+B has not run, no budget has been spent unattended, and there is no incident to
+record. Filing it as an escape would put an event in an incident log that never
+happened. If an unattended run ever does spend without confirming, THAT is the
+escape, and this item is what it will cite.
+
+**LOW risk to this project, HIGH value to the template.** It changes no code
+here and no behaviour of any stage. The cost of getting it wrong is a rule
+written in the wrong file; the cost of not filing it is a ruling that exists
+only in one decision entry about a different subject.
+
+— filed by: the attended session of 2026-08-25, at the owner's instruction,
+after the owner asked whether the rule was global and belonged in the template
+
 ## Uncertainties awaiting oracle ruling
 
 _(nothing yet — filed by `/plan` when a design leaves a question open; format:_
