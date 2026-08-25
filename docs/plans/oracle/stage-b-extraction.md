@@ -49,7 +49,13 @@ bundles.
   configuration key never rewritten by a stage — and every part of that survives
   the move; only the directory changes, and it changes because R1011 requires
   the record to be committed evidence rather than local scratch.
-  **Ruling:** pending — attended, the owner rules before slices are built.
+  **Ruling:** the owner ruled on 2026-08-25, in chat, for the proposed default:
+  **one tracked file at `calibration/batch-<n>.json`**, and no `data/` copy.
+  So R1011 governs the LOCATION and BL-26's ruling governs the SEMANTICS, which
+  is the reading under which neither is weakened: the factor is still measured,
+  `estimate` still prefers it over `config.chars_per_token`, it still says which
+  source it used and whether the number is a measurement or a guess, and the
+  configuration key is still never rewritten by a stage. Slice 4 builds that.
 
 - **Q:** Which model extracts, and at what effort? §7 says "low effort, because
   this is reading comprehension, not reasoning". — **risk:** LOW: it is one
