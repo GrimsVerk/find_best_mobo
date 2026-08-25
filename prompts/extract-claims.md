@@ -53,10 +53,18 @@ Record only what he actually says.
   verdict, there is no claim in it — that is an expected outcome, not a problem
   to solve.
 - **A board named in passing, with nothing said about it, produces no claim.**
-- **A claim about a CPU, a chipset in general, or the industry is not a claim
-  about a board.** Skip it. `<boards>` may list a chipset because that is how
-  the board was found; record a claim against the chipset only when what he says
-  is genuinely about the chipset itself.
+- **A claim about anything that is not a motherboard is not a claim about a
+  board.** Skip it. That is the rule; the rest of this bullet is examples of it,
+  not the whole of it. A CPU, a chipset in general, or the industry: skip. **A
+  GRAPHICS CARD: skip** — he reviews those too, and a card is not a motherboard
+  however much its VRM, its capacitors and its power delivery are discussed in
+  the same language. If the thing being judged plugs INTO a board, it is not the
+  board. `<boards>` may list a chipset because that is how the board was found;
+  record a claim against the chipset only when what he says is genuinely about
+  the chipset itself.
+- **A video about a graphics card still contains claims about motherboards**,
+  because he talks about the board he is testing on. Record those. It is the
+  SUBJECT of the sentence that decides, never the subject of the video.
 - **Do not repeat yourself.** Two rows identical in every field are rejected as a
   duplicate, and the whole file is refused with them.
 
