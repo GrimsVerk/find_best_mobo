@@ -9,6 +9,15 @@ Most of the packing tests run with `chars_per_token = 1.0`, which makes a token
 a character and every cap arithmetic checkable by counting letters. One test
 deliberately uses a different factor, so that a packer which hard-coded the
 four-characters-per-token default is caught rather than flattered.
+
+**Slice 2 of R28/R1008 was added blind on top of that**, from
+`docs/plans/oracle/capped-whole-transcript-path.md` alone: the `<excerpt>`
+element gains `form`, `part` and `parts`, always present, and a whole
+transcript's parts land one per bundle in strictly ascending bundles. The
+sequencing tests do not construct their parts by hand — they build a real
+transcript, route it through slice 1's `choose_submission`, and pack what comes
+out, because the plan asks for that ordering to be ASSERTED as a property of the
+existing packer rather than engineered into a fixture.
 """
 
 # ruff: noqa: I001
@@ -18,7 +27,11 @@ four-characters-per-token default is caught rather than flattered.
 # block is written in its post-assembly order, which is the stable one.
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -33,7 +46,11 @@ from find_best_mobo.bundle import (
     write_bundles,
 )
 from find_best_mobo.config import Config
-from find_best_mobo.excerpt import Excerpt
+from find_best_mobo.excerpt import Excerpt, cut_windows, merge_overlapping, transcript_text
+from find_best_mobo.aliases import Mention
+from find_best_mobo.index import Video
+from find_best_mobo.transcripts import Cue, Transcript
+from find_best_mobo.submission import EXCERPTS, WHOLE, VideoSubmission, choose_submission
 
 
 def make_config(
@@ -378,10 +395,18 @@ class TestAssignBatches:
         assert assign_batches(given, config) == assign_batches(given, config)
 
 
+# R1008 slice 2 changes this string, and it is the only edit this file's blind
+# slice-2 pass makes to work written for slice 5. The plan
+# (`docs/plans/oracle/capped-whole-transcript-path.md`, "Slice 2") says the
+# `<excerpt>` element GAINS `form`, `part` and `parts` and that the XML does not
+# otherwise change shape — so the contract rendering is the slice-5 one with
+# three attributes appended, defaults included. See
+# `TestExcerptFormAttributes.test_the_attributes_are_appended_after_the_existing_ones`
+# for the assumption about where they sit; the plan names the attributes but not
+# their position.
 EXPECTED_XML = (
     '<bundle id="bundle-003" batch="1">\n'
-    '  <excerpt video_id="abc123" start="1042" end="1462"'
-    ' form="excerpts" part="1" parts="1">\n'
+    '  <excerpt video_id="abc123" start="1042" end="1462" form="excerpts" part="1" parts="1">\n'
     "    <video_title>Some title</video_title>\n"
     "    <boards>B650E, X670E</boards>\n"
     "    <transcript>...the text...</transcript>\n"
@@ -685,3 +710,600 @@ class TestWriteBundles:
 
         assert tree(config_a.data_dir) == tree(config_b.data_dir)
         assert len(tree(config_a.data_dir)) == 3
+
+
+# --------------------------------------------------------------------------
+# Slice 2 of R28/R1008 — the bundle says which form each block is, and which
+# part. Everything below this line was written blind against
+# `docs/plans/oracle/capped-whole-transcript-path.md`, "Slice 2".
+# --------------------------------------------------------------------------
+
+
+def whole_block(
+    text: str,
+    *,
+    part: int,
+    part_count: int,
+    video_id: str = "v1",
+    title: str = "Board roundup",
+    start: float = 0.0,
+    end: float = 900.0,
+    canonicals: tuple[str, ...] = ("B650E",),
+) -> Excerpt:
+    """One part of a whole transcript, as `submission.split_whole` builds it."""
+    return replace(
+        make_excerpt(
+            text, video_id=video_id, title=title, start=start, end=end, canonicals=canonicals
+        ),
+        form="whole",
+        part=part,
+        part_count=part_count,
+    )
+
+
+def one_block_bundle(excerpt: Excerpt, *, bundle_id: str = "bundle-001", batch: int = 1) -> Bundle:
+    return Bundle(
+        bundle_id=bundle_id,
+        batch=batch,
+        excerpts=(excerpt,),
+        projected_tokens=len(excerpt.text),
+    )
+
+
+def rendered_excerpt(excerpt: Excerpt) -> ET.Element:
+    """The parsed `<excerpt>` element for a bundle holding just this block."""
+    return ET.fromstring(render_bundle(one_block_bundle(excerpt)))[0]
+
+
+def make_video(video_id: str = "v1", title: str = "Board roundup") -> Video:
+    return Video(
+        video_id=video_id,
+        title=title,
+        upload_date=date(2024, 5, 1),
+        duration_seconds=1800,
+        was_live=False,
+        classification="regular",
+        inclusion="pending",
+    )
+
+
+def make_transcript(
+    video_id: str = "v1", *, cue_count: int = 60, cue_length: int = 40, spacing: float = 5.0
+) -> Transcript:
+    """A transcript of `cue_count` equal-length cues, `spacing` seconds apart.
+
+    The cue texts are distinct so that a part which repeated or dropped speech
+    would show up as a different string, not merely a different length.
+    """
+    return Transcript(
+        video_id=video_id,
+        cues=tuple(
+            Cue(start_seconds=index * spacing, text=f"cue{index:03d}".ljust(cue_length, "x"))
+            for index in range(cue_count)
+        ),
+    )
+
+
+def saturated_submission(
+    config: Config, *, video_id: str = "v1", cue_count: int = 60
+) -> tuple[Video, Transcript, VideoSubmission]:
+    """Route a video whose windows cover it, exactly as `estimate` would.
+
+    Windows are cut around real mentions and merged, so the 80% ratio is
+    measured on the blocks that would actually be sent rather than on a number
+    written into the fixture. Nothing here chooses the whole path directly.
+    """
+    video = make_video(video_id)
+    transcript = make_transcript(video_id, cue_count=cue_count)
+    mentions = (
+        Mention(
+            video_id=video_id,
+            canonical="B650E",
+            start_seconds=cue.start_seconds,
+            matched_form="b650e",
+        )
+        for cue in transcript.cues[::10]
+    )
+    windows = cut_windows(transcript, tuple(mentions), video, config)
+    excerpts = merge_overlapping(windows, transcript)
+    return video, transcript, choose_submission(video, transcript, excerpts, config)
+
+
+def parts_in_bundles(bundles: tuple[Bundle, ...], video_id: str) -> list[tuple[int, Excerpt]]:
+    """Every whole-form block of `video_id`, paired with the bundle index holding it."""
+    return [
+        (index, block)
+        for index, bundle in enumerate(bundles)
+        for block in bundle.excerpts
+        if block.video_id == video_id and block.form == "whole"
+    ]
+
+
+WHOLE_PART_XML = (
+    '<bundle id="bundle-007" batch="2">\n'
+    '  <excerpt video_id="xyz789" start="0" end="1200" form="whole" part="2" parts="4">\n'
+    "    <video_title>Three hours of B650E</video_title>\n"
+    "    <boards>B650E, X670E</boards>\n"
+    "    <transcript>part two of the speech</transcript>\n"
+    "  </excerpt>\n"
+    "</bundle>\n"
+)
+
+
+def whole_part_bundle() -> Bundle:
+    """A bundle holding part 2 of 4 of a whole transcript."""
+    excerpt = Excerpt(
+        video_id="xyz789",
+        video_title="Three hours of B650E",
+        start_seconds=0.0,
+        end_seconds=1200.0,
+        text="part two of the speech",
+        canonicals=("B650E", "X670E"),
+        form="whole",
+        part=2,
+        part_count=4,
+    )
+    return Bundle(bundle_id="bundle-007", batch=2, excerpts=(excerpt,), projected_tokens=6)
+
+
+class TestExcerptFormAttributes:
+    def test_a_whole_part_renders_the_exact_shape_the_plan_specifies(self) -> None:
+        assert render_bundle(whole_part_bundle()) == WHOLE_PART_XML
+
+    def test_the_attributes_are_appended_after_the_existing_ones(self) -> None:
+        # The plan names `form`, `part` and `parts` but not where they sit. This
+        # pins the reading that they are APPENDED — "the `<excerpt>` element
+        # GAINS" them and "the XML does not change shape" — and it is the one
+        # test to look at first if the implementation ordered them differently.
+        line = render_bundle(whole_part_bundle()).splitlines()[1]
+
+        assert line == (
+            '  <excerpt video_id="xyz789" start="0" end="1200" form="whole" part="2" parts="4">'
+        )
+
+    def test_a_default_excerpt_block_still_states_all_three(self) -> None:
+        # The whole point: a reader never infers meaning from an absent
+        # attribute, so the excerpt path spells out its defaults too.
+        excerpt = rendered_excerpt(make_excerpt("some words"))
+
+        assert excerpt.get("form") == "excerpts"
+        assert excerpt.get("part") == "1"
+        assert excerpt.get("parts") == "1"
+
+    def test_the_defaults_are_spelled_out_in_the_bytes_not_only_in_the_tree(self) -> None:
+        rendered = render_bundle(one_block_bundle(make_excerpt("some words")))
+
+        assert 'form="excerpts"' in rendered
+        assert 'part="1"' in rendered
+        assert 'parts="1"' in rendered
+
+    @pytest.mark.parametrize(
+        ("part", "part_count"),
+        [(1, 1), (1, 2), (2, 2), (1, 7), (4, 7), (7, 7), (2, 13), (13, 13)],
+    )
+    def test_part_and_parts_are_rendered_from_the_fields(self, part: int, part_count: int) -> None:
+        excerpt = rendered_excerpt(whole_block("text", part=part, part_count=part_count))
+
+        assert excerpt.get("part") == str(part)
+        assert excerpt.get("parts") == str(part_count)
+
+    def test_parts_is_part_count_and_part_is_part(self) -> None:
+        # Two distinct values, so an implementation that swapped the two fields
+        # cannot pass by accident.
+        excerpt = rendered_excerpt(whole_block("text", part=2, part_count=5))
+
+        assert excerpt.get("part") == "2"
+        assert excerpt.get("parts") == "5"
+
+    def test_part_numbering_is_rendered_one_based(self) -> None:
+        # `part` runs 1..part_count; the first part is "1", never "0".
+        excerpt = rendered_excerpt(whole_block("text", part=1, part_count=4))
+
+        assert excerpt.get("part") == "1"
+
+    def test_the_field_is_part_count_but_the_attribute_is_parts(self) -> None:
+        rendered = render_bundle(one_block_bundle(whole_block("text", part=1, part_count=3)))
+
+        assert 'parts="3"' in rendered
+        assert "part_count" not in rendered
+
+    def test_form_is_rendered_from_the_field(self) -> None:
+        assert rendered_excerpt(make_excerpt("t")).get("form") == "excerpts"
+        assert rendered_excerpt(whole_block("t", part=1, part_count=1)).get("form") == "whole"
+
+    def test_a_whole_transcript_that_fits_one_bundle_is_part_one_of_one(self) -> None:
+        excerpt = rendered_excerpt(whole_block("the whole thing", part=1, part_count=1))
+
+        assert (excerpt.get("form"), excerpt.get("part"), excerpt.get("parts")) == (
+            "whole",
+            "1",
+            "1",
+        )
+
+    def test_every_block_in_a_mixed_bundle_carries_all_three(self) -> None:
+        bundle = Bundle(
+            bundle_id="bundle-001",
+            batch=1,
+            excerpts=(
+                make_excerpt("a window", video_id="aaa"),
+                whole_block("part one", part=1, part_count=2, video_id="bbb"),
+                whole_block("part two", part=2, part_count=2, video_id="bbb"),
+                make_excerpt("another window", video_id="ccc"),
+            ),
+            projected_tokens=30,
+        )
+
+        root = ET.fromstring(render_bundle(bundle))
+
+        assert [child.get("form") for child in root] == ["excerpts", "whole", "whole", "excerpts"]
+        assert [child.get("part") for child in root] == ["1", "1", "2", "1"]
+        assert [child.get("parts") for child in root] == ["1", "2", "2", "1"]
+        assert all(
+            child.get(name) is not None for child in root for name in ("form", "part", "parts")
+        )
+
+    def test_the_element_is_not_renamed(self) -> None:
+        bundle = Bundle(
+            bundle_id="bundle-001",
+            batch=1,
+            excerpts=(
+                make_excerpt("a window", video_id="aaa"),
+                whole_block("part one", part=1, part_count=2, video_id="bbb"),
+            ),
+            projected_tokens=20,
+        )
+
+        root = ET.fromstring(render_bundle(bundle))
+
+        assert root.tag == "bundle"
+        assert [child.tag for child in root] == ["excerpt", "excerpt"]
+
+    def test_the_xml_does_not_change_shape(self) -> None:
+        # Same children, same order, same indentation, same five lines per block
+        # as slice 5 rendered — only the open tag grew.
+        rendered = render_bundle(one_block_bundle(whole_block("body", part=3, part_count=4)))
+        lines = rendered.splitlines()
+        excerpt = ET.fromstring(rendered)[0]
+
+        assert [child.tag for child in excerpt] == ["video_title", "boards", "transcript"]
+        assert len(lines) == 7
+        assert lines[1].startswith("  <excerpt ")
+        assert lines[2].startswith("    <video_title>")
+        assert lines[5] == "  </excerpt>"
+        assert lines[6] == "</bundle>"
+
+    def test_the_existing_attributes_are_untouched(self) -> None:
+        excerpt = rendered_excerpt(
+            whole_block("body", part=2, part_count=3, video_id="abc123", start=1042.9, end=1462.9)
+        )
+
+        assert excerpt.get("video_id") == "abc123"
+        assert excerpt.get("start") == "1042"
+        assert excerpt.get("end") == "1462"
+
+    def test_the_bundle_element_gains_nothing(self) -> None:
+        root = ET.fromstring(
+            render_bundle(one_block_bundle(whole_block("b", part=1, part_count=2)))
+        )
+
+        assert sorted(root.keys()) == ["batch", "id"]
+
+    def test_the_excerpt_element_carries_exactly_six_attributes(self) -> None:
+        excerpt = rendered_excerpt(whole_block("b", part=1, part_count=2))
+
+        assert sorted(excerpt.keys()) == ["end", "form", "part", "parts", "start", "video_id"]
+
+
+class TestFormAttributeEscaping:
+    def test_a_form_with_a_quote_stays_valid_xml(self) -> None:
+        # `form` is a plain string field, so it is escaped like every other
+        # attribute value rather than trusted because today's values are tame.
+        raw = 'he said "5 < 6" & left'
+        rendered = render_bundle(one_block_bundle(replace(make_excerpt("body"), form=raw)))
+
+        assert "&quot;" in rendered
+        assert ET.fromstring(rendered)[0].get("form") == raw
+
+    def test_a_form_spelling_a_closing_tag_does_not_break_out(self) -> None:
+        raw = '"><script>'
+        bundle = Bundle(
+            bundle_id="bundle-001",
+            batch=1,
+            excerpts=(
+                replace(make_excerpt("first"), form=raw),
+                make_excerpt("second", video_id="bbb"),
+            ),
+            projected_tokens=11,
+        )
+
+        root = ET.fromstring(render_bundle(bundle))
+
+        assert [child.tag for child in root] == ["excerpt", "excerpt"]
+        assert root[0].get("form") == raw
+
+    def test_the_video_id_is_still_escaped_alongside_the_new_attributes(self) -> None:
+        excerpt = rendered_excerpt(whole_block("body", part=1, part_count=2, video_id='a"b&c<d'))
+
+        assert excerpt.get("video_id") == 'a"b&c<d'
+        assert excerpt.get("form") == "whole"
+
+
+_RENDER_SCRIPT = """
+import sys
+
+from find_best_mobo.bundle import Bundle, render_bundle
+from find_best_mobo.excerpt import Excerpt
+
+blocks = tuple(
+    Excerpt(
+        video_id="abc123",
+        video_title="Some title",
+        start_seconds=1042.0,
+        end_seconds=1462.0,
+        text="...the text...",
+        canonicals=("B650E", "X670E"),
+        form=form,
+        part=part,
+        part_count=parts,
+    )
+    for form, part, parts in (("whole", 1, 3), ("whole", 2, 3), ("excerpts", 1, 1))
+)
+sys.stdout.write(render_bundle(Bundle("bundle-003", 1, blocks, 12)))
+"""
+
+
+class TestRenderDeterminism:
+    def test_the_same_blocks_render_the_same_bytes(self) -> None:
+        # Two independently built but equal submissions, so a renderer keying
+        # off object identity or insertion history is caught.
+        first = render_bundle(whole_part_bundle())
+        second = render_bundle(whole_part_bundle())
+
+        assert first == second
+
+    def test_the_attributes_are_derived_from_the_fields_alone(self) -> None:
+        block = whole_block("body", part=2, part_count=4)
+        renders = {render_bundle(one_block_bundle(block)) for _ in range(20)}
+
+        assert len(renders) == 1
+
+    def test_rendering_is_identical_under_a_different_hash_seed(self) -> None:
+        # R23 is about two RUNS, not two calls. A renderer that built its
+        # attributes from a set or a dict keyed on interned strings can be
+        # stable within one process and unstable across two, and only a fresh
+        # interpreter with a different `PYTHONHASHSEED` shows it.
+        outputs = set()
+        for seed in ("0", "1", "524287"):
+            environment = dict(os.environ, PYTHONHASHSEED=seed)
+            result = subprocess.run(
+                [sys.executable, "-c", _RENDER_SCRIPT],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+            outputs.add(result.stdout)
+
+        assert len(outputs) == 1
+        assert 'form="whole" part="1" parts="3"' in outputs.pop()
+
+    def test_two_runs_write_the_same_bytes_for_a_whole_transcript(self, tmp_path: Path) -> None:
+        config = make_config(tmp_path / "data", bundle_token_cap=400, chars_per_token=1.0)
+        _, _, submission = saturated_submission(config)
+        bundles = assign_batches(pack_bundles(submission.blocks, config), config)
+
+        write_bundles(bundles, make_config(tmp_path / "a", chars_per_token=1.0))
+        write_bundles(bundles, make_config(tmp_path / "b", chars_per_token=1.0))
+
+        def tree(root: Path) -> dict[str, bytes]:
+            return {
+                str(path.relative_to(root)): path.read_bytes()
+                for path in sorted(root.rglob("*.xml"))
+            }
+
+        assert tree(tmp_path / "a") == tree(tmp_path / "b")
+        assert len(tree(tmp_path / "a")) == len(bundles) > 1
+
+
+class TestPartsAcrossBundles:
+    """The sequencing property, asserted on real slice-1 output rather than staged.
+
+    Slice 1 closes a part only when the NEXT cue would carry it over the cap, so
+    two consecutive parts can never fit in one bundle. Nothing in slice 2 makes
+    that true; these tests are the check that it is.
+    """
+
+    def test_a_saturated_video_really_does_take_the_whole_path(self) -> None:
+        config = make_config(bundle_token_cap=400, chars_per_token=1.0)
+
+        _, transcript, submission = saturated_submission(config)
+
+        assert submission.path == WHOLE
+        assert len(submission.blocks) > 3
+        assert {block.form for block in submission.blocks} == {"whole"}
+        assert transcript_text(transcript) != ""
+
+    def test_consecutive_parts_can_never_share_a_bundle(self) -> None:
+        config = make_config(bundle_token_cap=400, chars_per_token=1.0)
+        _, _, submission = saturated_submission(config)
+
+        blocks = submission.blocks
+        for earlier, later in zip(blocks, blocks[1:], strict=False):
+            pair = estimate_tokens(earlier.text, config) + estimate_tokens(later.text, config)
+            assert pair > config.bundle_token_cap
+
+    def test_the_parts_land_one_per_bundle_in_strictly_ascending_bundles(self) -> None:
+        config = make_config(bundle_token_cap=400, chars_per_token=1.0)
+        _, _, submission = saturated_submission(config)
+
+        bundles = pack_bundles(submission.blocks, config)
+        placed = parts_in_bundles(bundles, "v1")
+
+        assert [block.part for _, block in placed] == list(range(1, len(submission.blocks) + 1))
+        indices = [index for index, _ in placed]
+        assert indices == sorted(indices)
+        assert len(set(indices)) == len(indices)
+        assert {block.part_count for _, block in placed} == {len(submission.blocks)}
+        assert len(bundles) > 1
+
+    def test_greedy_packing_puts_nothing_between_two_parts(self) -> None:
+        config = make_config(bundle_token_cap=400, chars_per_token=1.0)
+        _, _, submission = saturated_submission(config)
+
+        bundles = pack_bundles(submission.blocks, config)
+        indices = [index for index, _ in parts_in_bundles(bundles, "v1")]
+
+        assert indices == list(range(indices[0], indices[0] + len(indices)))
+
+    def test_the_property_holds_with_other_videos_packed_around_them(self) -> None:
+        config = make_config(bundle_token_cap=400, chars_per_token=1.0)
+        _, _, submission = saturated_submission(config)
+        before = make_excerpt("b" * 30, video_id="before")
+        after = make_excerpt("a" * 30, video_id="after")
+
+        bundles = pack_bundles((before, *submission.blocks, after), config)
+        placed = parts_in_bundles(bundles, "v1")
+        indices = [index for index, _ in placed]
+
+        assert [block.part for _, block in placed] == list(range(1, len(submission.blocks) + 1))
+        assert indices == sorted(set(indices))
+        assert len(indices) == len(submission.blocks)
+        for bundle in bundles:
+            whole_here = [b for b in bundle.excerpts if b.video_id == "v1" and b.form == "whole"]
+            assert len(whole_here) <= 1
+
+    def test_the_rendered_bundles_read_as_part_k_of_n_in_order(self) -> None:
+        config = make_config(bundle_token_cap=400, chars_per_token=1.0)
+        _, _, submission = saturated_submission(config)
+        bundles = pack_bundles(submission.blocks, config)
+        total = len(submission.blocks)
+
+        seen: list[tuple[str, str, str]] = []
+        for bundle in bundles:
+            for element in ET.fromstring(render_bundle(bundle)):
+                if element.get("video_id") == "v1":
+                    seen.append(
+                        (
+                            element.get("form") or "",
+                            element.get("part") or "",
+                            element.get("parts") or "",
+                        )
+                    )
+
+        assert seen == [("whole", str(n), str(total)) for n in range(1, total + 1)]
+
+    def test_no_speech_is_lost_or_repeated_across_the_bundles(self) -> None:
+        config = make_config(bundle_token_cap=400, chars_per_token=1.0)
+        _, transcript, submission = saturated_submission(config)
+
+        bundles = pack_bundles(submission.blocks, config)
+        rejoined = " ".join(block.text for _, block in parts_in_bundles(bundles, "v1"))
+
+        assert rejoined == transcript_text(transcript)
+
+    def test_a_smaller_cap_makes_more_parts_and_more_bundles(self) -> None:
+        wide = make_config(bundle_token_cap=800, chars_per_token=1.0)
+        narrow = make_config(bundle_token_cap=200, chars_per_token=1.0)
+
+        _, _, wide_submission = saturated_submission(wide)
+        _, _, narrow_submission = saturated_submission(narrow)
+
+        assert len(narrow_submission.blocks) > len(wide_submission.blocks) > 1
+        assert len(pack_bundles(narrow_submission.blocks, narrow)) == len(narrow_submission.blocks)
+        assert len(pack_bundles(wide_submission.blocks, wide)) == len(wide_submission.blocks)
+
+    def test_an_excerpt_path_video_is_unaffected_by_any_of_this(self) -> None:
+        config = make_config(bundle_token_cap=400, chars_per_token=1.0)
+        video = make_video("plain")
+        transcript = make_transcript("plain", cue_count=60)
+        excerpts = cut_windows(
+            transcript,
+            (
+                Mention(
+                    video_id="plain",
+                    canonical="B650E",
+                    start_seconds=0.0,
+                    matched_form="b650e",
+                ),
+            ),
+            video,
+            replace(config, window_before_seconds=0, window_after_seconds=10),
+        )
+
+        submission = choose_submission(video, transcript, excerpts, config)
+        bundles = pack_bundles(submission.blocks, config)
+        elements = [e for b in bundles for e in ET.fromstring(render_bundle(b))]
+
+        assert submission.path == EXCERPTS
+        assert [e.get("form") for e in elements] == ["excerpts"] * len(elements)
+        assert [e.get("part") for e in elements] == ["1"] * len(elements)
+        assert [e.get("parts") for e in elements] == ["1"] * len(elements)
+
+
+class TestOverCapBlocksKeepTheirOwnBundle:
+    """The over-cap branch survives an uncapped whole path, asserted as an OUTCOME.
+
+    The plan says the branch "is not removed". These tests cannot check for a
+    branch, only for what it produces — and deliberately so: an over-cap block
+    that is dropped, truncated or split is the defect the branch exists to rule
+    out, and each of those is caught here. `cap_per_video` bounds how MANY
+    excerpts a video keeps and never how big one is, so an over-cap excerpt-form
+    block is still reachable; an over-cap whole-form part is slice 1's
+    single-giant-cue case.
+    """
+
+    def test_an_over_cap_excerpt_block_still_gets_a_bundle_to_itself(self) -> None:
+        # `cap_per_video` bounds how MANY excerpts a video keeps, never how big
+        # one is, so this case survives the uncapped whole path.
+        config = make_config(bundle_token_cap=50, chars_per_token=1.0)
+        giant = make_excerpt("g" * 500, video_id="big")
+        excerpts = [
+            make_excerpt("a" * 20, video_id="one"),
+            giant,
+            make_excerpt("c" * 20, video_id="two"),
+        ]
+
+        bundles = pack_bundles(excerpts, config)
+
+        assert [[e.video_id for e in b.excerpts] for b in bundles] == [["one"], ["big"], ["two"]]
+        assert bundles[1].excerpts[0].text == giant.text
+        assert bundles[1].projected_tokens == 500
+
+    def test_an_over_cap_whole_part_gets_a_bundle_to_itself(self) -> None:
+        config = make_config(bundle_token_cap=100, chars_per_token=1.0)
+        blocks = (
+            whole_block("s" * 50, part=1, part_count=3, video_id="giant"),
+            whole_block("g" * 1000, part=2, part_count=3, video_id="giant"),
+            whole_block("e" * 50, part=3, part_count=3, video_id="giant"),
+        )
+
+        bundles = pack_bundles(blocks, config)
+        placed = parts_in_bundles(bundles, "giant")
+
+        assert [len(b.excerpts) for b in bundles] == [1, 1, 1]
+        assert [block.part for _, block in placed] == [1, 2, 3]
+        assert [index for index, _ in placed] == [0, 1, 2]
+        assert bundles[1].projected_tokens == 1000
+
+    def test_the_over_cap_block_renders_its_attributes_like_any_other(self) -> None:
+        config = make_config(bundle_token_cap=10, chars_per_token=1.0)
+        giant = whole_block("g" * 500, part=2, part_count=2)
+
+        (bundle,) = pack_bundles([giant], config)
+        excerpt = ET.fromstring(render_bundle(bundle))[0]
+
+        assert excerpt.get("form") == "whole"
+        assert excerpt.get("part") == "2"
+        assert excerpt.get("parts") == "2"
+        transcript = excerpt.find("transcript")
+        assert transcript is not None
+        assert transcript.text == giant.text
+
+    def test_an_oversized_block_is_still_neither_dropped_nor_split(self) -> None:
+        config = make_config(bundle_token_cap=10, chars_per_token=1.0)
+        giant = whole_block("g" * 500, part=1, part_count=1)
+
+        bundles = pack_bundles([giant], config)
+
+        assert len(bundles) == 1
+        assert bundles[0].excerpts == (giant,)
