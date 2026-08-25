@@ -35,6 +35,7 @@ from find_best_mobo.config import Config
 from find_best_mobo.estimate import project, render_projection
 from find_best_mobo.excerpt import Excerpt, cap_per_video, cut_windows, merge_overlapping
 from find_best_mobo.select import EXCLUDED, Selection, read_selected, transcript_coverage
+from find_best_mobo.submission import VideoSubmission, choose_submission
 from find_best_mobo.transcripts import load_cached
 
 
@@ -73,11 +74,18 @@ def run(config: Config, args: Namespace) -> int:
         )
         return 1
 
-    excerpts: list[Excerpt] = []
+    submissions: list[VideoSubmission] = []
     for selection in included:
-        excerpts.extend(_excerpts_for(selection, config))
+        submission = _submission_for(selection, config)
+        if submission is not None:
+            submissions.append(submission)
 
-    bundles = assign_batches(pack_bundles(excerpts, config), config)
+    # Packed in the order the submissions were produced, so recency survives all
+    # the way to the batches (R22, R23) — `pack_bundles` never reorders to fit
+    # more in, and a whole transcript's parts stay consecutive because its blocks
+    # are consecutive here.
+    blocks = [block for submission in submissions for block in submission.blocks]
+    bundles = assign_batches(pack_bundles(blocks, config), config)
     written = write_bundles(bundles, config)
     print(f"Wrote {written} bundles to {config.data_dir / 'bundles'}")
     print(render_projection(project(bundles, selections, config)))
@@ -95,11 +103,19 @@ def _included_recent_first(selections: tuple[Selection, ...]) -> list[Selection]
     return sorted(included, key=lambda s: (-s.video.upload_date.toordinal(), s.video.video_id))
 
 
-def _excerpts_for(selection: Selection, config: Config) -> tuple[Excerpt, ...]:
-    """One video's excerpts, or none at all if its transcript is not cached.
+def _submission_for(selection: Selection, config: Config) -> VideoSubmission | None:
+    """One video's contribution, or nothing at all if its transcript is not cached.
 
-    The transcript is loaded, cut, and dropped before the next video is read, so
-    the run's memory holds excerpts rather than a channel's worth of cues (R22).
+    The transcript is loaded, cut, routed and dropped before the next video is
+    read, so the run's memory holds blocks rather than a channel's worth of cues
+    (R22).
+
+    The excerpts are built exactly as they were before R1008 — cut, merged and
+    re-cut, then capped — and only THEN routed. That order is the requirement,
+    not an implementation detail: the saturation ratio has to be measured on the
+    blocks that would actually be sent, so measuring before the merge would count
+    every overlapping second twice and measuring before the cap would route a
+    video whole on excerpts that were then thrown away.
 
     A missing transcript is not an error here. A video can be selected on its
     title alone with no captions ever fetched, and it has simply nothing to
@@ -108,6 +124,7 @@ def _excerpts_for(selection: Selection, config: Config) -> tuple[Excerpt, ...]:
     """
     transcript = load_cached(selection.video.video_id, config)
     if transcript is None:
-        return ()
+        return None
     windows = cut_windows(transcript, selection.mentions, selection.video, config)
-    return cap_per_video(merge_overlapping(windows, transcript), config)
+    excerpts: tuple[Excerpt, ...] = cap_per_video(merge_overlapping(windows, transcript), config)
+    return choose_submission(selection.video, transcript, excerpts, config)

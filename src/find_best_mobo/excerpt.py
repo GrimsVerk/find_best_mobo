@@ -28,12 +28,25 @@ from find_best_mobo.transcripts import Transcript
 
 @dataclass(frozen=True)
 class Excerpt:
+    """One block of speech a bundle will carry, however it was chosen.
+
+    The last three fields are R1008's, and they are DEFAULTED on purpose. An
+    excerpt-path block is the common case and keeps every existing construction
+    site working untouched; only `submission.split_whole` sets them to anything
+    else. `form` says which path produced the block, and `part`/`part_count`
+    say where it sits when a whole transcript was too big for one bundle and
+    was delivered across several.
+    """
+
     video_id: str
     video_title: str
     start_seconds: float
     end_seconds: float
     text: str
     canonicals: tuple[str, ...]
+    form: str = "excerpts"
+    part: int = 1
+    part_count: int = 1
 
 
 def cut_windows(
@@ -123,16 +136,28 @@ def merge_overlapping(excerpts: Sequence[Excerpt], transcript: Transcript) -> tu
     )
 
 
+def transcript_text(transcript: Transcript) -> str:
+    """The whole transcript as one line, joined the way an excerpt is.
+
+    ONE definition of that join, in one place (R1008). `_text_between` performs
+    the same single-space join over a span, and R28's saturation ratio measures
+    excerpt characters against this text — so if the two were computed
+    separately they would drift by a space per cue, and the ratio's denominator
+    and the whole path's own text would disagree about the same transcript.
+    Zero cues is the empty string.
+    """
+    return " ".join(cue.text for cue in transcript.cues)
+
+
 def transcript_characters(transcript: Transcript) -> int:
     """The characters of a whole transcript, joined the way an excerpt is.
 
-    The same single-space join `_text_between` performs, so R1000's bound is
-    exact rather than approximate — an excerpt's own text carries the separators
-    between its cues, and a denominator that omitted them would make the bound
-    false. It is also the denominator R28's saturation ratio needs, so the two
-    cannot drift into two definitions. Zero cues is 0.
+    Exactly `len(transcript_text(transcript))`, and defined that way rather than
+    re-joining, so R1000's bound is exact rather than approximate — an excerpt's
+    own text carries the separators between its cues, and a denominator that
+    omitted them would make the bound false. Zero cues is 0.
     """
-    return len(" ".join(cue.text for cue in transcript.cues))
+    return len(transcript_text(transcript))
 
 
 def cap_per_video(excerpts: Sequence[Excerpt], config: Config) -> tuple[Excerpt, ...]:
