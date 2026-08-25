@@ -43,7 +43,8 @@ excerpting and no model involvement — those are the last slice of the
 | `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. Requires the table, the index and the transcript-cache DIRECTORY; an empty cache yields a report of zeros rather than a refusal (OD-9, R1005). |
 | Selection (`select.py`) | Deciding which videos are actually about AM5 boards, and saying what the threshold currently costs. A title hit is an automatic include; otherwise the video needs enough DISTINCT boards mentioned in the body. Pure decision logic, plus its own deterministic JSONL. |
 | `select` subcommand (`commands/select.py`) | The stage itself: require the index, the alias table and the transcript-cache directory before deciding anything (OD-9, R1005), then read index and cached transcripts, write `data/selected.jsonl`, and print the threshold's effect. |
-| Excerpting (`excerpt.py`) | Cutting a wide asymmetric window around each mention, merging windows that overlap, and capping how many survive per video. Pure — it never reads the disk. |
+| Excerpting (`excerpt.py`) | Cutting a wide asymmetric window around each mention, merging windows that overlap, and capping how many survive per video. Also the one definition of a transcript's text as a single line (`transcript_text`), which the saturation ratio's denominator and the whole path's own text both read, so the two cannot drift. Pure — it never reads the disk. |
+| Routing (`submission.py`) | Deciding whether a video is sent as excerpts or as its whole transcript, and cutting a whole transcript into bundle-sized parts at cue boundaries (OD-13, R28, R1008). The ratio decides and size never does; a `VideoSubmission` carries the chosen blocks and their projected cost. Pure — it never reads the disk. |
 | Bundling (`bundle.py`) | Grouping excerpts into token-capped work bundles, assigning them to a calibration batch and larger batches after it, and rendering each as XML on disk. |
 | Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it. |
 | `estimate` subcommand (`commands/estimate.py`) | The stage itself, and the end of the milestone: cut, merge, cap, pack, batch, write, print the projection, stop. |
@@ -59,7 +60,7 @@ excerpting and no model involvement — those are the last slice of the
 - `data/transcripts/` --(cached transcripts)--> normalization --(comparable text)--> alias matching
 - the alias table at `alias_table_path` --(canonical entities and their surface forms)--> one compiled pattern --(mentions with timestamps)--> selection
 - index + transcripts + matcher --(one decision per video, exclusions included)--> `data/selected.jsonl`
-- selections + cached transcripts --(windows around mentions, merged and capped)--> excerpts --(packed to a token cap)--> bundles --> `data/bundles/batch-N/*.xml`
+- selections + cached transcripts --(windows around mentions, merged and capped)--> excerpts --(routed per video: excerpts, or the whole transcript in bundle-sized parts)--> blocks --(packed to a token cap)--> bundles --> `data/bundles/batch-N/*.xml`
 - bundles + selections --(counts and a stated token factor)--> the printed projection, and then nothing
 
 ## Main paths
@@ -225,16 +226,28 @@ the stage re-run from cache, with no refetching (R17).
 4. Each video keeps at most a configured number of excerpts, ranked by how many
    distinct boards they mention — density of boards being the best available
    proxy for "this is the comparison passage".
-5. Excerpts are packed greedily into bundles under a token cap. An excerpt too
+5. Each video is then ROUTED (`submission.py`, R28, R1008). If its surviving
+   excerpts already cover **80% or more** of the transcript, the whole
+   transcript is sent instead: at that point the excerpts are the transcript
+   with gaps in it, paid for as excerpts and missing the passages between the
+   mentions for no saving worth having. The ratio is measured on the blocks that
+   would actually be sent — after the merge and after the cap — because
+   measuring earlier counts overlap twice or routes on excerpts that were then
+   thrown away. **Size is never consulted** (OD-13): a three-hour saturated
+   stream goes whole exactly as a thirty-minute one does. A transcript too large
+   for one bundle is cut at CUE boundaries into consecutive parts and delivered
+   across sequential bundles, never bounced back to excerpts. A cue is never
+   split; one whose own tokens exceed the cap becomes a part on its own.
+6. Blocks are packed greedily into bundles under a token cap. An excerpt too
    big for the cap gets a bundle to itself rather than being dropped or split:
    losing evidence to a cap must be visible, never silent.
-6. Bundles go to a small calibration batch first, then to larger batches. The
+7. Bundles go to a small calibration batch first, then to larger batches. The
    calibration batch exists to turn the projection into a measurement before the
    larger spend.
-7. Each bundle is written as XML — tags carry the structure and provenance, the
+8. Each bundle is written as XML — tags carry the structure and provenance, the
    transcript sits inside them as prose, because tagged boundaries are attended
    to reliably by a model.
-8. The projection prints: videos indexed and selected, excerpt volume, bundle
+9. The projection prints: videos indexed and selected, excerpt volume, bundle
    count, tokens per batch and in total, and **the chars-per-token factor
    itself**, stated openly as an estimate rather than buried as a constant.
 
@@ -346,6 +359,13 @@ the cache ITSELF.
   matters more than precision at this stage, and the excerpting slice will find
   nothing to excerpt in a video that only mentions a board in passing.
 
+- **A whole submission's parts partition the transcript, and the arithmetic says
+  so.** `split_whole` takes cues in order and never splits one, so the parts'
+  texts sum to `transcript_characters(transcript) - (part_count - 1)` — one
+  joining space consumed at each split. That equality is the proof no speech was
+  dropped and none repeated; it is asserted rather than described. A part's span
+  runs from its first cue's start to its last cue's START, the convention
+  `cut_windows` already uses because a cue's end is not known.
 - **A merged excerpt is the speech in its span, exactly once.**
   `merge_overlapping` takes the video's transcript and RE-CUTS the merged span
   from the cues rather than gluing two window texts together (OD-4, R1000). The
