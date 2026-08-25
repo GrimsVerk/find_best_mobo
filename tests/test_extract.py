@@ -1376,3 +1376,244 @@ class TestNothingReachesAModel:
 
         wheres = {call.where for call in model.calls}
         assert len(wheres) == 1, f"the extraction left the process by {sorted(wheres)}"
+
+
+# --------------------------------------------------------------------------
+# A graphics card is not a motherboard, and a graphics card video is not
+# a video without motherboards in it (ESC-29).
+# --------------------------------------------------------------------------
+
+# The thing being excluded, in the spellings a rewrite of this prose might
+# reach for. Word boundaries rather than bare substrings, so that a `gpu`
+# living inside a longer word is not read as the model being told anything.
+_GRAPHICS_CARD = re.compile(
+    r"\bgpus?\b|\b(?:graphics|video)\s+cards?\b|\bgraphics\s+(?:processors?|chips?)\b",
+    re.IGNORECASE,
+)
+
+# How this prompt says "do not write this down". Taken from the exclusions it
+# already carries — "Skip it.", "is not a claim about a board", "produces no
+# claim" — plus the near neighbours an editor would use instead.
+_EXCLUSION = re.compile(
+    r"\bskip\b|\bnot a claim\b|\bnot a board\b|\bnot a motherboard\b|\bignore\b"
+    r"|\bdo not record\b|\bexclude\b|\bleave (?:it|them) out\b|\bno claim\b|\bdiscard\b",
+    re.IGNORECASE,
+)
+
+# The video, as a unit, rather than the sentence inside it.
+_VIDEO = re.compile(r"\bvideos?\b", re.IGNORECASE)
+
+# "the whole video", "the rest of the transcript", "the entire bundle" — the
+# scope that ESC-29's ruling forbids the exclusion from reaching.
+_WHOLE_VIDEO = re.compile(
+    r"\b(?:whole|entire|all of (?:the|that)|rest of (?:the|that)|every claim in (?:the|that))\s+"
+    r"(?:video|transcript|excerpt|bundle)s?\b"
+    r"|\bvideos?\s+(?:as a whole|entirely|altogether)\b",
+    re.IGNORECASE,
+)
+
+_DISCARD_VERB = re.compile(
+    r"\b(?:skip|ignore|discard|drop|throw away|leave out|exclude)\b", re.IGNORECASE
+)
+
+# Anything that turns a discard verb into its own denial. Checked across the
+# whole span between the verb and the scope it appears to govern, so that
+# "skip the claim, not the whole video" reads as the permission it is.
+_NEGATION = re.compile(
+    r"\bnot\b|\bnever\b|n't\b|\bno\b|\bstill\b|\brather than\b|\binstead of\b|\bonly\b",
+    re.IGNORECASE,
+)
+
+# That a claim survives whatever the video was about.
+_SURVIVES = re.compile(
+    r"\bstill\b|\banyway\b|\bnevertheless\b|\beven (?:so|then|when|if|in|though)\b"
+    r"|\bkeeps?\b|\bkept\b|\brecord\b|\bwrite (?:it|them) down\b|\bdo not (?:skip|discard|drop)\b",
+    re.IGNORECASE,
+)
+
+_BOARD = re.compile(r"\b(?:mother)?boards?\b", re.IGNORECASE)
+
+
+def _graphics_windows(prompt: str, span: int = 300) -> list[str]:
+    """Every stretch of the prompt that mentions a graphics card, plus its context.
+
+    A window rather than a sentence or a bullet, because where the exclusion
+    and its counterweight get split across two neighbouring bullets — which is
+    how prose about a rule and prose about its limit usually ends up — a
+    sentence-shaped unit sees only half of each and reports a prompt that says
+    both as a prompt that says neither.
+    """
+    return [
+        prompt[max(0, match.start() - span) : match.end() + span]
+        for match in _GRAPHICS_CARD.finditer(prompt)
+    ]
+
+
+def _discards_a_whole_video(text: str) -> str | None:
+    """The fragment where a discard verb governs a whole video, if there is one.
+
+    Deliberately biased towards saying no. Any negation between the verb and
+    the scope it reaches — "skip the claim, not the whole video" — clears it,
+    because the sentence this test exists to protect is exactly the sentence
+    that has to name the forbidden action in order to forbid it.
+    """
+    for scope in _WHOLE_VIDEO.finditer(text):
+        lead = text[max(0, scope.start() - 60) : scope.start()]
+        verbs = list(_DISCARD_VERB.finditer(lead))
+        if not verbs:
+            continue
+        verb = verbs[-1]
+        if _NEGATION.search(lead[verb.start() :]):
+            continue
+        offset = max(0, scope.start() - 60) + verb.start()
+        return " ".join(text[max(0, offset - 40) : scope.end()].split())
+    return None
+
+
+def _exclusions_it_does_state(prompt: str) -> list[str]:
+    """The lines where the prompt already tells the model to leave something out.
+
+    Quoted back in every failure below, because "the graphics card sentence is
+    missing" is only actionable next to the sentences it should have been
+    written beside.
+    """
+    return [line.strip() for line in prompt.splitlines() if _EXCLUSION.search(line)]
+
+
+class TestThePromptExcludesGraphicsCards:
+    """ESC-29: 35 well-formed claims about GRAPHICS CARDS reached the corpus.
+
+    Buildzoid reviews graphics cards as well as motherboards, and those videos
+    are in the corpus legitimately — a real board name is mentioned in them, so
+    `mention_threshold` selects them, exactly as it should. The prompt then
+    names three things that are not a board (a CPU, a chipset in general, the
+    industry) and does not name a graphics card, so the model did the only
+    reasonable thing with a bench full of GPU talk: it wrote it down. Every one
+    of the 35 rows was correctly categorised, correctly quoted and correctly
+    timestamped. Nothing downstream could see them — `claims.py` validates the
+    SHAPE of a row and has no opinion about what a `board` is — and a corpus
+    about motherboards had a twentieth of its claims about something else.
+
+    The exclusion is asserted loosely on purpose. This prose will be rewritten,
+    and a test pinned to one sentence of it is a test that fails the next
+    editor rather than the next escape.
+
+    Everything here reads the prompt through `prompt_text()` rather than off
+    `PROMPT_PATH`, because the loader is what the extraction actually sends: a
+    rule that exists in the file but not in the loader's return value is a rule
+    the model never sees.
+    """
+
+    @pytest.fixture
+    def prompt(self) -> str:
+        return prompt_text()
+
+    def test_the_prompt_tells_the_model_to_skip_a_claim_about_a_graphics_card(
+        self, prompt: str
+    ) -> None:
+        """The exclusion has to exist at all, and has to read as an exclusion.
+
+        A prompt that merely MENTIONS graphics cards somewhere — in the list of
+        what the channel covers, say — is what produced ESC-29's alternative
+        outcome, which is nothing. The word and the instruction must arrive
+        together.
+        """
+        windows = _graphics_windows(prompt)
+        assert windows, (
+            "the prompt never mentions a graphics card or a GPU, so ESC-29's 35 rows "
+            "are still extractable; the exclusions it does state are "
+            f"{_exclusions_it_does_state(prompt)}"
+        )
+        excluding = [window for window in windows if _EXCLUSION.search(window)]
+        assert excluding, (
+            "the prompt mentions a graphics card but never tells the model to leave one "
+            f"out; what it says about them is {[' '.join(w.split()) for w in windows]}"
+        )
+
+    def test_the_exclusion_is_stated_in_prose_and_not_only_inside_an_example(
+        self, prompt: str
+    ) -> None:
+        """A rule that lives only in a fenced block is a rule about the block.
+
+        `TestThePromptFitsTheSchema` already treats the worked example as the
+        part a model copies; the converse holds too. A `"board": "RTX 5090"`
+        row inside an example, or a fenced bundle whose `<video_title>` names a
+        graphics card, is not an instruction about what to skip, and ESC-29 is
+        an escape about a missing instruction.
+        """
+        prose = _FENCED.sub("\n", prompt)
+        windows = _graphics_windows(prose)
+        assert windows, (
+            "graphics cards appear in the prompt only inside a fenced example, where "
+            "they are illustration rather than instruction; the prose exclusions are "
+            f"{_exclusions_it_does_state(prose)}"
+        )
+        excluding = [window for window in windows if _EXCLUSION.search(window)]
+        assert excluding, (
+            "the prompt's PROSE names a graphics card without excluding one; what the "
+            f"prose says about them is {[' '.join(w.split()) for w in windows]}"
+        )
+
+    def test_the_exclusion_is_weighed_against_the_video_it_appears_in(self, prompt: str) -> None:
+        """The counterweight, and the half that matters more.
+
+        The owner ruled it twice: motherboard claims must not be lost, and a
+        GPU claim included by mistake is the acceptable error. A graphics card
+        video is FULL of board claims, because he is testing on a board and
+        says so — so the exclusion has to be about the sentence in front of the
+        model, and the prompt has to say which scope it means. Prose that
+        excludes graphics cards without ever mentioning the video is prose a
+        model can reasonably read as "this bundle is not for you".
+        """
+        windows = _graphics_windows(prompt)
+        assert windows, "the prompt never mentions a graphics card at all, so there is no scope"
+        scoped = [window for window in windows if _VIDEO.search(window)]
+        assert scoped, (
+            "the prompt excludes graphics cards without ever saying that the VIDEO's "
+            "subject is not what decides, which is the reading that loses the board "
+            f"claims in a GPU video; what it says is {[' '.join(w.split()) for w in windows]}"
+        )
+
+    def test_a_board_claim_in_a_graphics_card_video_is_still_a_board_claim(
+        self, prompt: str
+    ) -> None:
+        """Say the keeping part, not only the skipping part.
+
+        "It is the subject of the sentence that decides" is only half an
+        instruction; the half that saves the corpus is that the board claims in
+        that same video are still wanted. This looks for the prompt saying so —
+        loosely, over any of the ways one says "still", "keep" or "record" —
+        near both a graphics card and a board.
+        """
+        windows = _graphics_windows(prompt)
+        assert windows, "the prompt never mentions a graphics card at all, so it keeps nothing"
+        keeping = [
+            window for window in windows if _SURVIVES.search(window) and _BOARD.search(window)
+        ]
+        assert keeping, (
+            "the prompt tells the model what to drop in a graphics card video and never "
+            "tells it what to keep; ESC-29's ruling is that losing a board claim costs "
+            "more than including a GPU one. What it says is "
+            f"{[' '.join(w.split()) for w in windows]}"
+        )
+
+    def test_the_prompt_never_tells_the_model_to_discard_a_whole_video(self, prompt: str) -> None:
+        """The over-correction, which would be worse than ESC-29 itself.
+
+        The cheap fix for 35 GPU rows is "if the video is about a graphics
+        card, skip it", and that fix throws away every real motherboard claim
+        he makes while a graphics card is on the bench — a silent loss, in a
+        corpus whose whole purpose is those claims, and one no count of rows
+        would reveal. `[]` for a bundle is a valid answer; `[]` for a bundle
+        because of what the video was ABOUT is not.
+        """
+        windows = _graphics_windows(prompt)
+        assert windows, "the prompt never mentions a graphics card at all, so nothing is excluded"
+        for window in windows:
+            offending = _discards_a_whole_video(window)
+            assert offending is None, (
+                "the prompt tells the model to throw away a whole video for being about a "
+                f"graphics card: {offending!r}. ESC-29's ruling is the other way round — "
+                "the subject of the SENTENCE decides, and a GPU video still carries claims "
+                "about the board he is testing on"
+            )
