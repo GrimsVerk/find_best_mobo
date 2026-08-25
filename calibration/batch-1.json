@@ -1,0 +1,34 @@
+{
+  "actual": {
+    "cache_creation_tokens": 454557,
+    "cache_read_tokens": 221580,
+    "input_tokens": 24,
+    "output_tokens": 64879
+  },
+  "batch": 1,
+  "conversion_assumptions": [
+    "The token figures are summed over this batch's own 12 calls, retries included, from what each `claude -p` call reported. They are never taken from a usage tool's daily total, which counts every other session on the machine that day.",
+    "The tokens divided into the points are fresh input plus cache creation \u2014 the tokens this batch's own text became. Cache reads are excluded as Claude Code's own re-served prefix, and output tokens as not being input; if the weekly limit is charged on all four, this understates what a point buys.",
+    "The points are the Weekly (7-day) percentage read before and after the batch via `omarchy-agent-usage-claude --limits-only --force`. That figure is account-wide, so any other session on the subscription during the batch is counted in it and attributed here to this batch.",
+    "The reader reports whole percentage points, so a delta of one point is anything from just over zero to just under two. The conversion is accurate to no better than the point it is measured in.",
+    "The conversion assumes the whole movement of the meter was this batch's. It is an estimate in the direction tokens-to-points only; the chars-per-token factor beside it is a measurement and is not derived from any of this (R8)."
+  ],
+  "measured_chars_per_token": 2.329331846249623,
+  "model": "claude-opus-5",
+  "points_after": {
+    "label": "Weekly (7-day)",
+    "percent": 0.49,
+    "source": "omarchy-agent-usage-claude --limits-only --force",
+    "taken_at": "2026-08-25T17:45:40+00:00"
+  },
+  "points_before": {
+    "label": "Weekly (7-day)",
+    "percent": 0.48,
+    "source": "omarchy-agent-usage-claude --limits-only --force",
+    "taken_at": "2026-08-25T17:35:22+00:00"
+  },
+  "points_delta": 0.01,
+  "projected_tokens": 264750,
+  "recorded_at": "2026-08-25T17:45:40+00:00",
+  "tokens_per_point": 454581.0
+}

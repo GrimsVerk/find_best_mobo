@@ -23,6 +23,8 @@ from collections.abc import Iterator
 
 import pytest
 
+from find_best_mobo import calibration
+
 _LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
@@ -72,3 +74,40 @@ def no_network(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(socket.socket, "connect", guard)
     monkeypatch.setattr(socket.socket, "connect_ex", guard_ex)
     yield
+
+
+@pytest.fixture(autouse=True)
+def isolated_calibration_records(
+    request: pytest.FixtureRequest,
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No test may see the calibration records of the machine it runs on.
+
+    `calibration.RECORD_DIR` is a RELATIVE path, so it resolves against the
+    working directory, and the working directory during a normal `pytest` run is
+    the repository root — where the committed records live. `estimate` prefers a
+    measured chars-per-token factor over the configured guess whenever a record
+    is there, so ten tests that assert on the configured factor passed for weeks
+    and then failed the moment the first real calibration batch was run and
+    committed. Nothing about those tests was wrong; the suite was reading the
+    developer's data directory.
+
+    Pointing the constant at an empty per-test directory restores the property
+    the suite is supposed to have: the same result on a clean checkout, on this
+    machine, and in CI, whether or not anyone has ever spent money here.
+
+    ONE MODULE IS EXEMPT. `tests/test_calibration.py` asserts on where the
+    record lives in the real repository — that it is under `calibration/`, that
+    it is not under the gitignored `data/`, that `.gitignore` does not swallow
+    it, and that `acceptance/S3.sh` arrives with the first real record. Those
+    are claims about this checkout, not about a temporary directory, and
+    redirecting the constant would make every one of them assert on a tmpdir and
+    pass regardless. The exemption is by module rather than by marker so that
+    the blind-written tests are not edited to accommodate a fixture; tests in
+    that module which want an empty directory patch the constant themselves,
+    and a later `monkeypatch.setattr` wins over this one either way.
+    """
+    if request.path.name == "test_calibration.py":
+        return
+    monkeypatch.setattr(calibration, "RECORD_DIR", tmp_path_factory.mktemp("calibration-records"))
