@@ -25,7 +25,10 @@ and one that narrows the corpus to the videos carrying real alias evidence. On
 top of it sits Stage B, the first work in the project that spends anything: one
 command extracts one batch of bundles into claims, validates them against a
 schema Python owns, appends them to an append-only store, and stops before it
-has spent 10% of the weekly subscription limit. Everything between the two —
+has spent 10% of the weekly subscription limit. At the end of a batch it writes
+down what that batch was projected to cost and what it actually cost, as a
+tracked file rather than a console line, and the next projection is stated in
+the factor that measurement corrected. Everything between the two —
 excerpting, routing, bundling and the projection — runs in `estimate`, which
 stops at the projection and hands the decision to continue to `extract`, which
 does the number of batches it was given and then stops, reports and waits.
@@ -56,10 +59,11 @@ does the number of batches it was given and then stops, reports and waits.
 | `ingest` subcommand (`commands/ingest.py`) | Validate one claims file and append it, or refuse naming every fault and append nothing. Spends nothing and invokes nothing. |
 | Model boundary (`extract.py`) | The only code in the project that invokes a model, and therefore the only code that spends money. One bundle in, one claims file on disk, and the four token counts the call reported back beside it — fresh input, output, cache creation and cache read, kept apart and never summed (R8). The subscription pays, through `claude -p`, because R26's cap is written against the weekly SUBSCRIPTION meter and an API call would never move it (`docs/DECISIONS.md`, 2026-08-25). The model's output is written to disk BEFORE it is validated, always, including when validation then fails (R27): the spend has already happened, and a rejected file is the only record of what the model said. Validation happens here rather than at ingest, so R9's retry-or-set-aside decision is made where the spend was. One seam — a lazily built CLI runner — so every test in the tree runs offline, free, and on a machine with no subscription. |
 | Extraction prompt (`prompts/extract-claims.md`) | What the agent is actually asked: the bundle format it will be reading, what counts as a claim, the three vocabularies exactly as `claims.py` spells them, and an output contract of a bare JSON array with those eight keys and no others. A tracked file rather than a string literal, reachable only through `extract.prompt_text`, because R23's "the same bundle produces a comparable file twice" is false the moment the prompt can change without a diff. |
-| Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it, and the per-path routing figures R1008 asks for — counts, characters and tokens per path, and every whole transcript that spans more than one bundle, by id. |
+| Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor and the per-path routing figures R1008 asks for — counts, characters and tokens per path, and every whole transcript that spans more than one bundle, by id. **The factor is the measured one when a calibration record exists and the configured guess until then** (BL-26), and the projection says which it used and which kind of number it is: the totals are a price or an order of magnitude depending on that, and a reader cannot tell them apart from the figures. Every token figure is stated in the factor in force — the bundles were packed at the configured one, so their stored figures are restated by the ratio of the two rather than recounted. `config.chars_per_token` is never rewritten by a stage: a stage that edited its own configuration would make R23's "same cache and configuration" unfalsifiable. |
 | `estimate` subcommand (`commands/estimate.py`) | The stage itself, and the end of the milestone: cut, merge, cap, pack, batch, write, print the projection, stop. |
 | Spend guard (`spend.py`) | Reading the meter, and saying when the effort has spent what it was given (R26). One label governs — `Weekly (7-day)`, the account-wide one, by the owner's 2026-08-25 ruling — because the model-scoped limit beside it ignores spend on every other model, while the account-wide figure comes from Anthropic's own usage endpoint and counts every session on the subscription. `omarchy-agent-usage-claude --limits-only --force` answers first and `claude -p "/usage"` is the fallback; the reading records WHICH answered, because the fallback starts a session and so spends against the very limit it reports. The ceiling is ten points above the reading the batch STARTED at, clamped at 100%: R26 caps the extraction effort, not the account, so a run beginning at 43% stops at 53% rather than refusing outright. Taking a reading is one seam, for the reason the network boundary is one: no test may invoke a reader. |
-| `extract` subcommand (`commands/extract.py`) | The explicit continue command R7 promises: one named batch, one bundle at a time, with a reading before, part-way through and after (R26). The part-way one is what makes it a guard rather than a receipt. A stop is not a rollback — every bundle already extracted stays extracted and every validated claim is still appended — and it exits non-zero so nothing downstream mistakes a partial batch for a whole one (R27). A claims file that fails the schema costs its own bundle and not the batch: one retry, then the bundle is set aside, named in the output, and left unconsumed (R9). |
+| `extract` subcommand (`commands/extract.py`) | The explicit continue command R7 promises: one named batch, one bundle at a time, with a reading before, part-way through and after (R26). The part-way one is what makes it a guard rather than a receipt. A stop is not a rollback — every bundle already extracted stays extracted and every validated claim is still appended — and it exits non-zero so nothing downstream mistakes a partial batch for a whole one (R27). A claims file that fails the schema costs its own bundle and not the batch: one retry, then the bundle is set aside, named in the output, and left unconsumed (R9). At the end of a batch it assembles the calibration record from what its OWN calls reported and the readings either side of them — the only place in the pipeline that knows both — and says so, or says why there was nothing to record. |
+| Calibration record (`calibration.py`) | The shape a batch's measurements are committed in, and the way they are read back (R8, R1011). Two quantities, kept apart: tokens against tokens correct the chars-per-token factor, because both sides are tokens; points against points say what the batch took out of the weekly limit. Neither is derived from the other, and the conversion between them is stored as a labelled ESTIMATE with every assumption written out beside it — nothing reads that list as an input, it is for the person who later asks why the number is what it is. The four token components stay apart here as everywhere (R8). The record names the model, because a factor measured against one model does not transfer to another. `tokens_per_point` is null when the meter did not move, and that is a result rather than a gap: the reader returns whole percentages, so a batch costing less than one point reads identically either side of itself. Nothing here invokes a model or reads a meter. |
 
 ## Data flow
 
@@ -78,6 +82,8 @@ does the number of batches it was given and then stops, reports and waits.
 - a claims file --(validated against the schema, every fault at once)--> claims --(appended, tagged by batch, never rewritten)--> `data/claims.jsonl`
 - `data/bundles/batch-N/*.xml` --(one bundle at a time)--> the extraction boundary --(one claims file per bundle, written before anything reads it)--> validated claims --(one append for the batch)--> `data/claims.jsonl`
 - the usage reader --(the `Weekly (7-day)` percentage, three times per batch)--> the spend guard --(a ceiling ten points above the batch's baseline)--> carry on, or stop with the bundles that remain named
+- the batch's own calls --(four token counts each)--> summed over the batch, and the bundles --(the characters they held)--> the corrected factor; the readings either side --(points, separately)--> the same record --> `calibration/batch-N.json`, tracked in git
+- `calibration/batch-N.json` --(the measured factor, the batch it came from and the model it was measured against)--> the next projection, which says it is using a measurement rather than a guess
 
 ## Main paths
 
@@ -270,7 +276,11 @@ the stage re-run from cache, with no refetching (R17).
    and can never share a bundle.
 9. The projection prints: videos indexed and selected, excerpt volume, bundle
    count, tokens per batch and in total, and **the chars-per-token factor
-   itself**, stated openly as an estimate rather than buried as a constant. It
+   itself**, stated openly rather than buried as a constant — with the source it
+   came from and whether it is a measurement or a guess. Until a calibration
+   record exists it is the configured guess and says so; once one does, the
+   measured factor is what the totals are stated in, and the configured key
+   stays untouched as the fallback (BL-26). It
    also splits the corpus by path (R1008): how many videos went whole and how
    many as excerpts, the characters and projected tokens each path accounts
    for, how many whole transcripts exceed one bundle's cap, and each of those by
@@ -335,6 +345,20 @@ its shape follows from that.
    points are different quantities measured by different instruments; the
    conversion between them is a labelled estimate that belongs with the
    calibration record, not a line in a summary.
+9. **The batch's measurements are written down** (R8, R1011). The tokens are
+   summed over the batch's OWN calls, retries included, and compared against the
+   projection recomputed from the bundles those calls were made against — never
+   against a usage tool's daily figure, which is a running total for the machine
+   and would attribute to this batch whatever else the owner did that day. That
+   comparison corrects the chars-per-token factor. The two readings go in beside
+   it as their own quantity, and the conversion between the two is stored as an
+   estimate with its assumptions. The record lands at `calibration/batch-N.json`
+   and the run says where. A batch with nothing to measure — no call made, no
+   model named, a bundle that could not be read back, or no closing reading —
+   gets no record and the reason is printed, because a missing record with no
+   explanation reads as a step somebody forgot. A record that should have been
+   written and could not be makes the run exit non-zero: R1011 makes the
+   measurement part of what this command delivers.
 
 ## State and storage
 
@@ -386,6 +410,19 @@ its shape follows from that.
   `aliases.toml` is: R23's comparability claim rests on the prompt being a
   versioned artifact, so a change to it is a diff someone can point at when two
   batches disagree. Reached only through `extract.prompt_text`.
+- `calibration/batch-N.json` — one batch's measurements: the projection, the
+  four token counts its own calls reported, the corrected factor, the two points
+  readings, and the token-to-points conversion with its assumptions. **Committed
+  evidence, not cache** (R1011), which is why it sits beside `config.toml` and
+  `prompts/` rather than under the gitignored `data/`: the projected-versus-actual
+  comparison is the thing S3 checks, and until it was a tracked file it existed
+  only in one session's console. **One file, and no copy anywhere else** — the
+  owner's ruling of 2026-08-25 settled that against BL-26's earlier
+  `data/calibration.json`, on R1011's own words that "a restated number elsewhere
+  is never a second source". `estimate` and `acceptance/S3.sh` both read this
+  one. A re-extracted batch overwrites its own record: unlike the claim store,
+  where a doubled batch would be invisible, a rewritten record is a diff on a
+  tracked file, so git is already the thing that notices.
 - `data/claims/batch-N/bundle-NNN.json` — what the model said about one bundle,
   written verbatim the moment it arrives and never tidied, deleted or repaired.
   Not the store: these are unvalidated, one per bundle, and a file here that
@@ -510,3 +547,20 @@ the cache ITSELF.
   is written when a failure is recorded, so a clean rerun after a failing one
   leaves the old file in place and it reads as current. Raised for a ruling
   rather than fixed unilaterally — see the slice 2 pull request.
+- **Bundles are still PACKED at the configured factor after the calibration
+  batch has corrected it.** The measured factor reaches the projection, which is
+  the number the owner spends against, but `bundle_token_cap` is still applied
+  in guess units when the blocks are packed, so a bundle sized against a
+  measured factor would hold a little more or less text than one sized against
+  the guess. It is a bound on how much goes in one call rather than an estimate
+  of cost, and it stays where the packer can read it from one place; carrying
+  the measurement into the packer means the cap changes meaning between two runs
+  with the same configuration, which is a decision worth taking deliberately
+  rather than as a side effect of this slice.
+- **A restated token figure can differ from a recounted one by a token per
+  block.** The projection's totals come from figures the bundles were packed
+  with and are multiplied by the ratio of the two factors, and each was rounded
+  up when it was packed. The difference is one token per block at most, on
+  figures whose whole purpose is to be an order of magnitude — but it is the
+  reason two numbers on the projection can fail to add up exactly once a
+  measured factor is in force.
