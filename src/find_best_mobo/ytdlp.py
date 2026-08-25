@@ -70,6 +70,29 @@ def _walk(info: dict[str, Any], client: Any) -> Iterator[dict[str, object]]:
             yield entry
 
 
+# The caption formats this boundary knows how to ask for, in preference order.
+# `UNKNOWN_FORMAT` lives in `transcripts.py`, because it describes a CACHED
+# RECORD whose provenance was never written down and that module owns the
+# record. It is imported inside the two functions that need it rather than at
+# module scope: `transcripts.py` already imports `fetch_video` from here, so a
+# top-level import would close the loop. One deferred import in two functions is
+# a smaller price than moving a constant away from the thing it describes.
+JSON3 = "json3"
+VTT = "vtt"
+
+
+@dataclass(frozen=True)
+class CaptionTrack:
+    """One caption track's URL and the format it will arrive in.
+
+    Returned together rather than re-derived, because two readers of one
+    extraction result is the shape ESC-21 and BL-28 both punish.
+    """
+
+    url: str
+    caption_format: str
+
+
 @dataclass(frozen=True)
 class VideoFetch:
     """What one per-video extraction yields: the captions, and the description.
@@ -83,6 +106,9 @@ class VideoFetch:
 
     captions: str | None
     description: str
+    # Which format `captions` is in, so the caller picks a parser rather than
+    # sniffing the payload. The boundary knows what it asked for (R1013).
+    caption_format: str
 
 
 def fetch_video(video_id: str, config: Config) -> VideoFetch:
@@ -114,14 +140,20 @@ def fetch_video(video_id: str, config: Config) -> VideoFetch:
     info = client.extract_info(url, download=False)
     description = info.get("description") if isinstance(info, dict) else None
     text = description if isinstance(description, str) else ""
-    track_url = _caption_url(info)
-    if track_url is None:
-        return VideoFetch(captions=None, description=text)
+    track = _caption_track(info)
+    if track is None:
+        from find_best_mobo.transcripts import UNKNOWN_FORMAT
+
+        return VideoFetch(captions=None, description=text, caption_format=UNKNOWN_FORMAT)
     # `urlopen` on the client rather than a bare HTTP call: it carries the
     # same cookies, headers and proxy settings the extraction used, and a
     # caption URL fetched without them is frequently rejected.
-    raw: bytes = client.urlopen(track_url).read()
-    return VideoFetch(captions=raw.decode("utf-8", errors="replace"), description=text)
+    raw: bytes = client.urlopen(track.url).read()
+    return VideoFetch(
+        captions=raw.decode("utf-8", errors="replace"),
+        description=text,
+        caption_format=track.caption_format,
+    )
 
 
 # One client for every caption fetch in a run, built on first use.
@@ -155,12 +187,19 @@ def _caption_client() -> Any:
     return _CAPTION_CLIENT
 
 
-def _caption_url(info: dict[str, Any]) -> str | None:
-    """Pick the English WebVTT track from an extraction result, if there is one.
+def _caption_track(info: dict[str, Any]) -> CaptionTrack | None:
+    """Pick the English caption track from an extraction result, if there is one.
 
-    Manual subtitles win over automatic ones; within either, an explicit `vtt`
-    format wins, and the first offered format is taken only as a fallback for a
-    track that does not advertise its extension.
+    Manual subtitles win over automatic ones; within either, `json3` wins, then
+    `vtt`, and the first offered format is taken only as a last resort for a
+    track advertising neither (R1013, OD-24).
+
+    `json3` is preferred because the `vtt` rendering of an AUTOMATIC track is
+    roll-up: a cue per display frame, so every spoken line appears three times
+    and a mention inside a two-line frame inherits the FIRST line's timestamp.
+    BL-28 measured that at 2.84x across the whole cached corpus, on every one of
+    285 videos, and json3 additionally carries per-segment timing that WebVTT
+    cannot express.
     """
     for key in ("subtitles", "automatic_captions"):
         tracks = info.get(key) or {}
@@ -169,11 +208,27 @@ def _caption_url(info: dict[str, Any]) -> str | None:
         for language, formats in tracks.items():
             if not str(language).lower().startswith(_ENGLISH) or not formats:
                 continue
-            chosen = next(
-                (fmt for fmt in formats if fmt.get("ext") == "vtt"),
-                formats[0],
-            )
+            chosen = _preferred(formats)
             candidate = chosen.get("url")
             if candidate:
-                return str(candidate)
+                from find_best_mobo.transcripts import UNKNOWN_FORMAT
+
+                return CaptionTrack(
+                    url=str(candidate),
+                    caption_format=str(chosen.get("ext") or UNKNOWN_FORMAT),
+                )
     return None
+
+
+def _preferred(formats: list[dict[str, Any]]) -> dict[str, Any]:
+    """The best format this project can read, or the first one offered.
+
+    Taking the first offered as a last resort keeps a track with an unfamiliar
+    or absent `ext` fetchable; it is then parsed by whatever its `ext` says, and
+    an unreadable one fails loudly at parse rather than silently here.
+    """
+    for wanted in (JSON3, VTT):
+        for fmt in formats:
+            if fmt.get("ext") == wanted:
+                return fmt
+    return formats[0]

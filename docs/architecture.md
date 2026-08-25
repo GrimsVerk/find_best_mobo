@@ -37,7 +37,7 @@ excerpting and no model involvement — those are the last slice of the
 | `index` subcommand (`commands/index.py`) | The stage itself: enumerate, write `data/index.jsonl`, print the summary counts. |
 | Transcripts (`transcripts.py`) | Parsing WebVTT into timed cues, and owning the on-disk transcript cache. Fetching and caching are deliberately separate: the fetch never consults the cache, so "reruns never refetch" lives in exactly one place. |
 | Failure ledger (`ledger.py`) | Recording every fetch failure with its class, carrying attempt counts across runs, and deciding when the run must halt. It is rewritten on every record, so evidence is on disk even when the run stops abruptly. |
-| `fetch` subcommand (`commands/fetch.py`) | The stage itself: read the index, fetch what is pending and uncached, print the summary — or, on a halt, the trigger and the ledger. The per-video extraction it already runs also yields the DESCRIPTION, stored in the cache record at no extra request (OD-8, R1004). |
+| `fetch` subcommand (`commands/fetch.py`) | The stage itself: read the index, fetch what is pending and uncached, print the summary — or, on a halt, the trigger and the ledger. The per-video extraction it already runs also yields the DESCRIPTION, stored in the cache record at no extra request (OD-8, R1004). It requests `json3` and falls back to WebVTT, records which per video, and says so in the summary — prominently when the fallback was used (OD-24, R1013). |
 | Normalization (`normalize.py`) | Folding caption text and titles into one comparable form: case, scattered punctuation, hyphens (which fold to a space, so the table's `steel legend` meets a caption's `steel-legend` — OD-6, R1002), and above all the spacing damage that renders `X670E` as `x 670 e`. Pure and total. |
 | Alias table (`aliases.py`, path from `alias_table_path`) | Mapping many surface forms onto one canonical entity, and finding those entities in normalized text with a single compiled pattern. Each form compiles split-tolerantly (OD-6, R1002): an optional space between adjacent characters inside a word, a required one where the form itself has a space — so `toma hawk` matches `tomahawk` while `aorusmaster` never matches `aorus master`, because the alias's own space needs a real token boundary to land on. Matching is scoped to ONE cue's text (OD-15, R1010): a name the captions break across a cue boundary is COUNTED and never matched, because a mention spanning two cues has no single cue start and R5 cuts every excerpt window from that field. A `kind = "chipset"` alias additionally contributes its ITX form — every declared form plus a trailing `i`, so `b850i` finds B850 without relaxing the right boundary (OD-7, R1003). The table is hand-authored input, not derived data, and every loader takes its path from configuration rather than building one (OD-11, R1007). |
 | `aliases` subcommand (`commands/aliases.py`) | The inspection stage: report, per canonical, how many videos mention it and which forms actually matched — so the table's recall is looked at before it silently decides the corpus. Requires the table, the index and the transcript-cache DIRECTORY; an empty cache yields a report of zeros rather than a refusal (OD-9, R1005). |
@@ -253,7 +253,18 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
 - `data/index.jsonl` — one JSON record per video. Local-only, gitignored, as
   the whole `data/` tree will be: the corpus never enters git.
 - `data/transcripts/<video_id>.json` — one cached transcript per video, timed
-  cues in file order, and the video's description verbatim (OD-8, R1004). A
+  cues in file order, the video's description verbatim (OD-8, R1004), and
+  `source_format`: which caption format the cues were parsed from (OD-24,
+  R1013). `json3` is YouTube's own segment format, one event per line of
+  speech; `vtt` is the same track rendered for display, which for automatic
+  captions is ROLL-UP — a cue per display frame, so every line arrives three
+  times and a name inside a two-line frame inherits the FIRST line's timestamp.
+  The VTT path de-duplicates on parse, so no cached transcript holds the same
+  line three times whichever route produced it, but the two are not
+  interchangeable: only json3 carries per-segment timing, and a question about
+  one claim's timestamp has a different answer depending on the path. A record
+  written before this field reads `unknown` — never guessed at, because a guess
+  would be true today and a lie the moment anyone replays the reasoning. A
   record written before descriptions were stored has no such key and loads with
   an empty one — R1004 forbids a forced refetch, so the existing cache keeps
   working and simply carries no description signal. The cache is the resumability story: it is what a rerun
