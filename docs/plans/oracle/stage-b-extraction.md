@@ -57,15 +57,23 @@ bundles.
   source it used and whether the number is a measurement or a guess, and the
   configuration key is still never rewritten by a stage. Slice 4 builds that.
 
-- **Q:** Which model extracts, and at what effort? §7 says "low effort, because
-  this is reading comprehension, not reasoning". — **risk:** LOW: it is one
-  configured string; reversing it is a config edit and a rerun of one batch.
-  — **proposed:** a configured `extraction_model` with no default in code, set
-  in `config.toml`, so the choice is data rather than a constant and the
-  calibration record can state which model produced it. A factor measured
-  against one model is not transferable to another, and a record that does not
-  say which model it measured is not evidence.
-  **Ruling:** proceeding on the default (LOW), left for review.
+- **Q:** ~~Which model extracts, and at what effort?~~ **This was never open, and
+  filing it was a mistake.** `docs/DESIGN.md` §6 already fixed both by owner
+  ruling — "Model and effort tiers are fixed by owner ruling: Opus 5 throughout,
+  low effort for per-excerpt extraction, medium for synthesis" — and
+  `docs/DECISIONS.md`'s 2026-08-14 entry rules the same, with **reasoning effort
+  as the cost lever rather than the model**. §7 states the reason for `low`:
+  extraction is reading comprehension, not reasoning.
+  **Ruling: already ruled, before this plan was written.** The Uncertainties
+  section exists for decisions with no design basis, and this one had one; the
+  planner did not check §6. Recorded here rather than deleted, because a plan
+  that quietly loses a question it got wrong teaches nobody anything.
+  What the slices build follows from the ruling: `extraction_model` is a
+  `config.toml` key rather than a constant — R17 makes the cost levers
+  configuration, and the calibration record must name the model it measured,
+  since a chars-per-token factor measured against one model does not transfer to
+  another. There is no default in code, so a missing key costs a message rather
+  than money, and the VALUE is the design's rather than the planner's.
 
 - **Q:** What happens to a bundle whose claims file fails validation twice?
   R9 says "reported and retried or set aside — never silently dropped".
