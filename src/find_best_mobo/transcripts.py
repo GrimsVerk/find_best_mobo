@@ -25,8 +25,7 @@ from typing import Any
 
 from find_best_mobo.config import Config
 from find_best_mobo.index import Video
-from find_best_mobo.ledger import FetchFailure as FetchFailure
-from find_best_mobo.ledger import HaltTriggered, Ledger
+from find_best_mobo.ledger import FetchFailure, HaltTriggered, Ledger
 from find_best_mobo.ytdlp import JSON3, fetch_video
 
 # What a cached record says about where its cues came from. `json3` is
