@@ -12,8 +12,16 @@ import anywhere in this slice, that leads to a model being called. The stage tha
 reads the bundles is a different command, and it does not exist yet.
 
 Every figure the projection prints is a count of something already on disk,
-except the chars-per-token factor, which is a guess and is labelled as one. The
-calibration batch exists to replace it with a measurement.
+except the chars-per-token factor. That one is a guess until a calibration batch
+has measured it, and **once one has, the measurement is what this stage uses**
+(BL-26's ruling, 2026-08-24). Which of the two it used is printed beside the
+number, because a factor whose provenance the reader has to infer is a factor
+they will assume was measured.
+
+The preference runs one way only. `config.chars_per_token` stays the fallback
+and is never rewritten by this or any other stage: a stage that edits its own
+configuration makes R23's "given the same cache and configuration" unfalsifiable,
+because the configuration is then a function of what has already been run.
 """
 
 from __future__ import annotations
@@ -24,6 +32,7 @@ from dataclasses import dataclass
 
 from find_best_mobo.artifacts import require_file
 from find_best_mobo.bundle import Bundle, estimate_tokens
+from find_best_mobo.calibration import load_latest, measured_factor, record_path
 from find_best_mobo.config import Config
 from find_best_mobo.index import read_index
 from find_best_mobo.select import (
@@ -44,6 +53,10 @@ class Projection:
     bundle_count: int
     tokens_per_batch: tuple[int, ...]
     total_tokens: int
+    # The factor every token figure above is stated in: the measured one when a
+    # calibration record exists, the configured guess until then (BL-26). Where
+    # it came from and which of the two it is ride on the fields at the bottom
+    # of this dataclass.
     chars_per_token: float
     # How much of the transcript cache the excerpted videos actually had. It
     # sits on the projection because R1012 requires it printed beside the
@@ -66,6 +79,20 @@ class Projection:
     # The bound the split was made against, carried on the projection so the
     # rendered spans can state it without reaching for the config again.
     bundle_token_cap: int
+    # Where `chars_per_token` came from, and whether it is a measurement or a
+    # guess (BL-26). Two fields rather than one because a reader deciding
+    # whether to spend needs both: the provenance says which file or key to go
+    # and look at, and the status says whether the totals above are a price or
+    # an order of magnitude.
+    #
+    # Defaulted, and last because a defaulted field may not precede an
+    # undefaulted one. The defaults are the truth in the absence of a record —
+    # the factor is the configured guess until a calibration batch says
+    # otherwise — and they are what keeps a `Projection` built field by field
+    # elsewhere from having to know about a preference it has no opinion on
+    # (the reason `Config` carries its own two the same way).
+    chars_per_token_source: str = "config.chars_per_token"
+    chars_per_token_measured: bool = False
 
 
 def project(
@@ -108,10 +135,21 @@ def project(
     No submissions is a real value: zeroes on every path and an empty span
     list. R1005's absent-index refusal above is a different condition and is
     unweakened by that.
+
+    **Every token figure is stated in the factor in force** — the measured one
+    when a calibration record exists, the configured guess until then (BL-26).
+    The bundles were PACKED at the configured factor, because packing is a
+    decision that was made when they were written and is not re-made here, so
+    their stored figures are restated rather than recounted: a token count is
+    characters over a factor, so restating one is multiplying by the ratio of
+    the two factors. `_transcript_tokens` is deliberately left on the configured
+    factor, because it reproduces a routing decision the splitter already made
+    against `bundle_token_cap` rather than estimating a cost.
     """
     index_path = require_file(config.data_dir / "index.jsonl", "index", "index")
     videos_indexed = sum(1 for video in read_index(index_path) if video.inclusion == "pending")
     excerpts = [excerpt for bundle in bundles for excerpt in bundle.excerpts]
+    factor, source, measured = _factor_in_force(config)
 
     batch_count = max(1 + max(config.batch_count, 0), *(bundle.batch for bundle in bundles), 1)
     tokens_per_batch = [0] * batch_count
@@ -144,9 +182,11 @@ def project(
         videos_selected=len(included),
         excerpt_characters=sum(len(block.text) for block in excerpt_blocks),
         bundle_count=len(bundles),
-        tokens_per_batch=tuple(tokens_per_batch),
-        total_tokens=sum(bundle.projected_tokens for bundle in bundles),
-        chars_per_token=config.chars_per_token,
+        tokens_per_batch=tuple(_restated(tokens, config, factor) for tokens in tokens_per_batch),
+        total_tokens=_restated(sum(b.projected_tokens for b in bundles), config, factor),
+        chars_per_token=factor,
+        chars_per_token_source=source,
+        chars_per_token_measured=measured,
         # The INCLUDED selections, matching the line it is printed beside:
         # `excerpt_characters` is summed over the videos that were
         # excerpted, and a coverage figure over a different set than the
@@ -156,14 +196,56 @@ def project(
         videos_whole=len(whole_submissions),
         videos_excerpted=len(submissions) - len(whole_submissions),
         whole_characters=sum(len(block.text) for block in whole_blocks),
-        whole_tokens=sum(estimate_tokens(block.text, config) for block in whole_blocks),
-        excerpt_tokens=sum(estimate_tokens(block.text, config) for block in excerpt_blocks),
+        whole_tokens=_restated(
+            sum(estimate_tokens(block.text, config) for block in whole_blocks), config, factor
+        ),
+        excerpt_tokens=_restated(
+            sum(estimate_tokens(block.text, config) for block in excerpt_blocks), config, factor
+        ),
         videos_over_bundle_cap=sum(
             1 for s in whole_submissions if _transcript_tokens(s, config) > config.bundle_token_cap
         ),
         bundles_spanned=bundles_spanned,
         bundle_token_cap=config.bundle_token_cap,
     )
+
+
+def _factor_in_force(config: Config) -> tuple[float, str, bool]:
+    """The factor to project in, where it came from, and whether it was measured.
+
+    The measured one wins (BL-26's ruling). The reason it is preferred rather
+    than merely reported is that the projection is the number the owner decides
+    to spend against: given a measurement and a guess, printing the guess makes
+    the decision on the worse of two numbers this project already holds.
+
+    The three are returned together because they are one fact. A caller that
+    could take the value without the provenance would eventually print a
+    measured number under the sentence that calls it an estimate, and nothing
+    downstream could tell.
+    """
+    record = load_latest()
+    if record is None:
+        return config.chars_per_token, "config.chars_per_token", False
+    return (
+        measured_factor(record),
+        f"{record_path(record.batch)} (batch {record.batch}, model {record.model})",
+        True,
+    )
+
+
+def _restated(tokens: int, config: Config, factor: float) -> int:
+    """A token count projected at the configured factor, restated at `factor`.
+
+    Tokens are characters over a factor, so the same characters at a different
+    factor are the same tokens times the ratio of the two — no character count
+    has to be carried around for this, and the bundles do not have to be re-read.
+    Rounded up, like `bundle.estimate_tokens`, because a projection that rounded
+    down would understate the one number the owner spends against.
+
+    When no calibration record exists the two factors are the same number, the
+    ratio is exactly one, and every figure passes through untouched.
+    """
+    return math.ceil(tokens * config.chars_per_token / factor)
 
 
 def _transcript_tokens(submission: VideoSubmission, config: Config) -> int:
@@ -184,8 +266,9 @@ def render_projection(projection: Projection) -> str:
 
     Written to be read by someone deciding whether to spend, so it states the
     estimate's basis in the same breath as its result. A total presented without
-    the assumption behind it invites the reader to treat it as measured, and this
-    one is not measured — that is what the calibration batch is for.
+    the assumption behind it invites the reader to treat it as measured, which
+    it is only once a calibration batch has said so — hence the factor line,
+    which names the source and says which of the two kinds of number it is.
     """
     lines = [
         "Cost projection (no model has been invoked)",
@@ -213,14 +296,35 @@ def render_projection(projection: Projection) -> str:
         label = " (calibration)" if index == 1 else ""
         lines.append(f"  batch {index}{label}: {tokens} projected tokens")
     lines.append(f"  {projection.total_tokens} projected tokens in total")
-    lines.append(
-        f"Projected at {projection.chars_per_token} characters per token. That factor is an "
-        "ESTIMATE, not a measurement: the calibration batch exists to correct it, "
-        "so treat the totals above as an order of magnitude rather than a price."
-    )
+    lines.append(_factor_line(projection))
     lines.append(
         "The pipeline STOPS here. No model has been or will be invoked by this "
         "command — reading the bundles is a separate, explicit decision, and the "
         "bundles are on disk waiting for it."
     )
     return "\n".join(lines)
+
+
+def _factor_line(projection: Projection) -> str:
+    """The factor, its source, and which kind of number it is — on one line.
+
+    One line rather than two because the three belong together: a value on its
+    own line is quotable without its status, and the status is what decides
+    whether the totals above are a price or an order of magnitude.
+
+    An unset source reads as the configured key, which is where the factor comes
+    from when nothing else provided one.
+    """
+    source = projection.chars_per_token_source or "config.chars_per_token"
+    if projection.chars_per_token_measured:
+        return (
+            f"Projected at {projection.chars_per_token} characters per token, MEASURED by the "
+            f"calibration batch and read from {source}. The totals above are stated in what "
+            "that batch's own calls reported. `config.chars_per_token` stays the fallback and "
+            "is never rewritten by a stage."
+        )
+    return (
+        f"Projected at {projection.chars_per_token} characters per token, from {source}. That "
+        "factor is an ESTIMATE, not a measurement: the calibration batch exists to correct it, "
+        "so treat the totals above as an order of magnitude rather than a price."
+    )

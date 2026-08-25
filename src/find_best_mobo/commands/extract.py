@@ -26,19 +26,33 @@ carries on (R9, and the plan's third uncertainty). Halting on the first bad file
 would strand the bundles already paid for, which is the waste R27 exists to
 prevent.
 
+**What the batch cost is written down, not narrated** (R1011). At the end of a
+batch the run knows two things nothing else can reconstruct afterwards: what its
+OWN calls reported, and what the meter read either side of them. Both go into
+`calibration/batch-<n>.json` as committed evidence, kept apart (R8) — tokens
+correct the chars-per-token factor, points say what the weekly limit paid, and
+the conversion between them is stored as a labelled estimate with its
+assumptions. A console line scrolls away; the record is what `acceptance/S3.sh`
+reads on every pull request afterwards.
+
 This is the first command in the project that spends anything. Everything it
 spends goes through `find_best_mobo.extract`; everything it is allowed to spend
-goes through `find_best_mobo.spend`.
+goes through `find_best_mobo.spend`; everything it did spend goes into
+`find_best_mobo.calibration`.
 """
 
 from __future__ import annotations
 
 from argparse import Namespace
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
+from xml.etree import ElementTree
 
-from find_best_mobo import spend
+from find_best_mobo import calibration, spend
 from find_best_mobo.artifacts import MissingArtifact, require_directory
+from find_best_mobo.bundle import estimate_tokens
+from find_best_mobo.calibration import CalibrationRecord, TokenActual
 from find_best_mobo.claims import Claim, InvalidClaims, parse_claims
 from find_best_mobo.claimstore import BatchAlreadyStored, append_claims, batches_stored, store_path
 from find_best_mobo.commands import subcommand_parser
@@ -241,6 +255,17 @@ class _Run:
         self.results: list[ExtractionResult] = []
         self.readings: list[Reading] = []
         self.stopped: str | None = None
+        # What this batch actually SENT, counted per call rather than per bundle
+        # (R8). A bundle extracted twice was paid for twice and its characters
+        # went over the wire twice, so a factor measured against one copy of them
+        # would credit the model with reading half of what it read.
+        self.characters_sent = 0
+        self.projected_tokens = 0
+        # Bundles whose own size could not be read back. They make the batch
+        # unmeasurable rather than merely smaller: a projection missing one
+        # bundle's characters, divided by tokens that include that bundle's, is
+        # a factor that is wrong in a direction nobody would notice.
+        self.unmeasured: list[str] = []
 
     def execute(self, baseline: Reading) -> None:
         """Extract each bundle in turn, reading the meter on the way through."""
@@ -291,12 +316,15 @@ class _Run:
         print(f"  Appended {appended} claims to {store_path(self.config)} as batch {self.batch}")
         self._print_tokens()
         self._print_points(baseline, after)
+        recorded = self._record(baseline, after)
 
         # Non-zero unless the whole batch landed. A stop, a set-aside bundle and
         # a store that refused the append all leave a batch that is partial, and
         # the exit code is the only signal a caller reads without parsing this
-        # output (R27).
-        complete = self.stopped is None and not self.set_aside and not refused
+        # output (R27). A record that could not be WRITTEN counts too: R1011
+        # makes the measurement part of what this command delivers, and a spend
+        # whose evidence never reached the disk is the failure it exists for.
+        complete = self.stopped is None and not self.set_aside and not refused and recorded
         return 0 if complete and not self._remaining() else 1
 
     def _extract(self, path: Path) -> bool:
@@ -325,6 +353,7 @@ class _Run:
         # record counting only the successful ones would understate the batch
         # (R8).
         self.results.extend(results)
+        self._count_sent(path, len(results))
         bundle_id = path.stem
         if claims is None:
             self.set_aside.append(bundle_id)
@@ -449,6 +478,190 @@ class _Run:
         delta = after.percent - baseline.percent
         print(f"    a difference of {_points(delta)} across the batch")
 
+    def _count_sent(self, path: Path, calls: int) -> None:
+        """Add one bundle's size, once per call that was made against it.
+
+        The projection is a figure about text, so the comparison has to be
+        against the same text. Read back off the bundle rather than carried
+        forward from `estimate`: the two commands are separate runs, and a
+        number passed between them through anything but the bundles themselves
+        would be a second source that nothing keeps in step (R1011).
+        """
+        measured = _bundle_size(path, self.config)
+        if measured is None:
+            self.unmeasured.append(path.stem)
+            return
+        characters, projected = measured
+        self.characters_sent += characters * calls
+        self.projected_tokens += projected * calls
+
+    def _record(self, baseline: Reading, after: Reading | None) -> bool:
+        """Write this batch's calibration record, or say why there is none.
+
+        **Two quantities, kept apart** (R8). The tokens are summed over THIS
+        BATCH's own calls — retries included — and never taken from a usage
+        tool's daily figure, which is a running total for the machine and would
+        attribute to this batch whatever else the owner did today. They correct
+        the chars-per-token factor, because both sides of that comparison are
+        tokens. The points are the two meter readings, and they say what the
+        batch took out of the weekly limit. Neither is derived from the other;
+        the conversion between them is stored as a labelled estimate with its
+        assumptions written out beside it.
+
+        False only when a record that should have existed could not be written.
+        A batch with nothing to measure is not a failure — it is a batch that
+        spent nothing — but the reason is printed either way, because a missing
+        record with no explanation reads as a step somebody forgot.
+        """
+        if after is None:
+            self._no_record(
+                "the closing reading is missing, so the points half of R8 would have to be "
+                "written from a reading nobody took"
+            )
+            return True
+        # Fresh input plus cache creation: the tokens this batch's own text
+        # became. Cache reads are excluded because they are Claude Code's cached
+        # prefix being re-served rather than bundle text — on this machine they
+        # outnumber fresh input by more than four orders of magnitude, so
+        # including them would put the factor off by that ratio — and output
+        # tokens are excluded because they are not input at all. The four
+        # components are still recorded separately below; this sum is the
+        # divisor of one derived figure, not a total anything is reported as.
+        tokens_read = sum(r.input_tokens + r.cache_creation_tokens for r in self.results)
+        unmeasurable = self._unmeasurable(tokens_read)
+        if unmeasurable is not None:
+            self._no_record(unmeasurable)
+            return True
+
+        # Rounded to six decimals, which is four more than the meter reports.
+        # Subtracting two floats leaves binary noise — 0.45 - 0.43 is not 0.02 —
+        # and a record that stated the difference to seventeen places would be
+        # claiming precision the instrument does not have, in the one file a
+        # person reads to decide whether a spend was reasonable.
+        delta = round(after.percent - baseline.percent, 6)
+        record = CalibrationRecord(
+            batch=self.batch,
+            model=self.config.extraction_model.strip(),
+            projected_tokens=self.projected_tokens,
+            actual=TokenActual(
+                input_tokens=sum(result.input_tokens for result in self.results),
+                output_tokens=sum(result.output_tokens for result in self.results),
+                cache_creation_tokens=sum(result.cache_creation_tokens for result in self.results),
+                cache_read_tokens=sum(result.cache_read_tokens for result in self.results),
+            ),
+            measured_chars_per_token=self.characters_sent / tokens_read,
+            points_before=baseline,
+            points_after=after,
+            points_delta=delta,
+            # None when the meter did not move, and that is the RESULT rather
+            # than a failure: the reader returns whole percentages, so a batch
+            # costing less than one full point reads identically either side of
+            # itself. A negative delta means the weekly window rolled over
+            # mid-batch and is no more measurable than a flat one.
+            tokens_per_point=round(tokens_read / (delta * 100.0), 3) if delta > 0 else None,
+            conversion_assumptions=self._assumptions(after),
+            recorded_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        )
+        try:
+            path = calibration.write_record(record)
+        except OSError as error:
+            print(f"  The calibration record for batch {self.batch} could not be written: {error}")
+            print("    The batch's own numbers are printed above, but R1011's evidence is not")
+            print("    on disk, and a console line is what R1011 exists to replace.")
+            return False
+        self._print_record(record, path, tokens_read)
+        return True
+
+    def _unmeasurable(self, tokens_read: int) -> str | None:
+        """Why this batch cannot be calibrated, or None when it can be.
+
+        Each of these makes the FACTOR wrong rather than merely absent, which is
+        why none of them is worked around. A record is evidence, and evidence
+        that is quietly missing a term is worse than no record: the projection
+        would then be corrected towards a number nothing measured.
+        """
+        if not self.results:
+            return "no model call was made, so there is nothing this batch measured"
+        if self.unmeasured:
+            return (
+                f"the text of {', '.join(self.unmeasured)} could not be read back, so the "
+                "projection to compare against is missing what those bundles held"
+            )
+        if not self.config.extraction_model.strip():
+            return (
+                "no `extraction_model` is set in config.toml, and a factor that cannot name "
+                "the model it was measured against does not transfer to any other"
+            )
+        if tokens_read <= 0:
+            return "the calls reported no input tokens, so there is nothing to divide by"
+        if self.characters_sent <= 0:
+            return "the bundles carry no transcript text, so there is nothing that was read"
+        return None
+
+    def _assumptions(self, after: Reading) -> tuple[str, ...]:
+        """Everything the token-to-points conversion rests on, written out (R8).
+
+        Written out rather than implied, because an estimate whose assumptions
+        are not stored beside it cannot be corrected later, only replaced. They
+        are assembled per run rather than kept as a constant: which reader
+        answered and how many calls were made are facts about THIS batch, and an
+        assumption list that stated them generically would be describing some
+        other run.
+
+        Nothing reads this list as an input. It is for the person who later asks
+        why the number is what it is.
+        """
+        return (
+            f"The token figures are summed over this batch's own {len(self.results)} calls, "
+            "retries included, from what each `claude -p` call reported. They are never "
+            "taken from a usage tool's daily total, which counts every other session on "
+            "the machine that day.",
+            "The tokens divided into the points are fresh input plus cache creation — the "
+            "tokens this batch's own text became. Cache reads are excluded as Claude Code's "
+            "own re-served prefix, and output tokens as not being input; if the weekly limit "
+            "is charged on all four, this understates what a point buys.",
+            f"The points are the {after.label} percentage read before and after the batch via "
+            f"`{after.source}`. That figure is account-wide, so any other session on the "
+            "subscription during the batch is counted in it and attributed here to this batch.",
+            "The reader reports whole percentage points, so a delta of one point is anything "
+            "from just over zero to just under two. The conversion is accurate to no better "
+            "than the point it is measured in.",
+            "The conversion assumes the whole movement of the meter was this batch's. It is "
+            "an estimate in the direction tokens-to-points only; the chars-per-token factor "
+            "beside it is a measurement and is not derived from any of this (R8).",
+        )
+
+    def _no_record(self, reason: str) -> None:
+        print(f"  No calibration record written for batch {self.batch}: {reason}.")
+
+    def _print_record(self, record: CalibrationRecord, path: Path, tokens_read: int) -> None:
+        """What landed in the record, so the console and the file agree.
+
+        Printed as well as written because the owner is reading this run now and
+        the record is for everyone reading it later — but the file is the
+        evidence, and this is the notice that it exists (R1011).
+        """
+        print(f"  Calibration record for batch {self.batch} written to {path}")
+        print(
+            f"    {record.projected_tokens} projected tokens against {tokens_read} read "
+            f"({record.actual.input_tokens} fresh input, "
+            f"{record.actual.cache_creation_tokens} cache creation)"
+        )
+        print(
+            f"    corrected factor: {record.measured_chars_per_token:.4g} characters per token, "
+            f"against the configured {self.config.chars_per_token}"
+        )
+        if record.tokens_per_point is None:
+            print(
+                "    tokens per weekly point: unmeasurable at this batch size — the meter "
+                "reads whole percentages and did not move. That is a result, not a failure."
+            )
+        else:
+            print(
+                f"    tokens per weekly point: {record.tokens_per_point:.0f}, an ESTIMATE — "
+                "the assumptions it rests on are written out in the record."
+            )
+
 
 def _print_reading(when: str, reading: Reading) -> None:
     """One reading, with the reader that gave it.
@@ -482,6 +695,27 @@ def _already_stored(batch: int, config: Config) -> str:
         "If the batch really must be redone, move the store aside first — deliberately, "
         "and with the old one kept."
     )
+
+
+def _bundle_size(path: Path, config: Config) -> tuple[int, int] | None:
+    """One bundle's transcript characters and the tokens the projection gave it.
+
+    The TRANSCRIPT text only, not the file: `estimate` projects the text it cut,
+    and a factor measured against the XML around it would be measuring the
+    renderer. The token figure is the projection's own arithmetic — the same
+    per-block rounding `bundle.estimate_tokens` does, so the number here is the
+    number the projection printed rather than a second estimate of it.
+
+    None when the bundle cannot be read or parsed. The caller treats that as a
+    batch it cannot calibrate rather than as a bundle worth zero, because zero
+    would be a real-looking number that shifts the factor.
+    """
+    try:
+        root = ElementTree.parse(path).getroot()
+    except (OSError, ElementTree.ParseError):
+        return None
+    texts = [element.text or "" for element in root.iter("transcript")]
+    return sum(len(text) for text in texts), sum(estimate_tokens(text, config) for text in texts)
 
 
 def _points(fraction: float) -> str:
