@@ -141,8 +141,24 @@ specific fact I would need to confirm myself before buying.
   videos selected, total and per-batch excerpt volume, bundle count, projected
   token load, and the chars-per-token factor used, stated openly. The pipeline
   stops here and does not continue without an explicit separate command.
-- **R8** — After the calibration batch, record projected against actual usage,
-  report the delta, and correct the factor used for subsequent projections.
+- **R8** — After the calibration batch, record two quantities and keep them
+  apart. **Tokens:** the projection's figure against the token counts the run's
+  own model calls report, summed across every call the batch made, including any
+  the run delegated to a spawned worker. Their delta corrects the chars-per-token
+  factor for subsequent projections, because both sides are tokens. The four
+  components a call reports — fresh input, output, cache creation and cache read
+  — are recorded separately and never as a single total: a cache read is not
+  billed as fresh input, and on the owner's machine cache reads already outnumber
+  fresh input by more than four orders of magnitude, so a summed figure is
+  dominated by the cheapest tokens in it. **Subscription points:** the R26
+  readings taken before and after the batch, whose difference is what the batch
+  cost against the weekly limit. Neither quantity is derived from the other. A
+  token-to-points conversion is recorded beside them as a labelled ESTIMATE, with
+  every assumption it rests on written out rather than implied. Every estimate
+  this pipeline makes is stored that way — the projection, its chars-per-token
+  factor, and this conversion — so a finished run can be compared against what it
+  predicted and each estimate corrected from the comparison. An estimate whose
+  assumptions are not stored beside it cannot be corrected, only replaced.
 - **R9** — Extract claims from each bundle into a validated schema. A bundle
   whose output fails validation is reported and retried or set aside — never
   silently dropped.
@@ -190,15 +206,21 @@ specific fact I would need to confirm myself before buying.
   rule.
 - **R26** — Total model spend for the extraction effort is capped at 10% of the
   owner's weekly subscription limits. The cap is enforced against real readings
-  rather than the projection: `claude -p "/usage"` returns them headlessly, so a
-  reading is taken before a batch, after it, and part-way through a long one,
-  and a run stops before crossing the line instead of discovering the overrun
-  afterwards. On Omarchy the reader is
-  `omarchy-agent-usage-claude --limits-only --force`, which returns the limits as
-  JSON without starting a session. The Python pipeline itself still cannot read
-  them, and the reading is approximate — it counts only local sessions on the
-  owner's machine — so the owner's own figure remains the tiebreaker where the
-  two disagree.
+  rather than the projection: a reading is taken before a batch, after it, and
+  part-way through a long one, and a run stops before crossing the line instead
+  of discovering the overrun afterwards. **The run takes the reading itself.** On
+  Omarchy the reader is `omarchy-agent-usage-claude --limits-only --force`, an
+  ordinary command that returns the limits as JSON without starting a session;
+  `claude -p "/usage"` is the fallback when that fails, and it is a fallback
+  rather than the default because it starts a session and so spends against the
+  very limit it is reading. A session with neither reader relies on other means.
+  The limits themselves come from Anthropic's own usage endpoint, so they account
+  for every session on the subscription rather than only the ones on this
+  machine — while the same reader's per-model TOKEN counts are local, and that
+  difference is why R8 keeps the two quantities apart. The readings are reported
+  in whole percentage points, which sets the floor on what a calibration batch
+  must consume to be measurable at all. The owner's own figure remains the
+  tiebreaker where a reading and the owner disagree.
 - **R27** — No completed work is lost to an overrun. Every model output is
   written to disk as it is produced rather than at the end of a batch, and full
   transcripts are retained after excerpting rather than discarded. Exceeding the
@@ -567,10 +589,15 @@ flags the staleness; a cutoff throws both away.
 - **S2** — The cost projection is printed and the pipeline stops before any
   inference; continuing requires a separate explicit command. *(Mechanically
   checkable.)*
-- **S3** — After the calibration batch, projected and actual usage are recorded
-  together with the corrected factor. *(Mechanically checkable —
-  `omarchy-agent-usage-claude --limits-only --force` reads the real subscription
-  limits on this machine as JSON, so actual usage is not owner-only.)*
+- **S3** — After the calibration batch, the token projection, the token actual
+  the run's own calls reported, their delta and the corrected factor are recorded
+  together, and the R26 points readings taken around the batch are recorded
+  beside them as a separate quantity, with the token-to-points conversion and its
+  assumptions. *(Mechanically checkable — the records are committed files and
+  `acceptance/S3.sh` reads them. `omarchy-agent-usage-claude --limits-only
+  --force` supplies the points readings on this machine as JSON; it does not
+  supply the token figure the factor is corrected from, which is why the two are
+  recorded apart.)*
 - **S4** — **(owner)** Every claim in the report carries its video title, a working
   timestamped link, and a short verbatim snippet. The owner picks any five
   claims at random and all five are locatable within a minute at their stated
