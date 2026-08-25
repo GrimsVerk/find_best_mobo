@@ -183,9 +183,11 @@ def _invoke(prompt: str, bundle: str, model: str) -> Mapping[str, Any]:
         # nothing to prevent and a whole batch to discover late.
         raise ExtractionFailed(
             "no extraction model is configured",
-            "Set `extraction_model` in config.toml. There is no default in code on purpose: a "
-            "chars-per-token factor measured against one model does not transfer to another, so "
-            "a calibration record that cannot name its model is not evidence.",
+            "Set `extraction_model` in config.toml. `docs/DESIGN.md` §6 fixes it by owner "
+            "ruling — Opus 5, low effort for extraction — so this is a missing config key "
+            "rather than an open question. There is no default in code on purpose: a "
+            "chars-per-token factor measured against one model does not transfer to another, "
+            "so a calibration record that cannot name its model is not evidence.",
         )
     command = [
         "claude",
