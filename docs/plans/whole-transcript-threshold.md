@@ -1,6 +1,6 @@
 ---
 slug: whole-transcript-threshold
-status: draft
+status: merged
 created: 2026-08-16
 design: MVP — Corpus and the cost checkpoint (no inference)
 covers: [R5, R17, R28]
@@ -31,9 +31,13 @@ it.
 > This document is kept rather than deleted because **BL-20**, **OD-13** and
 > **OD-19** all cite it by name, and a missing file those decisions point at
 > would confuse the next reader far more than a superseded one that says so.
-> It stays `status: draft` until R1008's work actually lands, at which point it
-> becomes `status: merged` — the field's own meaning is "the work shipped, by
-> another route", and claiming that before it has would be false.
+> It stayed `status: draft` until R1008's work actually landed. **That happened
+> on 2026-08-25**, in #186, #187 and #188 — all three slices of
+> `capped-whole-transcript-path`, covering R28 and R1008 — so the field is now
+> `status: merged`, whose meaning is "the work shipped, by another route".
+> Claiming that before it had shipped would have been false; leaving it at
+> `draft` now would be equally false in the other direction, and would leave the
+> plan reading as work still waiting to be done.
 
 ## Summary
 
