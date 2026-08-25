@@ -46,6 +46,9 @@ excerpting and no model involvement — those are the last slice of the
 | Excerpting (`excerpt.py`) | Cutting a wide asymmetric window around each mention, merging windows that overlap, and capping how many survive per video. Also the one definition of a transcript's text as a single line (`transcript_text`), which the saturation ratio's denominator and the whole path's own text both read, so the two cannot drift. Pure — it never reads the disk. |
 | Routing (`submission.py`) | Deciding whether a video is sent as excerpts or as its whole transcript, and cutting a whole transcript into bundle-sized parts at cue boundaries (OD-13, R28, R1008). The ratio decides and size never does; a `VideoSubmission` carries the chosen blocks and their projected cost. Pure — it never reads the disk. |
 | Bundling (`bundle.py`) | Grouping blocks into token-capped work bundles, assigning them to a calibration batch and larger batches after it, and rendering each as XML on disk. Every `<excerpt>` states its `form`, `part` and `parts` (R28, R1008), always present and never inferred from an absent attribute, so a reader can be told whether it is holding a window or one part of a whole transcript. |
+| Claim schema (`claims.py`) | The shape of one piece of evidence, and the refusal that keeps a model honest (R9, BL-23). Every field of `docs/DESIGN.md` §9's Claim is required, every vocabulary value is exact, and an UNKNOWN field is a fault rather than something to drop — a model inventing a field misunderstood the contract, and discarding it hides that. Every fault is reported at once, never the first. Pure — it never reads the disk. |
+| Claim store (`claimstore.py`) | The append-only store, tagged by batch (R10, R27). Writes are atomic per FILE: every claim in a valid file lands or none does. A batch already stored cannot be ingested again — the mirror of R27 is that no completed work is silently REWRITTEN either, and a rerun that doubled a batch would corrupt every count downstream while every gate stayed green. |
+| `ingest` subcommand (`commands/ingest.py`) | Validate one claims file and append it, or refuse naming every fault and append nothing. Spends nothing and invokes nothing. |
 | Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it, and the per-path routing figures R1008 asks for — counts, characters and tokens per path, and every whole transcript that spans more than one bundle, by id. |
 | `estimate` subcommand (`commands/estimate.py`) | The stage itself, and the end of the milestone: cut, merge, cap, pack, batch, write, print the projection, stop. |
 
@@ -62,6 +65,7 @@ excerpting and no model involvement — those are the last slice of the
 - index + transcripts + matcher --(one decision per video, exclusions included)--> `data/selected.jsonl`
 - selections + cached transcripts --(windows around mentions, merged and capped)--> excerpts --(routed per video: excerpts, or the whole transcript in bundle-sized parts)--> blocks --(packed to a token cap)--> bundles --> `data/bundles/batch-N/*.xml`
 - bundles + selections --(counts and a stated token factor)--> the printed projection, and then nothing
+- a claims file --(validated against the schema, every fault at once)--> claims --(appended, tagged by batch, never rewritten)--> `data/claims.jsonl`
 
 ## Main paths
 
