@@ -46,6 +46,10 @@ from find_best_mobo.config import Config
 from find_best_mobo.extract import ExtractionResult, extract_bundle
 from find_best_mobo.spend import CapExceeded, Reading, UsageUnreadable
 
+# What `--batches` takes instead of a number. A word rather than a sentinel like
+# -1, because the owner types it.
+ALL = "all"
+
 # How many attempts one bundle gets before it is set aside. Two, not more: a
 # claims file that fails the schema twice is a prompt or a bundle that needs
 # looking at, and a third attempt would pay for the same misunderstanding again.
@@ -53,28 +57,133 @@ _ATTEMPTS = 2
 
 
 def parse_args(argv: Sequence[str]) -> Namespace:
-    """Which batch to extract, and nothing else.
+    """Which batch, or how many of them.
 
-    `--batch` is declared optional to argparse and required below, for the
-    reason `commands/ingest.py` records: argparse reports a MISSING required
-    argument before an UNRECOGNISED one, so `find-best-mobo extract --nonsense`
-    would complain about the absent batch and never name the flag, and R1006's
-    rule is that an undeclared flag is always named.
+    **`--batch` and `--batches` are different questions and both are kept.**
+    `--batch 3` names ONE batch and refuses if it is already stored: naming a
+    batch that is done is a mistake worth reporting. `--batches 3` says how many
+    PENDING batches to work through and skips stored ones without comment:
+    skipping what is done is the whole point of asking for a count. Giving both
+    is an error rather than a precedence rule, because a precedence rule is a
+    thing readers guess at.
+
+    Neither one means `--batches 1`. One, because that is the state the owner
+    starts in — the numbers are unfamiliar until the calibration batch reports.
+    Defaulting to `all` would make the first run the largest one, which is the
+    opposite of what the calibration batch exists for.
+
+    Both are declared optional to argparse for the reason `commands/ingest.py`
+    records: argparse reports a MISSING required argument before an UNRECOGNISED
+    one, so a required form would let `find-best-mobo extract --nonsense`
+    complain about the absent batch and never name the flag, which R1006
+    forbids.
     """
     parser = subcommand_parser(
         "extract",
-        "Extract one batch of bundles into claims, stopping before the R26 spend cap.",
+        "Extract bundles into claims, stopping before the R26 spend cap.",
     )
-    parser.add_argument("--batch", type=int, help="the batch to extract, e.g. 1")
+    parser.add_argument("--batch", type=int, help="extract exactly this batch, e.g. 1")
+    parser.add_argument(
+        "--batches",
+        help="how many PENDING batches to work through: a count, or `all` (default: 1)",
+    )
     args = parser.parse_args(list(argv))
-    if args.batch is None:
-        parser.error("the following arguments are required: --batch")
+    if args.batch is not None and args.batches is not None:
+        parser.error(
+            "--batch and --batches ask different questions: --batch names one batch, "
+            "--batches says how many pending ones to work through. Give one, not both."
+        )
+    if args.batches is not None and args.batches != ALL and not _is_count(args.batches):
+        parser.error(f"--batches takes a positive whole number or `{ALL}`, not {args.batches!r}")
     return args
 
 
+def pending_batches(config: Config) -> tuple[int, ...]:
+    """The batches that have bundles on disk and are not yet in the claim store.
+
+    Both halves matter. A batch with no bundle directory was never packed and is
+    not work waiting to be done; a batch already in the store is work already
+    paid for, and R27's mirror is that it is never silently redone. Ascending,
+    because the batches are recency-ordered and batch 1 is the calibration one.
+    """
+    root = config.data_dir / "bundles"
+    if not root.is_dir():
+        return ()
+    stored = batches_stored(config)
+    found: list[int] = []
+    for directory in root.iterdir():
+        if not directory.is_dir() or not directory.name.startswith("batch-"):
+            continue
+        number = directory.name.removeprefix("batch-")
+        if not number.isdigit() or not any(directory.glob("*.xml")):
+            continue
+        if int(number) not in stored:
+            found.append(int(number))
+    return tuple(sorted(found))
+
+
+def batches_to_run(requested: str | None, config: Config) -> tuple[int, ...]:
+    """The pending batches this run should do, in order.
+
+    `None` means one — see `parse_args`. Asking for more batches than are
+    pending is not an error: it means "as many as there are", which is what a
+    reader means by `--batches 5` on a corpus with three left.
+    """
+    pending = pending_batches(config)
+    if requested == ALL:
+        return pending
+    count = 1 if requested is None else int(requested)
+    return pending[:count]
+
+
+def _is_count(value: str) -> bool:
+    return value.isdigit() and int(value) > 0
+
+
 def run(config: Config, args: Namespace) -> int:
-    """Extract one batch under the cap, and say what it cost and what remains."""
-    batch: int = args.batch
+    """Extract the batches asked for, under the cap, and say what remains.
+
+    `--batch N` is one batch and keeps its old behaviour exactly, refusal
+    included. Otherwise this works through the pending batches, and **a ceiling
+    stop ends the LOOP, not just the batch**: a run that has reached R26's line
+    must not start another batch to discover the same thing again.
+
+    Completing the requested count exits 0 even with batches still pending.
+    Stopping because you asked for one batch is not a failure, and an exit code
+    that said otherwise would make a normal continuation read as a recovery.
+    """
+    if args.batch is not None:
+        return _run_one(config, args.batch)
+
+    batches = batches_to_run(args.batches, config)
+    if not batches:
+        print("No pending batches. Every batch with bundles is already in the claim store.")
+        return 0
+
+    for batch in batches:
+        code = _run_one(config, batch)
+        if code != 0:
+            print()
+            print(f"Stopped after batch {batch}. Batches still pending: {_listed(config)}")
+            return code
+
+    remaining = pending_batches(config)
+    print()
+    if remaining:
+        print(f"Ran {len(batches)} batch(es). Batches still pending: {_listed(config)}")
+        print("  Run again to continue, or `--batches all` to work through the rest.")
+    else:
+        print(f"Ran {len(batches)} batch(es). Every batch with bundles is now extracted.")
+    return 0
+
+
+def _listed(config: Config) -> str:
+    pending = pending_batches(config)
+    return ", ".join(str(batch) for batch in pending) if pending else "none"
+
+
+def _run_one(config: Config, batch: int) -> int:
+    """One batch, exactly as this command has always done it."""
     directory = config.data_dir / "bundles" / f"batch-{batch}"
     try:
         require_directory(directory, f"bundle directory for batch {batch}", "estimate")
