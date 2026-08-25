@@ -41,6 +41,7 @@ POLARITIES: tuple[str, ...] = ("positive", "negative", "mixed")
 _TEXT_FIELDS = ("board", "video_id", "video_title", "snippet")
 _VOCABULARIES = {"category": CATEGORIES, "subject": SUBJECTS, "polarity": POLARITIES}
 _FIELDS = frozenset(_TEXT_FIELDS) | frozenset(_VOCABULARIES) | {"timestamp_seconds"}
+_CLAIM_FIELDS = (*_TEXT_FIELDS, *_VOCABULARIES, "timestamp_seconds")
 
 
 class InvalidClaims(ValueError):
@@ -176,9 +177,14 @@ def _report_duplicates(claims: Sequence[Claim], faults: list[str]) -> None:
     store is append-only, so a duplicate that lands is permanent evidence of
     something said once.
     """
-    seen: set[tuple[str, str, float, str]] = set()
+    seen: set[tuple[Any, ...]] = set()
     for index, claim in enumerate(claims):
-        key = (claim.board, claim.video_id, claim.timestamp_seconds, claim.snippet)
+        # EVERY field, not a chosen subset. Two rows quoting the same words at
+        # the same second can still be different claims — the same sentence can
+        # be positive about a board's VRM and negative about its price — so a
+        # key that ignored category, subject or polarity would refuse evidence
+        # the model was right to record twice.
+        key = tuple(getattr(claim, field) for field in _CLAIM_FIELDS)
         if key in seen:
             faults.append(f"claim {index}: duplicates an earlier claim in the same file")
         seen.add(key)
