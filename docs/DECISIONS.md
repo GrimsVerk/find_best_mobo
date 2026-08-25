@@ -510,3 +510,41 @@ gated by the same ruleset.
 The BL-25 ruling bears on what R8 and S3 mean; `docs/DESIGN.md` is
 owner-landed, so that design-text correction waits for the owner's own pull
 request.
+
+## 2026-08-25 — Stage B: the subscription pays, the 7-day limit governs, calibration stays at 12
+
+Owner's rulings, given in chat before Stage B's plan was written and recorded
+here because chat is not storage. They settle three questions BL-23 and OD-22
+leave open and a planner would otherwise have to guess.
+
+1. **What pays for the model calls: the subscription**, invoked through
+   `claude -p`. The alternative was the Anthropic API on a card, and it was
+   rejected for a specific reason rather than on cost: **R26 caps spend at 10%
+   of the weekly SUBSCRIPTION limits, and an API call never moves that meter.**
+   The guard would have read the same percentage before, during and after every
+   batch and reported healthy while a card was charged without limit — a gate
+   watching a dial its own run is not connected to. The subscription path is
+   also the only one where R8's token counts and R26's points readings come out
+   of the same run: Claude Code writes the four token components to its
+   transcript, which is where the calibration record reads them from.
+
+2. **Which limit the cap applies to: `Weekly (7-day)`**, the account-wide one,
+   read from `omarchy-agent-usage-claude --limits-only --force`. Not the
+   model-scoped limit beside it, which ignores spend on every other model. The
+   account-wide figure comes from Anthropic's own usage endpoint, so it counts
+   every session on the subscription — other machines, web sessions, and
+   spawned workers included.
+
+3. **The calibration batch stays at 12 bundles.** Two numbers come out of it
+   and they behave differently. The TOKEN comparison, which is what R8 requires
+   to correct `chars_per_token`, is exact at any batch size. The POINTS
+   difference is not: the reader returns whole percentages, so a batch eating
+   less than one full percent reads identically before and after. Rather than
+   enlarging the batch to force a reading, the plan RECORDS a zero delta as
+   what it is — the token-to-points conversion is unmeasurable at this size —
+   and the factor correction lands regardless. Enlarging would spend more of
+   the weekly limit on a batch whose only purpose is to measure.
+
+None of the three needs a design edit. R26 already names the reader and the
+figure; R8 as amended on 2026-08-25 already requires the two quantities kept
+apart and every estimate stored with its assumptions.
