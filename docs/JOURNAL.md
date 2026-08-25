@@ -325,3 +325,51 @@ update on a `template/` branch afterwards). Open elsewhere: a template fix
 pull request from this session, and the web-credential ruleset bypass,
 which sits with the owner. The empty "ruleset probe" commit on the work
 branch is that bypass test's record.
+
+## 2026-08-25 — Stage A finished: R1013, R1008, the corpus refetched, 32x cheaper
+
+Attended, one pull request at a time, every branch cut from
+`claude/template-lessons-merge-26dxdn`. The frozen branches were not touched.
+Landed: R1013 (#179, json3 captions with a loud VTT fallback); OD-12's code
+half, split in two (#180, #181); all three slices of R1008 (#186–#188, the
+uncapped whole-transcript path); the owner's DESIGN.md correction to R8, S3
+and R26 (#185); BL-29 (#183); ESC-25–28 (#177, #178, #184, #190, #192); the
+owner's close of `whole-transcript-threshold` (#191).
+
+**The corpus was refetched once, on the owner's approval.** 283 of 284
+fetched, **283 from json3 and 0 VTT fallbacks**, all carrying descriptions.
+The projection fell to **1,830,123 tokens / 91 bundles**, from 4,967,112
+before today and 58,182,407 at the start — **32x** end to end. 82 videos go
+whole, 126 as excerpts, one transcript spans two bundles. Selection rose to
+208 from 198, the extra 7 caught by R1004's description signal alone.
+
+**Three blind slices, three clean assemblies** — 244 tests by separate agents
+in pinned worktrees, proved under 43 mutations, every slice passing first time
+with no change to either side. What they found instead was the plan
+contradicting itself over which slice owns `project`'s call site; both agents
+hit it independently and resolved it identically.
+
+**Four escapes, one shape.** ESC-25: `test-the-tests` cannot pass a change
+with no behaviour, and splitting a refactor makes both halves skip it. ESC-26:
+`open-pr.yml` decides on the marker's EXISTENCE and every branch inherits the
+last merged one, so a branch pushed deliberately without a request got one
+opened as the App under an unrelated title. ESC-27: nothing mechanical decides
+who may close a plan; CODEOWNERS gates merging, not authorship. ESC-28:
+`cancel-in-progress` killed the CURRENT run and left the SUPERSEDED one's
+verdict, and a cancelled required check never retries. **Three of the four
+were caught by the review gate alone** — the soft gate ESC-24 records deciding
+identical inputs differently. Every mechanical gate was green each time.
+
+**Spawned workers ARE counted, but not where you would look.** A worker writes
+`<session>/subagents/agent-<id>.jsonl`, not the parent's file, and its turns
+carry no `isSidechain` flag, so a shallow scan reads as "workers are free" —
+the usage reader catches them only via `rglob` (9 files, 525 turns, 45.7M
+tokens all-time). Hence two rules now in DESIGN.md: `todayTotalTokens` is a
+daily running total and never a per-batch delta, and the four token components
+stay separate, cache reads outnumbering fresh input by four orders of
+magnitude. The limits come from Anthropic's OAuth endpoint, account-wide, in
+whole percentage points.
+
+Next: **Stage B** (BL-23, OD-22, R1011), planned with the owner. Open: what
+invokes the model, which limit the 10% cap applies to, whether 12 bundles move
+the meter a whole point. Template stays at v0.4.42.
