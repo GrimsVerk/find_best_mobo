@@ -35,3 +35,16 @@ chars_per_token = 4.0
 consecutive_fetch_error_limit = 3
 fetch_error_rate_limit = 0.03
 missing_caption_rate_limit = 0.05
+
+# Stage B extraction (docs/DESIGN.md §7, R9). Which model reads a bundle and
+# writes its claims. **There is no default in code, deliberately** — this key is
+# the only thing that decides what Stage B costs, and a constant buried in a
+# module is a spend nobody chose. `extract` refuses before calling anything if
+# it is empty, so an unset value costs a message rather than money.
+#
+# §7 asks for LOW effort here: extraction is reading comprehension, not
+# reasoning. The calibration record names the model it measured, because a
+# chars-per-token factor measured against one model does not transfer to
+# another — change this and the factor is a guess again until the next
+# calibration batch.
+extraction_model = "claude-haiku-4-5-20251001"

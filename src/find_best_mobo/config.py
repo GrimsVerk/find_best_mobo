@@ -40,12 +40,20 @@ class Config:
     consecutive_fetch_error_limit: int
     fetch_error_rate_limit: float
     missing_caption_rate_limit: float
-    # Last, because a defaulted field may not precede an undefaulted one. It
-    # carries an in-code default where every other field's default lives only in
-    # `load_config`, and the reason is blast radius: `Config` is frozen with no
-    # defaults, so a required field would edit ten `make_config` test helpers for
-    # a field eight of them never read (OD-11, R1007).
+    # The two defaulted fields go last, because a defaulted field may not precede
+    # an undefaulted one. They carry in-code defaults where every other field's
+    # default lives only in `load_config`, and the reason is blast radius:
+    # `Config` is frozen with no defaults, so a required field would edit ten
+    # `make_config` test helpers for a field eight of them never read (OD-11,
+    # R1007).
     alias_table_path: Path = DEFAULT_ALIAS_TABLE
+    # Which model extracts claims (Stage B). Empty means UNSET, and unset is not
+    # a model: `extract` refuses rather than picking one, because a
+    # chars-per-token factor measured against one model does not transfer to
+    # another and a calibration record that cannot name its model is not
+    # evidence. The empty string is the absence of a choice, never a default
+    # choice — that distinction is why no model name appears anywhere in `src/`.
+    extraction_model: str = ""
 
 
 def load_config(path: Path) -> Config:
@@ -76,6 +84,7 @@ def load_config(path: Path) -> Config:
         fetch_error_rate_limit=float(raw.get("fetch_error_rate_limit", 0.03)),
         missing_caption_rate_limit=float(raw.get("missing_caption_rate_limit", 0.05)),
         alias_table_path=Path(str(raw.get("alias_table_path", DEFAULT_ALIAS_TABLE))),
+        extraction_model=str(raw.get("extraction_model", "")),
     )
 
 

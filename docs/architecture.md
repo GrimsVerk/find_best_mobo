@@ -17,13 +17,21 @@ agent from rediscovering the system by grepping.
 
 Delete these comments or leave them; they don't render. -->
 
-What exists today is the whole corpus milestone, five stages: a CLI that enumerates the
+What exists today is the whole corpus milestone — a CLI that enumerates the
 Buildzoid channel into a classified video index, one that fetches and caches
-each kept video's captions behind a failure ledger,, one that folds the
+each kept video's captions behind a failure ledger, one that folds the
 spacing damage auto-captions inflict on part numbers onto canonical board names,
-and one that narrows the corpus to the videos carrying real alias evidence. No
-excerpting and no model involvement — those are the last slice of the
-`corpus-and-checkpoint` plan and the milestones beyond it.
+one that narrows the corpus to the videos carrying real alias evidence, and one
+that cuts excerpts, packs them into bundles and prints the cost projection —
+plus the first two pieces of Stage B: a claim schema with a store that will only
+accept a validated file, and the model boundary that turns one bundle into one
+such file.
+
+**Nothing calls that boundary yet, and `./scripts/run.sh` still stops at the
+projection.** The command that drives a batch through it, and the spend guard
+around that command, are the slices after this one. Until they land, invoking a
+model requires calling `extract.extract_bundle` deliberately, and no shipped
+stage does.
 
 ## Components
 
@@ -31,7 +39,7 @@ excerpting and no model involvement — those are the last slice of the
 | --- | --- |
 | CLI dispatcher (`cli.py`) | Parsing the arguments it owns — `--config`, `--help`, the command name — loading configuration, and handing off to the subcommand module named on the command line. Everything it does not recognise is forwarded to that module, which owns its parsing and its errors (OD-10, R1006); a module may declare `parse_args`, and one that does not gets a parser accepting nothing, so a typo is still an exit-2 error naming the stage. It holds no list of subcommands and no flag names: adding a stage, or a flag to one, means editing a module and never the dispatcher. Every shipped stage declares `parse_args`, so `find-best-mobo <stage> --help` documents that stage; `tests/test_cli_stages.py` walks the package and fails if a later stage does not. |
 | Shared refusals (`artifacts.py`) | Saying what each stage requires of the one before it, in one message shape. An ABSENT artifact names itself and the command that produces it, and the stage exits 1; a PRESENT-but-empty one is a real value and is reported as what it is (OD-9, R1005). `MissingArtifact` subclasses `FileNotFoundError`, so no existing handler had to change. |
-| Configuration (`config.py`) | Declaring every lever the whole pipeline will ever have — including ones no stage uses yet — and reading them from `config.toml`, with in-code defaults so an absent key or file is never a crash. Paths are levers too: `data_dir` for the corpus cache and `alias_table_path` for the hand-authored alias table, which is why the two can be moved independently. |
+| Configuration (`config.py`) | Declaring every lever the whole pipeline will ever have — including ones no stage uses yet — and reading them from `config.toml`, with in-code defaults so an absent key or file is never a crash. Paths are levers too: `data_dir` for the corpus cache and `alias_table_path` for the hand-authored alias table, which is why the two can be moved independently. One lever has no default and cannot get one: `extraction_model` is empty until `config.toml` names a model, and extraction REFUSES rather than choosing — a chars-per-token factor measured against one model does not transfer to another, so no model name appears anywhere in `src/`. |
 | Network boundary (`ytdlp.py`) | The only code that touches `yt-dlp` or the network. Lists a channel's uploads via flat playlist extraction (no downloads), reusing one client for the whole run, and yields raw entry dicts. |
 | Index (`index.py`) | Classifying each raw entry into a video record (regular or Short; pending, excluded-as-Short, or out-of-range) and reading/writing the index as deterministic JSONL. Classification is pure — no I/O. |
 | `index` subcommand (`commands/index.py`) | The stage itself: enumerate, write `data/index.jsonl`, print the summary counts. |
@@ -49,6 +57,8 @@ excerpting and no model involvement — those are the last slice of the
 | Claim schema (`claims.py`) | The shape of one piece of evidence, and the refusal that keeps a model honest (R9, BL-23). Every field of `docs/DESIGN.md` §9's Claim is required, every vocabulary value is exact, and an UNKNOWN field is a fault rather than something to drop — a model inventing a field misunderstood the contract, and discarding it hides that. Every fault is reported at once, never the first. Pure — it never reads the disk. |
 | Claim store (`claimstore.py`) | The append-only store, tagged by batch (R10, R27). Writes are atomic per FILE: every claim in a valid file lands or none does. A batch already stored cannot be ingested again — the mirror of R27 is that no completed work is silently REWRITTEN either, and a rerun that doubled a batch would corrupt every count downstream while every gate stayed green. |
 | `ingest` subcommand (`commands/ingest.py`) | Validate one claims file and append it, or refuse naming every fault and append nothing. Spends nothing and invokes nothing. |
+| Model boundary (`extract.py`) | The only code in the project that invokes a model, and therefore the only code that spends money. One bundle in, one claims file on disk, and the four token counts the call reported back beside it — fresh input, output, cache creation and cache read, kept apart and never summed (R8). The subscription pays, through `claude -p`, because R26's cap is written against the weekly SUBSCRIPTION meter and an API call would never move it (`docs/DECISIONS.md`, 2026-08-25). The model's output is written to disk BEFORE it is validated, always, including when validation then fails (R27): the spend has already happened, and a rejected file is the only record of what the model said. Validation happens here rather than at ingest, so R9's retry-or-set-aside decision is made where the spend was. One seam — a lazily built CLI runner — so every test in the tree runs offline, free, and on a machine with no subscription. |
+| Extraction prompt (`prompts/extract-claims.md`) | What the agent is actually asked: the bundle format it will be reading, what counts as a claim, the three vocabularies exactly as `claims.py` spells them, and an output contract of a bare JSON array with those eight keys and no others. A tracked file rather than a string literal, reachable only through `extract.prompt_text`, because R23's "the same bundle produces a comparable file twice" is false the moment the prompt can change without a diff. |
 | Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it, and the per-path routing figures R1008 asks for — counts, characters and tokens per path, and every whole transcript that spans more than one bundle, by id. |
 | `estimate` subcommand (`commands/estimate.py`) | The stage itself, and the end of the milestone: cut, merge, cap, pack, batch, write, print the projection, stop. |
 
@@ -65,6 +75,7 @@ excerpting and no model involvement — those are the last slice of the
 - index + transcripts + matcher --(one decision per video, exclusions included)--> `data/selected.jsonl`
 - selections + cached transcripts --(windows around mentions, merged and capped)--> excerpts --(routed per video: excerpts, or the whole transcript in bundle-sized parts)--> blocks --(packed to a token cap)--> bundles --> `data/bundles/batch-N/*.xml`
 - bundles + selections --(counts and a stated token factor)--> the printed projection, and then nothing
+- `prompts/extract-claims.md` + one `data/bundles/batch-N/*.xml` --(the prompt as the argument, the bundle on standard input)--> `claude -p` --(the model's answer, written down before it is judged)--> `data/claims/batch-N/*.json`, and the call's four token counts back to the caller
 - a claims file --(validated against the schema, every fault at once)--> claims --(appended, tagged by batch, never rewritten)--> `data/claims.jsonl`
 
 ## Main paths
@@ -317,6 +328,17 @@ Then it stops. Nothing downstream of this exists yet, deliberately.
   they already do (R1012).
 - `data/bundles/batch-N/bundle-NNN.xml` — the work bundles, one file each,
   byte-identical across runs given the same cache and configuration.
+- `prompts/extract-claims.md` (repository root) — what the extraction agent is
+  asked. **Input, not cache**, and tracked in git for the same reason
+  `aliases.toml` is: R23's comparability claim rests on the prompt being a
+  versioned artifact, so a change to it is a diff someone can point at when two
+  batches disagree. Reached only through `extract.prompt_text`.
+- `data/claims/batch-N/bundle-NNN.json` — what the model said about one bundle,
+  written verbatim the moment it arrives and never tidied, deleted or repaired.
+  Not the store: these are unvalidated, one per bundle, and a file here that
+  failed validation stays here as the record of a spend that already happened
+  (R27). `data/claims.jsonl` is the validated store the ingest step appends to,
+  and nothing moves between the two except through that step.
 
 ## Absence is not emptiness
 
@@ -407,6 +429,19 @@ the cache ITSELF.
   shipped table is a starting point covering the AM5 chipsets, five vendors, ten
   board families and five CPUs. Nothing knows what it is missing; the `aliases`
   stage exists to make that inspectable rather than to answer it.
+- **No model is configured, and extraction refuses until one is.**
+  `extraction_model` ships empty and `config.toml` does not yet name a model, so
+  `extract_bundle` refuses before it calls anything. That is the intended state
+  rather than an oversight: the choice is the owner's, it is recorded as data so
+  the calibration record can name it, and refusing costs nothing where guessing
+  would produce a factor measured against a model nobody chose.
+- **A fenced answer costs a whole retry.** The model's output is written
+  verbatim and validated as it stands — no fence stripping, no repair — so an
+  answer wrapped in a code fence fails validation as "not JSON" and the bundle
+  has to be read again. Deliberate: a stage that tidied up the output would hide
+  the misunderstanding the prompt needs to fix, and the file on disk is what
+  shows the reason. The prompt says so twice, and this is the cost if it stops
+  working.
 - **A run with no failures does not rewrite `data/failures.jsonl`.** The ledger
   is written when a failure is recorded, so a clean rerun after a failing one
   leaves the old file in place and it reads as current. Raised for a ruling
