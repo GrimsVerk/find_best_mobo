@@ -58,9 +58,14 @@ from find_best_mobo import claims as claims_module
 from find_best_mobo import extract
 from find_best_mobo.bundle import Bundle, render_bundle
 from find_best_mobo.claims import CATEGORIES, POLARITIES, SUBJECTS, Claim, InvalidClaims
-from find_best_mobo.config import Config
+from find_best_mobo.config import Config, load_config
 from find_best_mobo.excerpt import Excerpt
-from find_best_mobo.extract import ExtractionResult, extract_bundle, prompt_text
+from find_best_mobo.extract import (
+    ExtractionFailed,
+    ExtractionResult,
+    extract_bundle,
+    prompt_text,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROMPT_PATH = REPO_ROOT / "prompts" / "extract-claims.md"
@@ -955,6 +960,333 @@ class TestTheModelIsConfigured:
         assert re.search(r"(?m)^\s*extraction_model\s*=", text), (
             "config.toml does not set extraction_model, so the choice is not data"
         )
+
+
+# --------------------------------------------------------------------------
+# An unset model refuses before it spends.
+# --------------------------------------------------------------------------
+
+# Every spelling of "nobody chose a model". The empty string is what
+# `load_config` leaves for a key that is absent from `config.toml`; the rest are
+# what is left after someone clears the value and not the quotes. All of them
+# are the ABSENCE of a choice and none of them is the name of a model.
+UNSET_MODELS: tuple[str, ...] = ("", " ", "\t", "\n", "   ", " \t\n ")
+
+# Anything in the message that looks like a file in this repository. Used
+# instead of searching for one particular phrase, so the sentence around the
+# pointer stays free to change.
+_LOCATION = re.compile(r"[A-Za-z0-9_./-]+\.(?:toml|md)")
+
+
+def named_locations(message: str) -> list[Path]:
+    """Every repository file the message points the reader at."""
+    return [REPO_ROOT / match.group(0) for match in _LOCATION.finditer(message)]
+
+
+def openable_locations(message: str) -> list[Path]:
+    """Those of them that are really there to be opened."""
+    return [path for path in named_locations(message) if path.is_file()]
+
+
+# Every way a message can say "this value is not yours to pick". Held as a
+# handful of alternatives rather than one sentence because the prose is expected
+# to be rewritten and it is the MEANING that has to survive the rewrite: pinning
+# a sentence would fail on every improvement and teach nobody anything.
+_ALREADY_DECIDED = re.compile(
+    r"owner ruling|already decided|already been decided|fixed by|was ruled|not an open choice",
+    re.I,
+)
+
+
+@pytest.fixture
+def refusal_message(model: FakeModel, tmp_path: Path) -> str:
+    """The text an unset `extraction_model` refuses with.
+
+    Takes `model` so that a build which had LOST the refusal reaches the faked
+    seam rather than a real `claude -p`: the tests about wording must be as
+    unable to spend as every other test in this file.
+    """
+    config = make_config(tmp_path, extraction_model="")
+    with pytest.raises(ExtractionFailed) as caught:
+        extract_bundle(write_bundle(tmp_path), 1, config)
+    return str(caught.value)
+
+
+class TestAnUnsetModelRefusesBeforeItSpends:
+    """The one failure in this slice that costs nothing to prevent and a batch to find late.
+
+    `extraction_model` has no default in code, deliberately. The plan's second
+    Uncertainty records why: the value was never an open choice — `docs/DESIGN.md`
+    §6 fixes it by owner ruling ("Opus 5 throughout, low effort for per-excerpt
+    extraction") and R17 makes it a key rather than a constant — so the code must
+    not invent one, and an unset key has to cost a message rather than money.
+
+    Nothing else in this file builds a config without a model: `make_config`
+    always supplies one, which is precisely how a branch like this ships with
+    every gate green and no test on it.
+    """
+
+    @pytest.mark.parametrize("unset", UNSET_MODELS, ids=repr)
+    def test_it_raises_rather_than_extracting(
+        self, model: FakeModel, tmp_path: Path, unset: str
+    ) -> None:
+        config = make_config(tmp_path, extraction_model=unset)
+
+        with pytest.raises(ExtractionFailed):
+            extract_bundle(write_bundle(tmp_path), 1, config)
+
+    @pytest.mark.parametrize("unset", UNSET_MODELS, ids=repr)
+    def test_nothing_at_all_was_sent(self, model: FakeModel, tmp_path: Path, unset: str) -> None:
+        """The strongest thing this path promises, and the whole reason it exists.
+
+        Not "it raised": a refusal raised AFTER the call would have spent the
+        money anyway, and `--model ''` is a request `claude -p` may well answer
+        by picking a default of its own — the one outcome the missing key is
+        supposed to make impossible. The seam records every route out of the
+        process, and here it must have recorded nothing whatsoever.
+        """
+        config = make_config(tmp_path, extraction_model=unset)
+
+        with pytest.raises(ExtractionFailed):
+            extract_bundle(write_bundle(tmp_path), 1, config)
+
+        assert model.calls == [], (
+            f"a model with no name was invoked anyway: {model.requests()}. The refusal "
+            "came after the spend, which is no refusal at all."
+        )
+
+    def test_whitespace_is_not_the_name_of_a_model(self, model: FakeModel, tmp_path: Path) -> None:
+        """`extraction_model = "   "` is a cleared key, not a model called "   ".
+
+        Stated on its own rather than left to the parametrised cases above,
+        because it is a different defect with a different cause: a guard written
+        as `if model is None`, or one that only tests the string's truthiness,
+        hands three spaces to `--model` and discovers the mistake inside a call
+        that has already been paid for.
+        """
+        config = make_config(tmp_path, extraction_model="   ")
+
+        with pytest.raises(ExtractionFailed):
+            extract_bundle(write_bundle(tmp_path), 1, config)
+
+        assert model.calls == [], f"three spaces were treated as a model: {model.requests()}"
+
+    def test_a_key_that_was_never_set_refuses_too(self, model: FakeModel, tmp_path: Path) -> None:
+        """The real unset case: `config.toml` without the key at all.
+
+        Built through `load_config` rather than by passing `""` by hand, so that
+        what is exercised is the value the loader actually produces for an
+        absent key — the plan's "there is no default in code, so a missing key
+        costs a message rather than money".
+        """
+        blank = tmp_path / "no-extraction-model.toml"
+        blank.write_text("", encoding="utf-8")
+        config = dataclasses.replace(load_config(blank), data_dir=tmp_path / "data")
+
+        with pytest.raises(ExtractionFailed):
+            extract_bundle(write_bundle(tmp_path), 1, config)
+
+        assert model.calls == [], f"an absent key produced a call: {model.requests()}"
+
+    def test_the_refusal_is_the_modules_own_failure(self, model: FakeModel, tmp_path: Path) -> None:
+        """`ExtractionFailed`, and specifically not `InvalidClaims`.
+
+        The distinction is load-bearing for slice 3, which decides between
+        retrying a bundle and setting it aside: an `InvalidClaims` names a file
+        on disk that can be read to see what the model said, while this says the
+        call never happened and there is nothing to read. A bare `ValueError`
+        would be neither, and `pytest.raises` above is what rejects it.
+        """
+        config = make_config(tmp_path, extraction_model="")
+
+        with pytest.raises(ExtractionFailed) as caught:
+            extract_bundle(write_bundle(tmp_path), 1, config)
+
+        assert not isinstance(caught.value, InvalidClaims), (
+            "an unset model was reported as a bad claims file, which names a path "
+            "to read; nothing was written and there is nothing to read"
+        )
+
+    @pytest.mark.parametrize("unset", ("", "  "), ids=repr)
+    def test_no_claims_file_is_left_behind(
+        self, model: FakeModel, tmp_path: Path, unset: str
+    ) -> None:
+        """R27 keeps what the model said. A call that never happened said nothing.
+
+        The mirror of `test_a_refused_output_is_still_on_disk`: a claims file
+        here would be a record of a spend that did not occur, and slice 1's
+        ingest would offer to store it.
+        """
+        config = make_config(tmp_path, extraction_model=unset)
+        bundle_path = write_bundle(tmp_path)
+
+        with pytest.raises(ExtractionFailed):
+            extract_bundle(bundle_path, 1, config)
+
+        assert outputs(config) == [], (
+            f"the refusal left {outputs(config)} behind for a call that never happened"
+        )
+        strays = [path for path in tmp_path.rglob("*") if path.is_file() and path != bundle_path]
+        assert strays == [], f"the refusal wrote {strays} before refusing"
+
+    def test_the_output_is_never_parsed(
+        self, model: FakeModel, parses: ParseWatch, tmp_path: Path
+    ) -> None:
+        """Nothing came back, so there is nothing to validate — and no file to name."""
+        config = make_config(tmp_path, extraction_model="")
+
+        with pytest.raises(ExtractionFailed):
+            extract_bundle(write_bundle(tmp_path), 1, config)
+
+        assert parses.calls == [], "the refusal ran the parser over something that never arrived"
+
+
+class TestTheRefusalIsActionable:
+    """A refusal a reader cannot act on is a stall, not a guard.
+
+    Every assertion here is deliberately LOOSE — a substring, folded to one
+    case, or a search for any repository file the message names. The prose is
+    expected to improve, and a test that pinned whole sentences would fail on
+    every improvement while teaching nobody anything. What is pinned is only
+    what the reader must be able to ACT on.
+    """
+
+    def test_it_names_the_key_to_set(self, refusal_message: str) -> None:
+        """The exact spelling of the key, because that is what has to be typed.
+
+        Matched case-insensitively and as a bare substring: whether it is
+        quoted, backticked or wrapped in a sentence is the message's business.
+        """
+        assert "extraction_model" in refusal_message.lower(), refusal_message
+
+    def test_it_points_at_a_place_the_reader_can_open(self, refusal_message: str) -> None:
+        """Some file in this repository, found by shape rather than by phrase.
+
+        The VALUE is not an open choice — `docs/DESIGN.md` §6 fixed it by owner
+        ruling and `docs/DECISIONS.md`'s 2026-08-25 entry rules on how it is
+        paid for — so a message that said only "set a model" would leave the
+        reader inventing one, and an invented model makes the calibration record
+        evidence of nothing. What is asserted is that SOMETHING openable is
+        named, not which words name it.
+        """
+        assert openable_locations(refusal_message), (
+            "the refusal points the reader at no file they can open: " + refusal_message
+        )
+
+    def test_the_place_it_points_at_is_where_the_value_is_decided(
+        self, refusal_message: str
+    ) -> None:
+        """Following the pointer has to reach the key and the ruling behind it.
+
+        Loose in the same way and for the same reason: the message may name any
+        file it likes, so long as opening that file shows the reader the key and
+        says where the value was decided rather than inviting them to pick one.
+        """
+        openable = openable_locations(refusal_message)
+        assert openable, refusal_message
+
+        carries_key = [
+            path for path in openable if "extraction_model" in path.read_text(encoding="utf-8")
+        ]
+        assert carries_key, (
+            f"the refusal names {[path.name for path in openable]}, and none of them "
+            "mentions the key it told the reader to set"
+        )
+        assert any(
+            re.search(r"design|decisions|owner ruling", path.read_text(encoding="utf-8"), re.I)
+            for path in carries_key
+        ), (
+            "the refusal points at a file that presents the model as an open choice; "
+            "it is fixed by owner ruling (docs/DESIGN.md §6) and the pointer must lead there"
+        )
+
+    def test_it_points_at_the_document_where_the_value_was_ruled_on(
+        self, refusal_message: str
+    ) -> None:
+        """A reader sent only to `config.toml` finds an empty key, and fills it in themselves.
+
+        `config.toml` is where the value is TYPED; it is not where the value was
+        decided. Someone who opens it on this refusal sees `extraction_model =`
+        with nothing after it and no way to learn what belongs there, so they
+        put in whichever model name they happen to trust — and a chars-per-token
+        factor measured against a model nobody ruled on makes the calibration
+        record evidence of nothing, which is exactly the outcome the missing
+        default exists to prevent.
+
+        So the pointer has to reach the ruling as well as the key: some file
+        under `docs/`, where `docs/DESIGN.md` §6 fixes the model and effort tiers
+        and `docs/DECISIONS.md` records how the call is paid for. WHICH document
+        is the message's business, and so is the sentence that names it; that
+        one of them is named at all is not.
+        """
+        openable = openable_locations(refusal_message)
+        assert openable, (
+            "the refusal points the reader at no file they can open: " + refusal_message
+        )
+
+        documented = [path for path in openable if REPO_ROOT / "docs" in path.parents]
+        assert documented, (
+            f"the refusal names only {[path.name for path in openable]}, and none of them "
+            "lives under docs/, so the reader is sent to where the value is typed and never "
+            "to where it was ruled on: " + refusal_message
+        )
+
+    def test_it_says_the_value_is_already_decided(self, refusal_message: str) -> None:
+        """A message that says "set a model" invites a choice. There is none to invite.
+
+        The difference is not politeness. A message phrased as an open question
+        gets answered by the reader, and the reader has no standing to answer
+        it: the tiers are fixed by owner ruling (`docs/DESIGN.md` §6, "Opus 5
+        throughout, low effort for per-excerpt extraction"), and R17 makes that
+        ruling a configuration key rather than a constant only so it can be seen
+        and restated — not so it can be renegotiated by whoever hits the error.
+        Told the value is already decided, the reader goes and copies it; told to
+        pick one, they pick one.
+
+        Matched against a few alternative phrasings, case-folded, because the
+        wording will change and only the meaning is being pinned.
+        """
+        assert _ALREADY_DECIDED.search(refusal_message), (
+            "the refusal presents the extraction model as a value for the reader to choose; "
+            "it is already decided by owner ruling and the message has to say so, or the "
+            "reader invents one: " + refusal_message
+        )
+
+
+class TestTheRefusalDoesNotFireWhenItShouldNot:
+    """A guard that always refuses is as broken as one that never does.
+
+    Without these, a mutation that raised unconditionally would still pass every
+    test above — and the whole of Stage B would refuse to spend anything at all.
+    """
+
+    def test_a_configured_model_is_extracted_rather_than_refused(
+        self, model: FakeModel, tmp_path: Path
+    ) -> None:
+        config = make_config(tmp_path, extraction_model=MODEL_A)
+
+        result = extract_bundle(write_bundle(tmp_path), 1, config)
+
+        assert result.claims_path.is_file()
+        assert len(model.calls) == 1, f"one bundle, one call; it made {model.requests()}"
+        assert MODEL_A in model.sent
+
+    def test_a_model_name_with_a_space_in_it_is_still_a_model(
+        self, model: FakeModel, tmp_path: Path
+    ) -> None:
+        """Only an ALL-whitespace value is unset; a space inside a name is not.
+
+        A guard that stripped spaces out of the value rather than off its ends
+        would pass every refusal test above and quietly request a different
+        model than the one configured.
+        """
+        spaced = "claude test delta 5182"
+        config = make_config(tmp_path, extraction_model=spaced)
+
+        extract_bundle(write_bundle(tmp_path), 1, config)
+
+        assert len(model.calls) == 1, f"a configured model was refused: {model.requests()}"
+        assert spaced in model.sent
 
 
 # --------------------------------------------------------------------------
