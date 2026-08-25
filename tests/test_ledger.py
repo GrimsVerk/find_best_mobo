@@ -20,8 +20,7 @@ from pathlib import Path
 import pytest
 
 from find_best_mobo.config import Config
-from find_best_mobo.ledger import HaltTriggered, Ledger
-from find_best_mobo.transcripts import FetchFailure
+from find_best_mobo.ledger import FetchFailure, HaltTriggered, Ledger
 
 
 def make_config(
