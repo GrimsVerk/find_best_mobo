@@ -44,6 +44,28 @@ draw for transferred evidence, recency, and resolution confidence.
 | 74 | GIGABYTE X670E AORUS MASTER | -38.4 | 18 | 9 | 35 |
 | 75 | GIGABYTE B850 FORCE | -39.2 | 12 | 0 | 31 |
 
+
+# Availability check (tweakers.net Pricewatch, 2026-08-25)
+
+| Board | Safety | Lowest price | Sellers | Status |
+|---|---|---|---|---|
+| ASUS ProArt X670E-Creator WiFi | +70.6 | — | 0 | discontinued |
+| ASUS ROG Crosshair X670E Gene | +35.8 | — | 0 | discontinued |
+| Gigabyte X670 Aorus Elite AX | +32.3 | EUR 149.95 | 1 | almost gone |
+| ASUS ROG Strix B650E-F Gaming WiFi | +29.1 | EUR 189 | 3 | available, 11% price drop |
+| MSI MPG B850I Edge Ti WiFi (ITX) | +21.5 | EUR 259.18 | 9 | available |
+| ASRock B650M-HDV/M.2 | +16.6 | EUR 79 | 17 | available, 18% price drop |
+| MSI MAG X870 Tomahawk WiFi | +15.9 | EUR 289 | 6 | available |
+| ASUS ROG Strix X870-I Gaming WiFi (ITX) | +12.9 | EUR 394 | 23 | available |
+| Gigabyte X870 Aorus Elite WiFi7 | +12.4 | EUR 239 | 22+ | available |
+| Gigabyte X670E Aorus Xtreme | +9.9 | — | 0 | discontinued |
+| Gigabyte B650E Aorus Master | +6.1 | — | 0 | discontinued |
+| ASRock X670E Steel Legend | +5.0 | — | 0 | discontinued |
+
+Note: the MSI MAG X870E Tomahawk (EUR 297, 18 sellers) is a DIFFERENT board
+from the X870 Tomahawk the evidence covers. No claim in the store names the
+X870E variant; buying it on this evidence would be a transfer he never made.
+
 # The five to consider
 
 ## 1. ASUS X670E PROART
