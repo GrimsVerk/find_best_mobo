@@ -21,17 +21,13 @@ What exists today is the whole corpus milestone — a CLI that enumerates the
 Buildzoid channel into a classified video index, one that fetches and caches
 each kept video's captions behind a failure ledger, one that folds the
 spacing damage auto-captions inflict on part numbers onto canonical board names,
-one that narrows the corpus to the videos carrying real alias evidence, and one
-that cuts excerpts, packs them into bundles and prints the cost projection —
-plus the first two pieces of Stage B: a claim schema with a store that will only
-accept a validated file, and the model boundary that turns one bundle into one
-such file.
-
-**Nothing calls that boundary yet, and `./scripts/run.sh` still stops at the
-projection.** The command that drives a batch through it, and the spend guard
-around that command, are the slices after this one. Until they land, invoking a
-model requires calling `extract.extract_bundle` deliberately, and no shipped
-stage does.
+and one that narrows the corpus to the videos carrying real alias evidence. On
+top of it sits Stage B, the first work in the project that spends anything: one
+command extracts one batch of bundles into claims, validates them against a
+schema Python owns, appends them to an append-only store, and stops before it
+has spent 10% of the weekly subscription limit. Everything between the two —
+excerpting, routing, bundling and the projection — runs in `estimate`, which
+stops at the projection and hands the decision to continue to `extract`.
 
 ## Components
 
@@ -61,6 +57,8 @@ stage does.
 | Extraction prompt (`prompts/extract-claims.md`) | What the agent is actually asked: the bundle format it will be reading, what counts as a claim, the three vocabularies exactly as `claims.py` spells them, and an output contract of a bare JSON array with those eight keys and no others. A tracked file rather than a string literal, reachable only through `extract.prompt_text`, because R23's "the same bundle produces a comparable file twice" is false the moment the prompt can change without a diff. |
 | Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it, and the per-path routing figures R1008 asks for — counts, characters and tokens per path, and every whole transcript that spans more than one bundle, by id. |
 | `estimate` subcommand (`commands/estimate.py`) | The stage itself, and the end of the milestone: cut, merge, cap, pack, batch, write, print the projection, stop. |
+| Spend guard (`spend.py`) | Reading the meter, and saying when the effort has spent what it was given (R26). One label governs — `Weekly (7-day)`, the account-wide one, by the owner's 2026-08-25 ruling — because the model-scoped limit beside it ignores spend on every other model, while the account-wide figure comes from Anthropic's own usage endpoint and counts every session on the subscription. `omarchy-agent-usage-claude --limits-only --force` answers first and `claude -p "/usage"` is the fallback; the reading records WHICH answered, because the fallback starts a session and so spends against the very limit it reports. The ceiling is ten points above the reading the batch STARTED at, clamped at 100%: R26 caps the extraction effort, not the account, so a run beginning at 43% stops at 53% rather than refusing outright. Taking a reading is one seam, for the reason the network boundary is one: no test may invoke a reader. |
+| `extract` subcommand (`commands/extract.py`) | The explicit continue command R7 promises: one named batch, one bundle at a time, with a reading before, part-way through and after (R26). The part-way one is what makes it a guard rather than a receipt. A stop is not a rollback — every bundle already extracted stays extracted and every validated claim is still appended — and it exits non-zero so nothing downstream mistakes a partial batch for a whole one (R27). A claims file that fails the schema costs its own bundle and not the batch: one retry, then the bundle is set aside, named in the output, and left unconsumed (R9). |
 
 ## Data flow
 
@@ -77,6 +75,8 @@ stage does.
 - bundles + selections --(counts and a stated token factor)--> the printed projection, and then nothing
 - `prompts/extract-claims.md` + one `data/bundles/batch-N/*.xml` --(the prompt as the argument, the bundle on standard input)--> `claude -p` --(the model's answer, written down before it is judged)--> `data/claims/batch-N/*.json`, and the call's four token counts back to the caller
 - a claims file --(validated against the schema, every fault at once)--> claims --(appended, tagged by batch, never rewritten)--> `data/claims.jsonl`
+- `data/bundles/batch-N/*.xml` --(one bundle at a time)--> the extraction boundary --(one claims file per bundle, written before anything reads it)--> validated claims --(one append for the batch)--> `data/claims.jsonl`
+- the usage reader --(the `Weekly (7-day)` percentage, three times per batch)--> the spend guard --(a ceiling ten points above the batch's baseline)--> carry on, or stop with the bundles that remain named
 
 ## Main paths
 
@@ -281,7 +281,59 @@ the stage re-run from cache, with no refetching (R17).
    the two agree — intent and outcome disagreeing is a defect the projection
    should surface, not smooth over.
 
-Then it stops. Nothing downstream of this exists yet, deliberately.
+Then it stops. Continuing is a separate decision, and `extract` below is the
+command that decision invokes — nothing in `estimate` reaches it.
+
+### Extracting one batch, and stopping before the line
+
+This is the first path in the project that spends anything, and every part of
+its shape follows from that.
+
+0. `find-best-mobo extract --batch N` requires `data/bundles/batch-N/`, naming
+   `estimate` as what produces it (OD-9, R1005). A directory that exists and
+   holds no bundles is a real value: nothing to extract, nothing spent, exit 0.
+1. If the claim store already holds batch N, the run refuses **before** taking a
+   reading or making a call. The store refuses a second append for a batch it
+   holds, so extracting one again would pay for claims that could never land —
+   better to learn that for nothing than for twelve bundles.
+2. A reading is taken. It fixes the ceiling for this effort at ten points above
+   itself, and it is checked immediately — only an account already at its weekly
+   limit fails that check, and it should fail it before paying for a bundle to
+   find out.
+3. Bundles are extracted in name order, which is the order `bundle.py` numbers
+   them in, which is recency order: a batch stopped part-way has done the most
+   useful bundles in it rather than an arbitrary subset. Each bundle is handed
+   to the extraction boundary, which writes the model's output to disk before
+   anything reads it (R27), and the file that comes back is validated by the
+   same schema `ingest` uses. **Python validates; the agent is never trusted to
+   self-check** (BL-23).
+4. A file that fails the schema is reported with every fault at once and the
+   bundle is extracted ONE more time. A second failure sets the bundle aside: it
+   is named in the output, it stays unconsumed, and the batch carries on (R9).
+   Halting there would strand the bundles already paid for, which is the waste
+   R27 exists to prevent. Both attempts' token counts are kept — a call that
+   produced a malformed file is still a call that was paid for.
+5. **Half way through the batch, the meter is read again.** That reading is what
+   makes this a guard rather than a receipt: with only a reading at each end,
+   the command would discover an overrun instead of preventing one, which is the
+   failure R26 is written against. A batch of one bundle has no part-way point
+   and takes two readings rather than a repeated one.
+6. The moment a reading reaches the ceiling, the batch stops. **A stop is not a
+   rollback.** Every bundle already extracted stays extracted, every validated
+   claim is appended, and the output names what is done, what was set aside,
+   what remains, and what the meter read. The exit code is non-zero, so nothing
+   downstream mistakes a partial batch for a whole one.
+7. An extraction that RAISES stops the batch rather than setting one bundle
+   aside. A broken boundary will be broken for the next bundle too, and eleven
+   more failed calls would spend eleven more times to learn the same thing.
+8. A closing reading is taken, and the batch's claims are appended in one call.
+   The report prints the four token components separately and never summed (R8)
+   — a single total is dominated by cache reads, which on this machine outnumber
+   fresh input by more than four orders of magnitude — and prints the readings
+   beside them without converting one into the other. Tokens and subscription
+   points are different quantities measured by different instruments; the
+   conversion between them is a labelled estimate that belongs with the
+   calibration record, not a line in a summary.
 
 ## State and storage
 
@@ -429,12 +481,6 @@ the cache ITSELF.
   shipped table is a starting point covering the AM5 chipsets, five vendors, ten
   board families and five CPUs. Nothing knows what it is missing; the `aliases`
   stage exists to make that inspectable rather than to answer it.
-- **No model is configured, and extraction refuses until one is.**
-  `extraction_model` ships empty and `config.toml` does not yet name a model, so
-  `extract_bundle` refuses before it calls anything. That is the intended state
-  rather than an oversight: the choice is the owner's, it is recorded as data so
-  the calibration record can name it, and refusing costs nothing where guessing
-  would produce a factor measured against a model nobody chose.
 - **A fenced answer costs a whole retry.** The model's output is written
   verbatim and validated as it stands — no fence stripping, no repair — so an
   answer wrapped in a code fence fails validation as "not JSON" and the bundle
@@ -442,6 +488,19 @@ the cache ITSELF.
   the misunderstanding the prompt needs to fix, and the file on disk is what
   shows the reason. The prompt says so twice, and this is the cost if it stops
   working.
+- **A batch's claims are appended in ONE call, at the end of the run.** The
+  store refuses a batch it already holds (that is the mirror of R27: no
+  completed work is silently rewritten), so appending per bundle would be
+  refused from the second bundle onward. One append per batch is the only shape
+  that works, and it has a consequence worth stating: the bundles a stopped
+  batch never reached cannot later be added to the store under the same batch
+  number without moving the store aside. Nothing model-produced is lost either
+  way — every claims file is on disk as it was produced (R27) — but the store's
+  record of that batch is closed once the run that opened it ends.
+- **`./scripts/run.sh` has no `extract` stage.** The wrapper validates a fixed
+  list of stage names and forwards no flags, and its own text promises that
+  nothing in it spends money. Extraction is run directly, one batch at a time:
+  `uv run find-best-mobo extract --batch 1`.
 - **A run with no failures does not rewrite `data/failures.jsonl`.** The ledger
   is written when a failure is recorded, so a clean rerun after a failing one
   leaves the old file in place and it reads as current. Raised for a ruling
