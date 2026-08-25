@@ -45,7 +45,7 @@ excerpting and no model involvement — those are the last slice of the
 | `select` subcommand (`commands/select.py`) | The stage itself: require the index, the alias table and the transcript-cache directory before deciding anything (OD-9, R1005), then read index and cached transcripts, write `data/selected.jsonl`, and print the threshold's effect. |
 | Excerpting (`excerpt.py`) | Cutting a wide asymmetric window around each mention, merging windows that overlap, and capping how many survive per video. Also the one definition of a transcript's text as a single line (`transcript_text`), which the saturation ratio's denominator and the whole path's own text both read, so the two cannot drift. Pure — it never reads the disk. |
 | Routing (`submission.py`) | Deciding whether a video is sent as excerpts or as its whole transcript, and cutting a whole transcript into bundle-sized parts at cue boundaries (OD-13, R28, R1008). The ratio decides and size never does; a `VideoSubmission` carries the chosen blocks and their projected cost. Pure — it never reads the disk. |
-| Bundling (`bundle.py`) | Grouping excerpts into token-capped work bundles, assigning them to a calibration batch and larger batches after it, and rendering each as XML on disk. |
+| Bundling (`bundle.py`) | Grouping blocks into token-capped work bundles, assigning them to a calibration batch and larger batches after it, and rendering each as XML on disk. Every `<excerpt>` states its `form`, `part` and `parts` (R28, R1008), always present and never inferred from an absent attribute, so a reader can be told whether it is holding a window or one part of a whole transcript. |
 | Projection (`estimate.py`) | Counting what a run would cost and saying so openly, including the chars-per-token factor, which is a guess until the calibration batch measures it. |
 | `estimate` subcommand (`commands/estimate.py`) | The stage itself, and the end of the milestone: cut, merge, cap, pack, batch, write, print the projection, stop. |
 
@@ -246,7 +246,12 @@ the stage re-run from cache, with no refetching (R17).
    larger spend.
 8. Each bundle is written as XML — tags carry the structure and provenance, the
    transcript sits inside them as prose, because tagged boundaries are attended
-   to reliably by a model.
+   to reliably by a model. Each `<excerpt>` carries `form`, `part` and `parts`.
+   **A whole transcript's parts land one per bundle, in ascending order, in
+   strictly ascending bundles** — that is a property of slice 1's splitting, not
+   something the packer arranges: a part is closed only when the next cue would
+   carry it over the cap, so any two consecutive parts together exceed the cap
+   and can never share a bundle.
 9. The projection prints: videos indexed and selected, excerpt volume, bundle
    count, tokens per batch and in total, and **the chars-per-token factor
    itself**, stated openly as an estimate rather than buried as a constant.

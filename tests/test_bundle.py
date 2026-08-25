@@ -380,7 +380,8 @@ class TestAssignBatches:
 
 EXPECTED_XML = (
     '<bundle id="bundle-003" batch="1">\n'
-    '  <excerpt video_id="abc123" start="1042" end="1462">\n'
+    '  <excerpt video_id="abc123" start="1042" end="1462"'
+    ' form="excerpts" part="1" parts="1">\n'
     "    <video_title>Some title</video_title>\n"
     "    <boards>B650E, X670E</boards>\n"
     "    <transcript>...the text...</transcript>\n"
