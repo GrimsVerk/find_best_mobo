@@ -373,3 +373,51 @@ whole percentage points.
 Next: **Stage B** (BL-23, OD-22, R1011), planned with the owner. Open: what
 invokes the model, which limit the 10% cap applies to, whether 12 bundles move
 the meter a whole point. Template stays at v0.4.42.
+
+## 2026-08-25 (later) — Stage B built, and run.sh became the thing you run
+
+Four more merges after the morning's entry: Stage B slices 1-3 (#197, #199,
+#200) and `run.sh` running the whole pipeline (#204), against a design change
+the owner landed the same day (#203).
+**Stage B is three-quarters built and has spent nothing.** Slice 1: the claim
+schema and append-only store, where an unknown field is a FAULT rather than
+something to drop — a model that invents one misunderstood the contract, and
+discarding it hides that. Slice 2: the model boundary, output written to disk
+verbatim BEFORE it is parsed, so a file that fails validation is still the only
+record of a spend that happened. Slice 3: R7's continue command and R26's guard
+— `Weekly (7-day)` by label, a ceiling of baseline + 10%, and three readings,
+the part-way one making it a guard rather than a receipt.
+
+**Both halves of slices 2, 3 and run-scripts-2 were written blind**, by agents
+that could not see each other — the first time the implementation was not mine.
+Two assembled with ZERO disagreements. Slice 2 took 36 failures, all one cause:
+the Signatures block names public functions and says nothing about the seam, so
+both agents invented the model client.
+
+**Twice today mutation testing caught a test that was checking nothing.** One
+author's sorted-store mutation survived because its fixture listed boards in
+ascending order; another found "batch 7 is still pending" passing vacuously
+because the meter's label is `Weekly (7-day)`. That is the value of the practice
+— not defects found in the code, but tests found to be theatre.
+
+**R7 changed, and the reason is worth keeping.** It required a human between
+every batch. The owner's concern was that the Python work land before any
+transcript reached a model, and that a runaway run not eat a weekly limit
+unnoticed. The first is done; the second is now R26's guard. A gate passed every
+few minutes gets propped open; a knob bounded by a real meter reading does not.
+Eight passages said the old thing and all eight changed together — an earlier
+attempt changed only R7 and the gate blocked it for leaving seven contradicting.
+
+`./scripts/run.sh` now runs `index → fetch → select → estimate → extract`,
+skipping what is done, with `--batches N` or `all` saying how far. Its header
+promised "nothing in this script spends money"; it will, and now says what bounds
+it instead.
+
+**A mistake worth recording.** The plan filed "which model extracts?" as an open
+uncertainty. It was never open — DESIGN.md §6 had fixed it, Opus 5 at low
+effort, and the planner did not check. It had been restated in four places,
+which is why fixing one never finished it.
+
+Next: **slice 4**, the calibration record and `acceptance/S3.sh`, then a batch
+or two for bug-finding and a real cost figure before the rest. Then C, D and E —
+eight requirements unplanned, each spending stage arriving with its own approval.
