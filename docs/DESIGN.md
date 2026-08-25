@@ -57,7 +57,8 @@ part released in a year's time.
 - Separate what he tested from what he inferred from what *we* inferred, and
   never let an inference read as a measurement.
 - Keep inference spend visible and bounded: nothing is sent to a model before
-  the owner sees a projection, and the work runs in batches with hard stops.
+  the owner sees a projection, the work runs in batches, and how many batches a
+  run does is the owner's to say — one, several, or all of them.
 - Stay disposable. This is a tool for one decision, not a product.
 
 **Non-goals**
@@ -71,17 +72,21 @@ part released in a year's time.
   expected to need a new socket, so no amount of VRM overspec buys it. The
   report states this rather than pricing it in.
 - No Intel, no AM4, no server platforms.
-- Not intended to run unattended or on a schedule. Every model-invoking stage
-  is entered deliberately.
+- Not intended to run on a schedule. Every model-invoking run is STARTED
+  deliberately — by the owner, or by an agent the owner told to start it. What
+  a run does once started is a parameter rather than a further decision: it
+  extracts the number of batches it was given and then stops, reports and
+  waits. Nothing starts itself, and nothing continues past R26's ceiling.
 
 ## 4. Users & core use cases
 
 The only user is the repository owner, buying one board.
 
 **Main path.** As the buyer, I run the corpus stage, read the cost projection,
-and decide whether the inference spend is acceptable. I then run extraction one
-batch at a time, most recent videos first, checking after the calibration batch
-that reality matched the estimate. When I have enough coverage, I generate the
+and decide whether the inference spend is acceptable. I then run extraction,
+most recent videos first, saying how many batches this run should do — one at
+first, so I can check after the calibration batch that reality matched the
+estimate, and all of them once I have seen enough to trust the number. When I have enough coverage, I generate the
 report and use its tier-1 and tier-2 sections as my shortlist, spot-checking two
 or three claims against the linked timestamps before spending money.
 
@@ -139,8 +144,13 @@ specific fact I would need to confirm myself before buying.
   then larger batches.
 - **R7** — Before any model is invoked, print a cost projection: videos indexed,
   videos selected, total and per-batch excerpt volume, bundle count, projected
-  token load, and the chars-per-token factor used, stated openly. The pipeline
-  stops here and does not continue without an explicit separate command.
+  token load, and the chars-per-token factor used, stated openly. Extraction is
+  a separate command from the projection and is always started deliberately, so
+  no spend begins by itself. **How many batches that command does is its
+  argument, not a further decision per batch**: it extracts the number it was
+  given, then stops, reports what it spent and what remains, and waits. R26's
+  ceiling stops it earlier whatever the number was, so "all of them" is bounded
+  by a real reading rather than by trust.
 - **R8** — After the calibration batch, record two quantities and keep them
   apart. **Tokens:** the projection's figure against the token counts the run's
   own model calls report, summed across every call the batch made, including any
@@ -318,7 +328,8 @@ agents never scrape YouTube. They meet at files on disk.
 - *Excerpter* → cuts and merges timestamped context windows around mentions.
 - *Bundler* → packs excerpts into token-capped bundles and assigns them to
   recency-ordered batches.
-- *Estimator* → prints the cost projection and **stops**.
+- *Estimator* → prints the cost projection and **stops**. Extraction is a
+  separate command (§Stage B); nothing here starts it.
 
 **Stage B — Extraction (agents, batch by batch).** An agent reads one bundle and
 writes one claims file: for each board mentioned, what was said, in which of the
@@ -326,8 +337,12 @@ claim categories, about which subject (VRM capacity, voltage/firmware safety,
 memory behaviour, features, value), with the short verbatim snippet, its
 timestamp, and its video's title and id. Low effort, because this is reading
 comprehension, not reasoning. An ingest step validates each file against the
-schema and appends it to the append-only claim store, tagged by batch. Between
-batches the pipeline stops.
+schema and appends it to the append-only claim store, tagged by batch. A run
+extracts the number of batches it was asked for — one, several, or every batch
+still pending — and then stops, reports and waits. Each batch's claims land
+before the next one starts, so a run stopped by R26's ceiling or by its own
+count leaves every batch it finished intact and every batch it did not reach
+untouched.
 
 **Stage C — Synthesis (agents, medium effort).** Claims are grouped per board
 into a dossier: capacity assessment, safety assessment, the strongest supporting
@@ -431,8 +446,12 @@ Options: run it and see; estimate then run; estimate, calibrate, batch. An
 estimate built on a chars-per-token guess is a guess, and being wrong by 3x on a
 subscription budget is the failure that ends the project. The calibration batch
 converts the guess into a measurement having spent a small fraction of the
-budget, and the batch stops mean the decision to continue is re-taken with real
-numbers each time. The cost-saving levers are agreed in advance (R17) so that a
+budget, and the batching means the decision to continue is taken with real
+numbers rather than with the guess. The owner takes that decision by choosing
+how many batches the next run does, which is one at a time while the numbers
+are still unfamiliar and all of them once they are not — a knob rather than a
+gate, because a gate that must be passed every few minutes is one that gets
+propped open. The cost-saving levers are agreed in advance (R17) so that a
 bad calibration result leads to turning knobs rather than to a redesign.
 
 **Decision: append-only claim store, batch-tagged, partial report always valid.**
@@ -586,9 +605,10 @@ flags the staleness; a cutoff throws both away.
   cumulative fetch errors crossing 3% of indexed videos, with the no-caption
   class counted separately against its own 5% trigger.
   *(Mechanically checkable.)*
-- **S2** — The cost projection is printed and the pipeline stops before any
-  inference; continuing requires a separate explicit command. *(Mechanically
-  checkable.)*
+- **S2** — The cost projection is printed before any inference, extraction is
+  a separate command that never starts itself, and a run stops after the number
+  of batches it was given or at R26's ceiling, whichever comes first.
+  *(Mechanically checkable.)*
 - **S3** — After the calibration batch, the token projection, the token actual
   the run's own calls reported, their delta and the corrected factor are recorded
   together, and the R26 points readings taken around the batch are recorded
