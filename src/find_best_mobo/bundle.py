@@ -134,13 +134,26 @@ def render_bundle(bundle: Bundle) -> str:
     render byte-identically (R23). Every piece of text is escaped, because
     auto-captions contain `<` often enough that an unescaped bundle would be
     invalid XML on a real corpus rather than on a contrived one.
+
+    `form`, `part` and `parts` say what the block IS (R28, R1008), so the
+    extraction agent M2 writes can be told whether it is holding a window or a
+    whole transcript, and if a transcript, which piece of it. **They are always
+    present**, `form="excerpts" part="1" parts="1"` included: a reader that had
+    to infer "this is an ordinary excerpt" from an ABSENT attribute would be
+    reading a silence, and a silence is indistinguishable from a renderer that
+    forgot. The element keeps its name and the XML keeps its shape — nothing
+    downstream reads these files yet, and a rename would be a second change
+    riding along with this one.
     """
     lines = [f'<bundle id="{_attribute(bundle.bundle_id)}" batch="{bundle.batch}">']
     for excerpt in bundle.excerpts:
         lines.append(
             f'  <excerpt video_id="{_attribute(excerpt.video_id)}"'
             f' start="{math.floor(excerpt.start_seconds)}"'
-            f' end="{math.floor(excerpt.end_seconds)}">'
+            f' end="{math.floor(excerpt.end_seconds)}"'
+            f' form="{_attribute(excerpt.form)}"'
+            f' part="{excerpt.part}"'
+            f' parts="{excerpt.part_count}">'
         )
         lines.append(f"    <video_title>{escape(excerpt.video_title)}</video_title>")
         lines.append(f"    <boards>{escape(', '.join(excerpt.canonicals))}</boards>")
