@@ -3,7 +3,8 @@
 For whoever reads `data/claims.jsonl` next — most likely a model. It says what
 each field means, what the data is evidence OF, and the four ways it will
 mislead you if you take it at face value. Nothing here is a plan; the plan that
-produced this data is `docs/plans/oracle/stage-b-extraction.md`.
+produced this data is in git history (`docs/plans/oracle/stage-b-extraction.md`
+before the move to template v2).
 
 ## Where the data is
 
