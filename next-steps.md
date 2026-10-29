@@ -8,6 +8,14 @@ Where it stands: the corpus milestone is built up to the cost projection
 extraction, claim store, tiers and report (DESIGN §12, M2-M4) wait for the
 calibration batch.
 
+**In progress (branch `feat/stage-b`):** bring Stage B onto v2 `main`.
+Merge `claude/template-lessons-merge-26dxdn` and `analysis/board-verdicts`
+(keeping their history), take the product code, tests, prompt, alias table,
+calibration record and analysis results; leave out the summer process
+machinery (scripts, plans, oracle files, run logs, review workflows) and fold
+its product rulings into `docs/DESIGN.md` §14 and `docs/DECISIONS.md`. Checks
+green, then a PR to `main`.
+
 Not on `main` yet, and bigger than anything above: branch
 `claude/template-lessons-merge-26dxdn` (~273 commits, summer layout) has
 Stage B built and run: extraction, claim store, calibration record, R1006 and
