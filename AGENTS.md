@@ -21,7 +21,7 @@ Searching Buildzoid videos on YT to extract his top pick for an AMD mobo.
 
 - Non-trivial work: plan it in plan mode first. `/adversarial-review` attacks a plan before you build it (optional).
 - A feature too big for one context: `/orchestrate`.
-- Work on a branch, never on `main`. Run the checks below locally, then open a PR and merge it (`gh pr merge --squash --delete-branch`). CI runs only on `main`; a red `main` is the next task.
+- Work on a branch, never on `main`. Run the checks below locally, then open a PR and merge it (`gh pr merge --rebase --delete-branch`; squash is off here). CI runs only on `main`; a red `main` is the next task.
 - Never force-push, rewrite pushed history, or skip hooks (`--no-verify`).
 - Paths in repo files are relative, so any computer can resume the work. Machine-specific values go in one gitignored local file with a committed `.example`.
 - Python never calls a model and nothing in the pipeline spends subscription usage: it stops at the `estimate` projection (R7). Agents never scrape YouTube; `yt-dlp` stays behind `src/find_best_mobo/ytdlp.py`.
