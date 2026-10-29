@@ -10,7 +10,7 @@ import json
 import pathlib
 import re
 
-REPO = pathlib.Path("/home/loke/code/GrimsVerk/find_best_mobo")
+REPO = pathlib.Path(__file__).resolve().parent.parent
 HERE = pathlib.Path(__file__).parent
 
 

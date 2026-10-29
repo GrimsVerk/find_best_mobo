@@ -5,7 +5,7 @@ import json
 import pathlib
 import sys
 
-REPO = pathlib.Path("/home/loke/code/GrimsVerk/find_best_mobo")
+REPO = pathlib.Path(__file__).resolve().parent.parent
 OUT = pathlib.Path(__file__).parent
 CHUNK_SIZE = 100
 
