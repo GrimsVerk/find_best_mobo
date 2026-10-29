@@ -211,7 +211,7 @@ specific fact I would need to confirm myself before buying.
   excerpting was meant to save, while delivering nearly the whole text anyway.
   The ratio is computed from the re-cut cluster characters (R5, R1000). **The
   whole-transcript path is not capped** — this supersedes R1001
-  (`docs/DESIGN.oracle.md`, OD-5), by the owner's 2026-08-19 ruling in
+  (§14, OD-5), by the owner's 2026-08-19 ruling in
   `docs/DECISIONS.md`: a video at or above the ratio is information-dense by
   measurement, and paying for all of it is V4's choice. The lumpy-spend
   concern R1001 answered is handled where it arises — sparse long streams
@@ -251,8 +251,7 @@ specific fact I would need to confirm myself before buying.
   effort for per-excerpt extraction, medium for synthesis, high where genuine
   reasoning is required (tier-3 inference).
 - `yt-dlp` is the one approved new dependency.
-- Repository process applies in full: plans before code, vertical slices, blind
-  tests, and the merge pipeline described in `AGENTS.md`.
+- Repository process is whatever `AGENTS.md` says.
 - The purchase is for a current AM5 CPU with a Zen 6 drop-in later, so the
   report optimizes for a board bought today.
 
@@ -590,6 +589,178 @@ flags the staleness; a cutoff throws both away.
   exists for. *(Owner verifies — a judgement call.)*
 - **S9** — The suite passes offline and deterministically, with `yt-dlp` and
   every agent stage exercised against fixtures. *(Mechanically checkable.)*
+
+## 14. Requirements added from evidence (R1000+)
+
+Decisions made on 2026-08-19 from logged backlog evidence (`BL-<n>` in
+`docs/BACKLOG.md`), formerly kept in `docs/DESIGN.oracle.md`. They are
+requirements like any other. None is built yet (see `next-steps.md`).
+
+### OD-4 — Merged excerpt windows are re-cut from the cues, never concatenated
+
+- **Date:** 2026-08-19
+- **Evidence:** BL-10
+- **Requirements added:** R1000
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V3 — "Cost is about not being *stupid* — not spending budget I could have used on other projects — rather than a hard constraint."
+- **Vision statements against:** V4 — "Given a choice between a cheaper run and a better-sourced answer, take the better answer." — it does not forbid this: the inflation is the *same* text repeated wherever windows overlap, so removing it buys no worse-sourced answer; no information is traded away, only duplication.
+- **Alternatives considered:** Divide the projection by an empirical inflation factor — rejected: BL-10 measured that the inflation scales with mention density, so no constant divides it out, and a corrected number derived from wrong text is still wrong per video. Send saturated videos whole and ignore the merge defect — rejected: R28's 80% ratio is computed from the excerpt characters, so the defect corrupts the very measurement that routes around it, and sub-threshold videos stay inflated. Re-cut from the cues — chosen.
+- **Rationale:** The checkpoint exists to produce one number the owner spends against, and the measured case shows that number 4.8x wrong on a real video (28,438-character transcript → 137,246-character merged excerpt). `merge_overlapping` concatenates on partial overlap, so overlapping text is counted once per window instead of once. This is exactly the "stupid" spend V3 rules out: paying repeatedly for identical characters.
+
+**R1000** — When overlapping excerpt windows are merged, the merged span is
+re-cut from the transcript cues so that each transcript character appears at
+most once in a video's excerpts. The summed excerpt characters of a video never
+exceed its transcript's characters, and both the cost projection and the R28
+saturation ratio are computed from the re-cut text. The measured real-video case
+from BL-10 lands as a regression fixture asserting that bound.
+
+The signature change BL-10 anticipates (`merge_overlapping` gains access to the
+cues) is the plan's to specify. Measurement: the checkpoint's own projection is
+the observable this changes, the R28 path counts make the routing visible, and
+the regression fixture pins the bound — no new collection mechanism is needed.
+
+### OD-5 — Excerpting stays; the whole-transcript path is capped at the bundle token cap
+
+- **Date:** 2026-08-19
+- **Evidence:** BL-13, BL-10
+- **Requirements added:** R1001
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V10 — "Where some other goal can only be met by processing content with no AMD or AM5 signal, that goal loses and a cheaper design is chosen."
+- **Vision statements against:** V4 — "Given a choice between a cheaper run and a better-sourced answer, take the better answer." — it does not forbid this: where the evidence is dense, R28 already sends the video as one continuous transcript, which is the whole of BL-13's quality argument for exactly the videos it matters on; and the calibration batch (R8, milestone M2's clipped-verdict inspection) is the designed instrument for measuring whether excerpts cost answer quality on sparse videos. If it shows that, the finding is logged evidence and this decision is superseded at the cost of one entry.
+- **Alternatives considered:** Adopt BL-13 wholesale — send every selected video whole, delete excerpting (superseding R5, most of R17, R28) — rejected on three grounds: the 4.8x measurement is the saturated case, which R28 plus R1000 already resolves (with an honest ratio the dense video goes whole and costs its transcript, never 4.8x); on a sparsely-matching video the text outside every mention window is precisely the no-signal material V10 says loses to a cheaper design, and excerpts remain several times cheaper there; and the owner's recorded 2026-08-16 ruling explicitly *kept* excerpting below the threshold — BL-13 is a logged proposal, and reversing a recorded owner ruling with no new measurement beyond the one R28 already answers is not this ledger's to do. Unbounded whole-transcript path — rejected: multi-hour livestreams are in the corpus by owner ruling, and dozens qualifying at once is the lumpy spend the rule exists to remove. Cap at the bundle token cap — chosen, as the blocked plan itself proposed.
+- **Rationale:** The hybrid the owner landed (R28) is the right shape once its measurement is honest; what it lacks is the upper bound its own plan flagged as blocking. The vision decides the residual conflict: cost yields to information quality (V4) exactly where the signal is, and material without signal loses to the cheaper design (V10) everywhere else — which is what excerpts-below-threshold, whole-above-threshold, capped-at-the-bundle does.
+
+**R1001** — *Superseded by the owner's 2026-08-19 ruling (`docs/DECISIONS.md`) and R28: the whole-transcript path is not capped.* Original text: A video takes the whole-transcript path only when its full
+transcript fits within the bundle token cap. Above the cap it falls back to
+excerpts regardless of its R28 ratio, so one video's submission always fits in
+one bundle and the 80% rule can never create the lumpy cost it exists to
+remove. The projection reports how many videos took each path and what each
+path costs, so the routing is observable at the checkpoint.
+
+The cap above was overruled by the owner the same day; R28 carries the
+current rule (clusters, uncapped whole-transcript path, sequential bundles).
+
+### OD-6 — An alias split across caption tokens still matches
+
+- **Date:** 2026-08-19
+- **Evidence:** BL-8
+- **Requirements added:** R1002
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V1 — "**Real, sourced information about which boards Buildzoid considers safe** for a 7950X3D or 9950X3D — and which he does not."
+- **Vision statements against:** V7 — "I would rather the system filter hard and hand me three videos than be safe and hand me thirty." — it does not forbid this: V7 is about how many videos reach the owner, not about a matcher that cannot see a board's name. A video lost to `toma hawk` is not filtered hard; it is invisible, and its board silently drops out of the answer V1 calls the whole product.
+- **Alternatives considered:** Split-tolerant surface forms in the alias table alone — rejected as the *general* fix: hand-enumerating every possible split point for every alias is unbounded maintenance for a mechanical transformation; the table stays the right home only for genuine mishearings. Matching against a whitespace-stripped copy of the whole text — rejected: stripping erases token boundaries, which is exactly the trap BL-8 names — `the b650` fuses to `theb650` and boundary checks become impossible. Token-join matching with boundary alignment — chosen.
+- **Rationale:** Auto-captions routinely split product names, and the measured recall test found the shipped table blind to `toma hawk`, `aor us master` and `air us elite` — silent losses in the corpus the whole product is built from. The fix must join what captions split without un-anchoring what boundaries protect.
+
+**R1002** — Matching recovers caption-split alias forms: an alias also matches
+where its normalized text equals the concatenation of *adjacent whole tokens* —
+the match starts at a token start, ends at a token end, and every space inside
+the alias aligns with a token boundary. An alias never matches a proper
+substring of a fused token, so `b650` can never be found inside `theb650`.
+Normalization folds hyphens to spaces, so `steel-legend` folds onto the table's
+`steel legend`. Mishearings no join can recover (`air us` for `aorus`) remain
+the alias table's job — it is data, per §9 — and the table gains the observed
+spoken forms. BL-8's measured 52-variant set lands as a fixture; the named
+failures must match.
+
+Measurement: the `aliases --check` recall report and R4's selection in/out
+counts already observe this; the variant fixture pins it in the suite.
+
+### OD-7 — A chipset's ITX variant counts as the chipset
+
+- **Date:** 2026-08-19
+- **Evidence:** BL-9
+- **Requirements added:** R1003
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V1 — "**Real, sourced information about which boards Buildzoid considers safe** for a 7950X3D or 9950X3D — and which he does not."
+- **Vision statements against:** V10 — "Where some other goal can only be met by processing content with no AMD or AM5 signal, that goal loses and a cheaper design is chosen." — it does not forbid this: an ITX review of an AM5 board is AM5 signal of the strongest kind, the opposite of the no-chance-of-relevance material V10 guards the budget against. The mention threshold still gates body matches.
+- **Alternatives considered:** Hand-listed `b850i`-style surface forms in the table — workable and data-not-code, but every chipset needs remembering, including future ones. Relaxing the right boundary generally — rejected: the boundary is right in general; it is what stops `b650` matching inside longer tokens. A derived ITX form for chipset aliases (surface forms generated from the canonical, or an equivalent suffix-aware rule) — chosen; which mechanism is the plan's choice, the behaviour is fixed here.
+- **Rationale:** ITX boards are named `<chipset>I`, and the measured case is total: a 33-minute review of the MSI MPG B850I Edge TI matched `B850` zero times, in title and body both, so the automatic title include misses too. Every ITX review in the corpus is affected, and ITX is where one-DIMM-per-channel memory behaviour lives — boards the report cannot afford to be blind to.
+
+**R1003** — A chipset alias also matches its ITX variant token — the chipset
+followed by a trailing `i` (`b850i`, `x870i`, `b650i`) — in titles and bodies
+alike, counted as a mention of that chipset, while the right-boundary rule
+stays in force for everything else. Regression: the real B850I review's title
+auto-includes on its chipset.
+
+Measurement: same as R1002 — the recall report, the selection counts, and the
+regression case.
+
+### OD-8 — The video description is recorded at fetch and matched at selection
+
+- **Date:** 2026-08-19
+- **Evidence:** BL-11
+- **Requirements added:** R1004
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V2 — "**Surfacing videos that are dense in information about *this* problem** — packed with useful knowledge about board safety and the boards I would actually buy."
+- **Vision statements against:** V10 — "Where some other goal can only be met by processing content with no AMD or AM5 signal, that goal loses and a cheaper design is chosen." — it does not forbid this: a description hashtag is author-written, short, and unmangled by speech-to-text — the highest-signal field the corpus has. A video tagged `#B850` is the opposite of no-chance-of-relevance material, and reading a field already in hand costs nothing.
+- **Alternatives considered:** Widen R1's enumeration to fetch descriptions — rejected: flat playlist extraction does not return them, so that shape really would cost one request per video, which is the cost BL-11 correctly flags and the same per-video fetching the owner declined for dates. Ignore descriptions — rejected: the measured video is found by its description hashtag and by nothing else the pipeline reads; discarding the one field that names the board is discarding V2's densest signal. Record at the fetch boundary — chosen, because the cost objection is empty there: `fetch_caption_track` already runs a full per-video extraction, and the description arrives in it today and is thrown away.
+- **Rationale:** BL-11 weighed this as "an extra request per video"; in the built system that premise is false. The per-video extraction already happens for every pending video at fetch, so the description is free precisely for the population selection considers. The real B850I video — invisible to title and transcript matching both — carries `#B850` in its description, which normalizes to a clean canonical hit.
+
+**R1004** — The fetch stage records each video's description, taken from the
+same per-video extraction that already retrieves its caption track — no
+additional network request. Selection treats a normalized alias hit in the
+description as an automatic include, like a title hit, recorded under its own
+inclusion reason so the index and the selection report state how many videos
+the signal added. A video cached before descriptions were recorded simply has
+no description signal — never an error, and no forced refetch. Where the
+description is the only signal and the video has no caption track, the failure
+ledger still governs; a description cannot conjure a transcript.
+
+Measurement: the inclusion reason in the index (R1/§9) and R4's selection
+report make the new signal's effect countable per run.
+
+### OD-9 — A projection with a missing input refuses instead of understating
+
+- **Date:** 2026-08-19
+- **Evidence:** BL-7
+- **Requirements added:** R1005
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** V3 — "Cost is about not being *stupid* — not spending budget I could have used on other projects — rather than a hard constraint."
+- **Vision statements against:** (none — no statement in docs/VISION.md tells against this; refusing to print a wrong number stops no work and spends nothing)
+- **Alternatives considered:** Keep the forgiving zero — rejected: a projection whose denominator silently reads 0-videos-indexed is indistinguishable from a real empty corpus, and it is the one number the checkpoint exists to make trustworthy. Print with a warning — rejected: R7 makes the projection the stop the owner decides at; a warned-but-printed number still invites the decision. Refuse, naming the missing stage — chosen.
+- **Rationale:** The checkpoint is load-bearing (R7, and the no-API-key constraint that makes usage a scarce shared resource). A projection the owner spends against must never understate itself because an input was absent; absence and emptiness are different facts and must read differently.
+
+**R1005** — A pipeline stage whose upstream artifact is missing refuses to run,
+naming the absent artifact and the stage that produces it. In particular,
+`estimate` never prints a projection when the index is absent. A present-but-
+empty artifact is a real value and is reported as what it is; absence is an
+error. Observable directly in the command's exit and message, pinned by tests.
+
+### OD-10 — Every subcommand flag is reachable from the CLI
+
+- **Date:** 2026-08-19
+- **Evidence:** BL-5
+- **Requirements added:** R1006
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** (none — no statement in docs/VISION.md tells against this; CLI mechanics are below the vision's altitude)
+- **Alternatives considered:** A central subcommand/flag table in the dispatcher — rejected: it recreates the shared edit point slice 1's design deliberately avoided (no two slices edit the dispatcher). Keep the Python-invocation workaround — rejected: the stated deliverable (`uv run find-best-mobo aliases --check`) stays unreachable, `run-scripts` carries a visible workaround that names BL-5, and the defect recurs for every later subcommand that takes a flag — BL-5 itself names slices 4 and 5. Forward unrecognised arguments to the subcommand — chosen: one small dispatcher change, each subcommand owns its own parsing, and the no-table property is preserved.
+- **Rationale:** BL-5 is the item its own entry called first worth ruling on: not cosmetic, blocks a stated deliverable, and structural — the top-level parser rejects `--check` before dispatch ever happens. The fix keeps the design decision that caused it (no subcommand table) while removing what it accidentally forbade.
+
+**R1006** — Every flag a subcommand documents is reachable from the CLI: the
+top-level dispatcher forwards arguments it does not recognise to the invoked
+subcommand, which owns their parsing and their errors. `uv run find-best-mobo
+aliases --check` works, and a future flagged subcommand requires no dispatcher
+edit. The `scripts/run.sh` workaround (invoking `aliases` through Python) reverts
+to a plain CLI call.
+
+### OD-11 — The alias table is a tracked input at a configured path
+
+- **Date:** 2026-08-19
+- **Evidence:** BL-4, BL-6
+- **Requirements added:** R1007
+- **Requirements superseded:** (none)
+- **Vision statement relied on:** (no vision statement decided this)
+- **Vision statements against:** (none — no statement in docs/VISION.md tells against this; where a file lives is below the vision's altitude)
+- **Alternatives considered:** Keep `data/aliases.toml` force-added — rejected: `data/` is gitignored because the corpus never enters git (R21), and a hand-authored input surviving there by `git add -f` contradicts the directory's stated meaning; every tool that respects the ignore file misreads it, and the arrangement survives only until someone cleans the ignored directory. Package data under `src/` — rejected: the table is owner-editable input, not code. A tracked path at the repository root, named by configuration — chosen, and it settles BL-6's ambiguity in the same motion: loaders read the path from config, never assume it.
+- **Rationale:** BL-4 identified the category error — the alias table is hand-authored input, not cached corpus — and BL-6 showed the plan's silence made two blind authors guess (they happened to agree). One requirement fixes both: a tracked home, and one authoritative way to find it.
+
+**R1007** — The alias table is a git-tracked, hand-authored input living
+outside the gitignored corpus directory — default `aliases.toml` at the
+repository root — and every loader takes its path from configuration rather
+than assuming a location. The `git add -f` exception is retired; a fresh clone
+carries the table. Migration moves the existing file and its config default in
+one change, observable by `aliases --check` running from a clean checkout.
 
 ---
 

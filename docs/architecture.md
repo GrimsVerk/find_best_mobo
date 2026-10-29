@@ -1,22 +1,5 @@
 # Finding Best Mobo by Buildzoid — Architecture
 
-<!-- The living description of what exists RIGHT NOW. Updated at the end of every
-slice (AGENTS.md, "Architecture doc"), so it describes the system as built, never
-as planned. `docs/DESIGN.md` is the intent and doesn't change; this changes.
-
-Keep it at the level of LOGIC, NOT CODE. Components and what each is responsible
-for, what data moves between them, what happens on the main paths. No signatures,
-no line-by-line description, nothing that a rename would invalidate — if a
-refactor that changes no behaviour would force an edit here, it's too low-level.
-
-It has two readers and they keep each other honest: the owner, who does not read
-the code and needs somewhere to understand the system; and the next agent, which
-starts with no context beyond this repository and reads this first to get its
-bearings. Written for the human, it stays truthful; written at all, it saves the
-agent from rediscovering the system by grepping.
-
-Delete these comments or leave them; they don't render. -->
-
 What exists today is the whole corpus milestone, five stages: a CLI that enumerates the
 Buildzoid channel into a classified video index, one that fetches and caches
 each kept video's captions behind a failure ledger,, one that folds the
