@@ -6,7 +6,8 @@ version = "0.1.0"
 description = "Searching Buildzoid videos on YT to extract his top pick for an AMD mobo."
 readme = "README.md"
 requires-python = ">=3.12"
-# No `license` field, by design — see "Licensing" in AGENTS.md.
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "yt-dlp>=2026.7.4",
 ]

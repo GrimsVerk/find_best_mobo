@@ -465,3 +465,10 @@ because chat is not storage. Four parts:
    larger than one bundle's token cap is delivered across sequential bundles
    rather than falling back to excerpts; the mechanics are the implementing
    plan's to specify.
+
+## 2026-10-29 — The project is MIT-licensed
+
+Owner ruling, given in chat as the repository went public. This supersedes the
+"intentionally unlicensed" rule in `AGENTS.md`: the project is licensed under
+MIT (`LICENSE`, `Copyright (c) 2026 GrimsVerk`), and `pyproject.toml` carries
+the matching `license` field.
