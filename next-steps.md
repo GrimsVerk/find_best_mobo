@@ -8,6 +8,14 @@ Where it stands: the corpus milestone is built up to the cost projection
 extraction, claim store, tiers and report (DESIGN §12, M2-M4) wait for the
 calibration batch.
 
+Not on `main` yet, and bigger than anything above: branch
+`claude/template-lessons-merge-26dxdn` (~273 commits, summer layout) has
+Stage B built and run: extraction, claim store, calibration record, R1006 and
+R1007 (alias table at the root). `analysis/board-verdicts` adds two commits on
+top: a graded board ranking (`analysis/report.md`, from 2,736 claims). The
+owner decides whether to bring that product code onto v2 `main`; if yes, do
+it before the backlog below, which it partly answers.
+
 - Build the approved backlog items, one per session. Each maps to a requirement
   in `docs/DESIGN.md` (list at the top of `docs/BACKLOG.md`). Suggested order:
   R1006 (CLI flags, then drop the Python workaround in `scripts/run.sh`),
