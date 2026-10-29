@@ -305,3 +305,4 @@ revert restores a known-good state immediately.
 > touches payments, secrets, or user data, regenerate (or set) `auto_merge`
 > to `false` to keep a human merge step; the review gate still runs.
 
+License: MIT — see [LICENSE](LICENSE).
