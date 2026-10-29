@@ -1,0 +1,1273 @@
+{
+ "summary": [
+  {
+   "board": "ASUS X670E PROART",
+   "safety_score": 70.6,
+   "safety_claims": 27,
+   "warnings": 0,
+   "total_claims": 74,
+   "top_videos": [
+    [
+     "HoTzIK6zifw",
+     52.75
+    ],
+    [
+     "h1b69qEe7NQ",
+     31.0
+    ],
+    [
+     "QJKBPJQVIZA",
+     7.75
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X670E CROSSHAIR GENE",
+   "safety_score": 35.8,
+   "safety_claims": 17,
+   "warnings": 1,
+   "total_claims": 51,
+   "top_videos": [
+    [
+     "YxuzeDO0_90",
+     34.75
+    ],
+    [
+     "-VUqaRgpEro",
+     10.25
+    ],
+    [
+     "MJP_DQpeIKg",
+     3.0
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE X670 AORUS ELITE",
+   "safety_score": 32.3,
+   "safety_claims": 12,
+   "warnings": 0,
+   "total_claims": 39,
+   "top_videos": [
+    [
+     "EGR2dA25a5o",
+     31.25
+    ],
+    [
+     "7wRn1bkqXNA",
+     7.0
+    ],
+    [
+     "Nd-bSs4HuMM",
+     2.5
+    ]
+   ]
+  },
+  {
+   "board": "ASUS B650E STRIX F",
+   "safety_score": 29.1,
+   "safety_claims": 23,
+   "warnings": 0,
+   "total_claims": 50,
+   "top_videos": [
+    [
+     "MJAehA5_wHs",
+     45.75
+    ],
+    [
+     "MbHVSX1GulI",
+     27.0
+    ],
+    [
+     "-VUqaRgpEro",
+     3.5
+    ]
+   ]
+  },
+  {
+   "board": "MSI B850 EDGE (ITX)",
+   "safety_score": 21.5,
+   "safety_claims": 15,
+   "warnings": 0,
+   "total_claims": 24,
+   "top_videos": [
+    [
+     "SZ9PWa2Ea7w",
+     44.0
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650 HDV",
+   "safety_score": 16.6,
+   "safety_claims": 10,
+   "warnings": 0,
+   "total_claims": 72,
+   "top_videos": [
+    [
+     "-VUqaRgpEro",
+     13.75
+    ],
+    [
+     "4W3q0YzjQww",
+     13.0
+    ],
+    [
+     "lTBnzUF6EbE",
+     7.5
+    ]
+   ]
+  },
+  {
+   "board": "MSI X870 TOMAHAWK",
+   "safety_score": 15.9,
+   "safety_claims": 38,
+   "warnings": 0,
+   "total_claims": 112,
+   "top_videos": [
+    [
+     "6G-bhNnVAvk",
+     29.25
+    ],
+    [
+     "UM_lHBOyjHw",
+     26.75
+    ],
+    [
+     "fy6zjINUQuc",
+     16.5
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X870 STRIX I (ITX)",
+   "safety_score": 12.9,
+   "safety_claims": 19,
+   "warnings": 0,
+   "total_claims": 47,
+   "top_videos": [
+    [
+     "IDoW8BM6nyw",
+     46.0
+    ],
+    [
+     "Nd-bSs4HuMM",
+     7.5
+    ],
+    [
+     "9NhmN0PJ62E",
+     7.25
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE X870 AORUS ELITE",
+   "safety_score": 12.4,
+   "safety_claims": 3,
+   "warnings": 0,
+   "total_claims": 19,
+   "top_videos": [
+    [
+     "CGpCA7BKMa8",
+     9.75
+    ],
+    [
+     "I4i55YNTlYM",
+     4.0
+    ],
+    [
+     "iPfZCFYXNeM",
+     3.25
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE X670E AORUS XTREME",
+   "safety_score": 9.9,
+   "safety_claims": 7,
+   "warnings": 0,
+   "total_claims": 31,
+   "top_videos": [
+    [
+     "KbTCWh3hXYc",
+     27.0
+    ],
+    [
+     "swV6gRoiKSc",
+     2.25
+    ],
+    [
+     "-qpG9Len_Ks",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X870 STRIX (ITX)",
+   "safety_score": 7.6,
+   "safety_claims": 2,
+   "warnings": 0,
+   "total_claims": 3,
+   "top_videos": [
+    [
+     "Q6fJWPZMC5M",
+     6.5
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE B650E AORUS MASTER",
+   "safety_score": 6.1,
+   "safety_claims": 19,
+   "warnings": 0,
+   "total_claims": 64,
+   "top_videos": [
+    [
+     "nAFqGdqRNQ8",
+     39.75
+    ],
+    [
+     "lTBnzUF6EbE",
+     13.0
+    ],
+    [
+     "uB-wXLb_08o",
+     11.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X670E STEEL LEGEND",
+   "safety_score": 5.0,
+   "safety_claims": 3,
+   "warnings": 0,
+   "total_claims": 12,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     11.0
+    ],
+    [
+     "tmbnhQpFbUE",
+     1.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650",
+   "safety_score": 4.8,
+   "safety_claims": 3,
+   "warnings": 0,
+   "total_claims": 11,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     10.0
+    ],
+    [
+     "bCis9x_2IL0",
+     2.0
+    ],
+    [
+     "e4jIAO_S2-Y",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "MSI X670E",
+   "safety_score": 4.2,
+   "safety_claims": 2,
+   "warnings": 0,
+   "total_claims": 21,
+   "top_videos": [
+    [
+     "dJWu7BQ5uGQ",
+     14.75
+    ],
+    [
+     "pUjUKKXRiFk",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "MSI X670",
+   "safety_score": 3.8,
+   "safety_claims": 3,
+   "warnings": 0,
+   "total_claims": 8,
+   "top_videos": [
+    [
+     "dJWu7BQ5uGQ",
+     10.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650 PRO RS",
+   "safety_score": 3.8,
+   "safety_claims": 2,
+   "warnings": 0,
+   "total_claims": 10,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     6.5
+    ],
+    [
+     "-VUqaRgpEro",
+     1.75
+    ],
+    [
+     "pbXVp7i2EMI",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X670E PHANTOM",
+   "safety_score": 3.8,
+   "safety_claims": 2,
+   "warnings": 0,
+   "total_claims": 4,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     6.0
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650E (ITX)",
+   "safety_score": 3.4,
+   "safety_claims": 2,
+   "warnings": 0,
+   "total_claims": 5,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     6.5
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X870E CROSSHAIR HERO",
+   "safety_score": 3.1,
+   "safety_claims": 12,
+   "warnings": 1,
+   "total_claims": 58,
+   "top_videos": [
+    [
+     "Q6fJWPZMC5M",
+     19.0
+    ],
+    [
+     "kTaI758SLww",
+     10.5
+    ],
+    [
+     "kRj7PfWBjUY",
+     6.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650E TAICHI",
+   "safety_score": 3.1,
+   "safety_claims": 3,
+   "warnings": 0,
+   "total_claims": 19,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     10.0
+    ],
+    [
+     "-VUqaRgpEro",
+     1.5
+    ],
+    [
+     "faqr8LR4FgA",
+     1.0
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X870 STEEL LEGEND",
+   "safety_score": 2.6,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 2,
+   "top_videos": [
+    [
+     "s3vMquzMwL4",
+     3.25
+    ]
+   ]
+  },
+  {
+   "board": "MSI B650 CARBON",
+   "safety_score": 2.1,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 6,
+   "top_videos": [
+    [
+     "dJWu7BQ5uGQ",
+     5.5
+    ]
+   ]
+  },
+  {
+   "board": "MSI B650 MORTAR",
+   "safety_score": 2.1,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 5,
+   "top_videos": [
+    [
+     "dJWu7BQ5uGQ",
+     4.75
+    ]
+   ]
+  },
+  {
+   "board": "MSI B650",
+   "safety_score": 2.1,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 5,
+   "top_videos": [
+    [
+     "dJWu7BQ5uGQ",
+     4.75
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X670E CROSSHAIR HERO",
+   "safety_score": 1.9,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 4,
+   "top_videos": [
+    [
+     "wGSl-OE9Ags",
+     3.0
+    ],
+    [
+     "tfQ1oRXTjz8",
+     0.75
+    ],
+    [
+     "faqr8LR4FgA",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650E STEEL LEGEND",
+   "safety_score": 1.7,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 7,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     5.0
+    ],
+    [
+     "MOeh9TCnYaE",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650 PHANTOM",
+   "safety_score": 1.7,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 6,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     5.0
+    ]
+   ]
+  },
+  {
+   "board": "MSI B650 TOMAHAWK",
+   "safety_score": 1.7,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 5,
+   "top_videos": [
+    [
+     "dJWu7BQ5uGQ",
+     4.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X670E PG LIGHTNING",
+   "safety_score": 1.7,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 5,
+   "top_videos": [
+    [
+     "lTBnzUF6EbE",
+     4.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X670E TAICHI",
+   "safety_score": 1.3,
+   "safety_claims": 4,
+   "warnings": 0,
+   "total_claims": 20,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     10.5
+    ],
+    [
+     "wGSl-OE9Ags",
+     3.0
+    ],
+    [
+     "lTBnzUF6EbE",
+     3.0
+    ]
+   ]
+  },
+  {
+   "board": "B850 FORCE",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "MJP_DQpeIKg",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X870 TAICHI",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 6,
+   "top_videos": [
+    [
+     "6P3XgJFaz-E",
+     2.75
+    ],
+    [
+     "6dIbeTrEkUI",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650 TAICHI",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 7,
+   "top_videos": [
+    [
+     "9JpkdYvybHY",
+     1.0
+    ],
+    [
+     "9NhmN0PJ62E",
+     0.75
+    ],
+    [
+     "6P3XgJFaz-E",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X670E STRIX I (ITX)",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 2,
+   "top_videos": [
+    [
+     "6dIbeTrEkUI",
+     1.0
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X870E STRIX E",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "6dIbeTrEkUI",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X870 PRIME",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "6dIbeTrEkUI",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X870 TUF",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "6dIbeTrEkUI",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE X670E AORUS TACHYON",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "9JpkdYvybHY",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASUS B650E STRIX I (ITX)",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "RVHpJh8wQFQ",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK TAICHI LITE",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 2,
+   "top_videos": [
+    [
+     "_uPPIIGifCU",
+     0.5
+    ],
+    [
+     "KX9mTsjLELM",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X870E NOVA",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "d-Gszzib1Ck",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE X870 AORUS MASTER",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 2,
+   "top_videos": [
+    [
+     "d-Gszzib1Ck",
+     0.5
+    ],
+    [
+     "wUJNvUXjt8A",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X670E TUF",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "d-Gszzib1Ck",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK LIVEMIXER",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 3,
+   "top_videos": [
+    [
+     "tmbnhQpFbUE",
+     1.5
+    ],
+    [
+     "f7PIdQl1MJk",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASUS B650E STRIX E",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 10,
+   "top_videos": [
+    [
+     "38ykDWAe3aU",
+     1.75
+    ],
+    [
+     "-VUqaRgpEro",
+     1.5
+    ],
+    [
+     "5L7oEKZJVUU",
+     1.0
+    ]
+   ]
+  },
+  {
+   "board": "MSI",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 5,
+   "top_videos": [
+    [
+     "mQUhpRX2nZw",
+     3.0
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X670E STRIX F",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "mQUhpRX2nZw",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X870 PRO RS",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "mQUhpRX2nZw",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK TAICHI",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 2,
+   "top_videos": [
+    [
+     "s3vMquzMwL4",
+     0.75
+    ],
+    [
+     "tmbnhQpFbUE",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X870E CROSSHAIR APEX",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 2,
+   "top_videos": [
+    [
+     "s3vMquzMwL4",
+     1.25
+    ]
+   ]
+  },
+  {
+   "board": "MSI X670E TOMAHAWK",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 3,
+   "top_videos": [
+    [
+     "bCis9x_2IL0",
+     1.25
+    ],
+    [
+     "yf2gsFgPmDU",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650E",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 2,
+   "top_videos": [
+    [
+     "-VUqaRgpEro",
+     1.25
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650E PG LIGHTNING",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "-VUqaRgpEro",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASUS B650 TUF",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "-VUqaRgpEro",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE B650E AORUS TACHYON",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 10,
+   "top_videos": [
+    [
+     "mEnOu57x3wE",
+     4.5
+    ],
+    [
+     "LvFQDSBQh1U",
+     0.75
+    ],
+    [
+     "REDa8TNhbr8",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X670 PROART",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 4,
+   "top_videos": [
+    [
+     "bCis9x_2IL0",
+     2.0
+    ],
+    [
+     "-qpG9Len_Ks",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X670E PRO RS",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 9,
+   "top_videos": [
+    [
+     "B_17nZQrbl8",
+     4.0
+    ],
+    [
+     "wGSl-OE9Ags",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASUS B650 PROART",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 6,
+   "top_videos": [
+    [
+     "lTBnzUF6EbE",
+     2.5
+    ],
+    [
+     "wGSl-OE9Ags",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE X670 AORUS XTREME",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "BnWOk_QO6Zs",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "MSI X670 TOMAHAWK",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 1,
+   "top_videos": [
+    [
+     "KX9mTsjLELM",
+     0.5
+    ]
+   ]
+  },
+  {
+   "board": "ASUS X670 PRIME",
+   "safety_score": 0.0,
+   "safety_claims": 0,
+   "warnings": 0,
+   "total_claims": 4,
+   "top_videos": [
+    [
+     "p1riqtgfFsA",
+     2.0
+    ]
+   ]
+  },
+  {
+   "board": "ASUS PROART",
+   "safety_score": -0.3,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 4,
+   "top_videos": [
+    [
+     "9JpkdYvybHY",
+     3.75
+    ],
+    [
+     "mQUhpRX2nZw",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "MSI X670E CARBON",
+   "safety_score": -0.3,
+   "safety_claims": 2,
+   "warnings": 0,
+   "total_claims": 19,
+   "top_videos": [
+    [
+     "dJWu7BQ5uGQ",
+     6.0
+    ],
+    [
+     "lTBnzUF6EbE",
+     5.5
+    ],
+    [
+     "p1riqtgfFsA",
+     1.0
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE X670E",
+   "safety_score": -4.4,
+   "safety_claims": 6,
+   "warnings": 2,
+   "total_claims": 20,
+   "top_videos": [
+    [
+     "uB-wXLb_08o",
+     17.0
+    ],
+    [
+     "fQE1Tb1szTA",
+     4.5
+    ],
+    [
+     "h1b69qEe7NQ",
+     3.0
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE B650",
+   "safety_score": -4.6,
+   "safety_claims": 2,
+   "warnings": 0,
+   "total_claims": 4,
+   "top_videos": [
+    [
+     "MJP_DQpeIKg",
+     3.75
+    ],
+    [
+     "38ykDWAe3aU",
+     2.5
+    ],
+    [
+     "f7PIdQl1MJk",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650 STEEL LEGEND",
+   "safety_score": -5.4,
+   "safety_claims": 2,
+   "warnings": 0,
+   "total_claims": 2,
+   "top_videos": [
+    [
+     "9JpkdYvybHY",
+     3.0
+    ],
+    [
+     "wGSl-OE9Ags",
+     3.0
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE B650E",
+   "safety_score": -5.7,
+   "safety_claims": 1,
+   "warnings": 0,
+   "total_claims": 14,
+   "top_videos": [
+    [
+     "bCis9x_2IL0",
+     6.75
+    ],
+    [
+     "V-H5PAt4nnM",
+     1.5
+    ],
+    [
+     "f7PIdQl1MJk",
+     0.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK B650 LIVEMIXER",
+   "safety_score": -8.2,
+   "safety_claims": 22,
+   "warnings": 0,
+   "total_claims": 73,
+   "top_videos": [
+    [
+     "G7zpvNUlZ0Q",
+     41.75
+    ],
+    [
+     "Hve9KlLjHKs",
+     14.0
+    ],
+    [
+     "XT_Km8UzZvY",
+     10.25
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE B650 AORUS ELITE",
+   "safety_score": -9.8,
+   "safety_claims": 5,
+   "warnings": 0,
+   "total_claims": 16,
+   "top_videos": [
+    [
+     "uB-wXLb_08o",
+     8.75
+    ],
+    [
+     "lTBnzUF6EbE",
+     6.0
+    ],
+    [
+     "MQGXLfGRsHA",
+     3.0
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE X670 AORUS MASTER",
+   "safety_score": -14.9,
+   "safety_claims": 6,
+   "warnings": 0,
+   "total_claims": 18,
+   "top_videos": [
+    [
+     "k1rFRuaCChU",
+     8.5
+    ],
+    [
+     "MOeh9TCnYaE",
+     5.25
+    ],
+    [
+     "idREuMs6gE0",
+     3.75
+    ]
+   ]
+  },
+  {
+   "board": "ASROCK X870E TAICHI",
+   "safety_score": -19.2,
+   "safety_claims": 13,
+   "warnings": 1,
+   "total_claims": 44,
+   "top_videos": [
+    [
+     "fy6zjINUQuc",
+     21.5
+    ],
+    [
+     "JRicT-6CiM8",
+     11.25
+    ],
+    [
+     "UzFZNvUYzE8",
+     10.75
+    ]
+   ]
+  },
+  {
+   "board": "MSI B650 EDGE (ITX)",
+   "safety_score": -23.8,
+   "safety_claims": 14,
+   "warnings": 3,
+   "total_claims": 45,
+   "top_videos": [
+    [
+     "3m1gNZfdSi0",
+     31.5
+    ],
+    [
+     "dJWu7BQ5uGQ",
+     12.25
+    ],
+    [
+     "5q04Svi1CNg",
+     10.25
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE X670E AORUS MASTER",
+   "safety_score": -38.4,
+   "safety_claims": 18,
+   "warnings": 9,
+   "total_claims": 35,
+   "top_videos": [
+    [
+     "O2n4rOWehtQ",
+     38.25
+    ],
+    [
+     "uB-wXLb_08o",
+     13.75
+    ],
+    [
+     "pKhyVR4rtxI",
+     9.25
+    ]
+   ]
+  },
+  {
+   "board": "GIGABYTE B850 FORCE",
+   "safety_score": -39.2,
+   "safety_claims": 12,
+   "warnings": 0,
+   "total_claims": 31,
+   "top_videos": [
+    [
+     "_EUeMsN6rsQ",
+     35.75
+    ],
+    [
+     "96s9FOBQVPI",
+     7.0
+    ]
+   ]
+  }
+ ],
+ "dropped_old": 0,
+ "dropped_notam5": 1168
+}

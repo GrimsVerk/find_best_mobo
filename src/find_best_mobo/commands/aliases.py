@@ -18,6 +18,7 @@ captions never sits in memory together.
 from __future__ import annotations
 
 from argparse import Namespace
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -28,11 +29,29 @@ from find_best_mobo.aliases import (
     find_title_hits,
     load_aliases,
 )
+from find_best_mobo.artifacts import MissingArtifact, require_directory, require_file
+from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
 from find_best_mobo.index import read_index
 from find_best_mobo.transcripts import load_cached
 
 _USAGE = "usage: find-best-mobo aliases --check"
+
+
+def parse_args(argv: Sequence[str]) -> Namespace:
+    """This stage's own flags, parsed by this stage (R1006).
+
+    `--check` stays a `store_true` rather than an argparse-required option, so
+    a bare `find-best-mobo aliases` still prints the friendlier usage `run`
+    writes and returns 2, instead of exiting through argparse.
+    """
+    parser = subcommand_parser("aliases", "Report what the alias table actually catches.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="report how many videos mention each canonical (required)",
+    )
+    return parser.parse_args(list(argv))
 
 
 @dataclass
@@ -52,17 +71,23 @@ def run(config: Config, args: Namespace) -> int:
         print("  --check  report how many videos mention each canonical (required)")
         return 2
 
-    table_path = config.data_dir / "aliases.toml"
+    # The alias table keeps its own wording and its position first: no stage
+    # produces it (R1007 calls it hand-authored input), so R1005's "name the
+    # stage that produces it" has no answer for it.
+    table_path = config.alias_table_path
     if not table_path.exists():
         print(f"No alias table at {table_path}. It ships with the repository; restore it.")
         return 1
-    index_path = config.data_dir / "index.jsonl"
-    if not index_path.exists():
-        print(f"No index at {index_path}. Run `find-best-mobo index` first.")
-        return 1
-    cache_dir = config.data_dir / "transcripts"
-    if not any(cache_dir.glob("*.json")):
-        print(f"No cached transcripts under {cache_dir}. Run `find-best-mobo fetch` first.")
+    try:
+        index_path = require_file(config.data_dir / "index.jsonl", "index", "index")
+        # Existence, not contents. An empty cache means `fetch` ran and cached
+        # nothing, which is a corpus with no captions — a real state, and the
+        # report over it is all zeros rather than a lie (R1005, OD-9). Before
+        # this the predicate was "no *.json files", which called that state a
+        # missing one and sent the owner to re-run a stage that had already run.
+        require_directory(config.data_dir / "transcripts", "cached transcripts", "fetch")
+    except MissingArtifact as error:
+        print(error.message())
         return 1
 
     aliases = load_aliases(table_path)

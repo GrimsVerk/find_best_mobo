@@ -16,39 +16,79 @@ recency order matters downstream: it survives packing and batching, so the
 calibration batch is drawn from the newest boards rather than the oldest, and a
 run stopped after batch 2 has read the most currently-relevant material.
 
-This stage is reachable from Python only, by owner ruling: the top-level parser
-holds no subcommand table, so `run` takes no flags and reads nothing off `args`.
+This stage declares no flags, so anything passed to it is an error naming the
+stage (`find-best-mobo estimate --nonsense`). The dispatcher still holds no
+subcommand table — what changed with R1006 is that it forwards what it does not
+recognise rather than rejecting it, so a stage that grows a flag declares it
+here and `cli.py` is untouched.
 """
 
 from __future__ import annotations
 
 from argparse import Namespace
+from collections.abc import Sequence
 
+from find_best_mobo.artifacts import MissingArtifact, require_directory, require_file
 from find_best_mobo.bundle import assign_batches, pack_bundles, write_bundles
+from find_best_mobo.commands import subcommand_parser
 from find_best_mobo.config import Config
 from find_best_mobo.estimate import project, render_projection
 from find_best_mobo.excerpt import Excerpt, cap_per_video, cut_windows, merge_overlapping
-from find_best_mobo.select import EXCLUDED, Selection, read_selected
+from find_best_mobo.select import EXCLUDED, Selection, read_selected, transcript_coverage
+from find_best_mobo.submission import VideoSubmission, choose_submission
 from find_best_mobo.transcripts import load_cached
+
+
+def parse_args(argv: Sequence[str]) -> Namespace:
+    """This stage declares no flags, so anything left over is its error (R1006)."""
+    return subcommand_parser(
+        "estimate", "Cut, bundle, batch, project the cost — and stop."
+    ).parse_args(list(argv))
 
 
 def run(config: Config, args: Namespace) -> int:
     """Build the bundles, print the projection, and stop."""
-    path = config.data_dir / "selected.jsonl"
+    # Every upstream artifact, in pipeline order, BEFORE anything is cut — so a
+    # refusal never leaves a half-written `data/bundles/` behind, and so the
+    # stage named is the earliest one that has not run rather than the last
+    # thing this stage happened to open (R1005, OD-9).
     try:
-        selections = tuple(read_selected(path))
-    except FileNotFoundError:
-        print(f"No selections at {path}. Run `find-best-mobo select` first.")
+        require_file(config.data_dir / "index.jsonl", "index", "index")
+        require_directory(config.data_dir / "transcripts", "cached transcripts", "fetch")
+        path = require_file(config.data_dir / "selected.jsonl", "selections", "select")
+    except MissingArtifact as error:
+        print(error.message())
+        return 1
+    selections = tuple(read_selected(path))
+
+    included = _included_recent_first(selections)
+    coverage = transcript_coverage(included)
+    if coverage.considered > 0 and coverage.with_transcript == 0:
+        # Refuse BEFORE cutting anything, so a refused run leaves data/bundles/
+        # exactly as it found it — and instead of the projection block, never
+        # above it: BL-27's whole finding is that a warning beside R7's stop
+        # sentence annotates it rather than separating it (R1012, OD-23).
+        print(
+            f"None of the {coverage.considered} selected videos has a cached transcript. "
+            "Run `find-best-mobo fetch` first."
+        )
         return 1
 
-    excerpts: list[Excerpt] = []
-    for selection in _included_recent_first(selections):
-        excerpts.extend(_excerpts_for(selection, config))
+    submissions: list[VideoSubmission] = []
+    for selection in included:
+        submission = _submission_for(selection, config)
+        if submission is not None:
+            submissions.append(submission)
 
-    bundles = assign_batches(pack_bundles(excerpts, config), config)
+    # Packed in the order the submissions were produced, so recency survives all
+    # the way to the batches (R22, R23) — `pack_bundles` never reorders to fit
+    # more in, and a whole transcript's parts stay consecutive because its blocks
+    # are consecutive here.
+    blocks = [block for submission in submissions for block in submission.blocks]
+    bundles = assign_batches(pack_bundles(blocks, config), config)
     written = write_bundles(bundles, config)
     print(f"Wrote {written} bundles to {config.data_dir / 'bundles'}")
-    print(render_projection(project(bundles, selections, config)))
+    print(render_projection(project(bundles, selections, submissions, config)))
     return 0
 
 
@@ -63,11 +103,19 @@ def _included_recent_first(selections: tuple[Selection, ...]) -> list[Selection]
     return sorted(included, key=lambda s: (-s.video.upload_date.toordinal(), s.video.video_id))
 
 
-def _excerpts_for(selection: Selection, config: Config) -> tuple[Excerpt, ...]:
-    """One video's excerpts, or none at all if its transcript is not cached.
+def _submission_for(selection: Selection, config: Config) -> VideoSubmission | None:
+    """One video's contribution, or nothing at all if its transcript is not cached.
 
-    The transcript is loaded, cut, and dropped before the next video is read, so
-    the run's memory holds excerpts rather than a channel's worth of cues (R22).
+    The transcript is loaded, cut, routed and dropped before the next video is
+    read, so the run's memory holds blocks rather than a channel's worth of cues
+    (R22).
+
+    The excerpts are built exactly as they were before R1008 — cut, merged and
+    re-cut, then capped — and only THEN routed. That order is the requirement,
+    not an implementation detail: the saturation ratio has to be measured on the
+    blocks that would actually be sent, so measuring before the merge would count
+    every overlapping second twice and measuring before the cap would route a
+    video whole on excerpts that were then thrown away.
 
     A missing transcript is not an error here. A video can be selected on its
     title alone with no captions ever fetched, and it has simply nothing to
@@ -76,6 +124,7 @@ def _excerpts_for(selection: Selection, config: Config) -> tuple[Excerpt, ...]:
     """
     transcript = load_cached(selection.video.video_id, config)
     if transcript is None:
-        return ()
+        return None
     windows = cut_windows(transcript, selection.mentions, selection.video, config)
-    return cap_per_video(merge_overlapping(windows), config)
+    excerpts: tuple[Excerpt, ...] = cap_per_video(merge_overlapping(windows, transcript), config)
+    return choose_submission(selection.video, transcript, excerpts, config)

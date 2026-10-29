@@ -1,0 +1,273 @@
+{
+  "note": "RECONSTRUCTION, NOT A RECOVERY. BL-8 recorded that 52 mangled caption variants were tested against the shipped alias table and that 49 of them matched; it recorded the three real failures (`toma hawk`, `aor us master`, `air us elite`), the related hyphen observation (`steel-legend`), and the damage classes. It did not record the list. BL-17 established that the list itself is in no commit, no journal entry and no run record, so it cannot be recovered, only rebuilt — and this file is the rebuild, sized to 52 from the shipped table's own canonicals across BL-8's damage classes. The number 52 is history from the backlog entry and carries no evidentiary weight: nothing here claims measured provenance except the named failures, which land verbatim. Filed as BL-17 and proceeded on under OD-16, whose rule is that a reconstruction declares itself. See docs/plans/oracle/caption-split-aliases.md, docs/DESIGN.oracle.md OD-6/OD-16 (R1002), and docs/BACKLOG.md BL-8/BL-17.",
+  "variants": [
+    {
+      "text": "x 870 e",
+      "canonical": "X870E",
+      "damage": "spacing"
+    },
+    {
+      "text": "x870 e",
+      "canonical": "X870E",
+      "damage": "spacing"
+    },
+    {
+      "text": "x-870-e",
+      "canonical": "X870E",
+      "damage": "hyphen"
+    },
+    {
+      "text": "x 8 70 e",
+      "canonical": "X870E",
+      "damage": "digit-split"
+    },
+    {
+      "text": "x 870",
+      "canonical": "X870",
+      "damage": "spacing"
+    },
+    {
+      "text": "b 850",
+      "canonical": "B850",
+      "damage": "spacing"
+    },
+    {
+      "text": "b 840",
+      "canonical": "B840",
+      "damage": "spacing"
+    },
+    {
+      "text": "x 670 e",
+      "canonical": "X670E",
+      "damage": "spacing"
+    },
+    {
+      "text": "x 6 70 e",
+      "canonical": "X670E",
+      "damage": "digit-split"
+    },
+    {
+      "text": "670 e",
+      "canonical": "X670E",
+      "damage": "partial"
+    },
+    {
+      "text": "x 670",
+      "canonical": "X670",
+      "damage": "spacing"
+    },
+    {
+      "text": "b 650 e",
+      "canonical": "B650E",
+      "damage": "spacing"
+    },
+    {
+      "text": "b650 e",
+      "canonical": "B650E",
+      "damage": "spacing"
+    },
+    {
+      "text": "b 650",
+      "canonical": "B650",
+      "damage": "spacing"
+    },
+    {
+      "text": "a 620",
+      "canonical": "A620",
+      "damage": "spacing"
+    },
+    {
+      "text": "as rock",
+      "canonical": "ASRock",
+      "damage": "split"
+    },
+    {
+      "text": "az rock",
+      "canonical": "ASRock",
+      "damage": "mishearing"
+    },
+    {
+      "text": "ass rock",
+      "canonical": "ASRock",
+      "damage": "mishearing"
+    },
+    {
+      "text": "as-rock",
+      "canonical": "ASRock",
+      "damage": "hyphen"
+    },
+    {
+      "text": "a sus",
+      "canonical": "ASUS",
+      "damage": "split"
+    },
+    {
+      "text": "assus",
+      "canonical": "ASUS",
+      "damage": "mishearing"
+    },
+    {
+      "text": "giga byte",
+      "canonical": "Gigabyte",
+      "damage": "split"
+    },
+    {
+      "text": "m s i",
+      "canonical": "MSI",
+      "damage": "spelled-out"
+    },
+    {
+      "text": "em es eye",
+      "canonical": "MSI",
+      "damage": "spelled-out"
+    },
+    {
+      "text": "bio star",
+      "canonical": "Biostar",
+      "damage": "split"
+    },
+    {
+      "text": "tai chi",
+      "canonical": "Taichi",
+      "damage": "split"
+    },
+    {
+      "text": "ty chi",
+      "canonical": "Taichi",
+      "damage": "mishearing"
+    },
+    {
+      "text": "steel legends",
+      "canonical": "Steel Legend",
+      "damage": "plural"
+    },
+    {
+      "text": "steal legend",
+      "canonical": "Steel Legend",
+      "damage": "mishearing"
+    },
+    {
+      "text": "steel-legend",
+      "canonical": "Steel Legend",
+      "damage": "hyphen"
+    },
+    {
+      "text": "cross hair",
+      "canonical": "ROG Crosshair",
+      "damage": "split"
+    },
+    {
+      "text": "r o g crosshair",
+      "canonical": "ROG Crosshair",
+      "damage": "spelled-out"
+    },
+    {
+      "text": "stryx",
+      "canonical": "ROG Strix",
+      "damage": "mishearing"
+    },
+    {
+      "text": "r o g strix",
+      "canonical": "ROG Strix",
+      "damage": "spelled-out"
+    },
+    {
+      "text": "tough gaming",
+      "canonical": "TUF Gaming",
+      "damage": "mishearing"
+    },
+    {
+      "text": "orus master",
+      "canonical": "Aorus Master",
+      "damage": "partial"
+    },
+    {
+      "text": "aorus masters",
+      "canonical": "Aorus Master",
+      "damage": "plural"
+    },
+    {
+      "text": "aor us master",
+      "canonical": "Aorus Master",
+      "damage": "split"
+    },
+    {
+      "text": "orus elite",
+      "canonical": "Aorus Elite",
+      "damage": "partial"
+    },
+    {
+      "text": "air us elite",
+      "canonical": "Aorus Elite",
+      "damage": "mishearing"
+    },
+    {
+      "text": "m p g carbon",
+      "canonical": "MPG Carbon",
+      "damage": "spelled-out"
+    },
+    {
+      "text": "carbon wifi",
+      "canonical": "MPG Carbon",
+      "damage": "partial"
+    },
+    {
+      "text": "m a g tomahawk",
+      "canonical": "MAG Tomahawk",
+      "damage": "spelled-out"
+    },
+    {
+      "text": "tomohawk",
+      "canonical": "MAG Tomahawk",
+      "damage": "mishearing"
+    },
+    {
+      "text": "toma hawk",
+      "canonical": "MAG Tomahawk",
+      "damage": "split"
+    },
+    {
+      "text": "pro r s",
+      "canonical": "Pro RS",
+      "damage": "spelled-out"
+    },
+    {
+      "text": "pro-rs",
+      "canonical": "Pro RS",
+      "damage": "hyphen"
+    },
+    {
+      "text": "7800 x 3 d",
+      "canonical": "7800X3D",
+      "damage": "spacing"
+    },
+    {
+      "text": "78 00 x 3 d",
+      "canonical": "7800X3D",
+      "damage": "digit-split"
+    },
+    {
+      "text": "9800 x 3 d",
+      "canonical": "9800X3D",
+      "damage": "spacing"
+    },
+    {
+      "text": "9950 x 3 d",
+      "canonical": "9950X3D",
+      "damage": "spacing"
+    },
+    {
+      "text": "7950 x",
+      "canonical": "7950X",
+      "damage": "spacing"
+    }
+  ],
+  "never_match": [
+    "theb650",
+    "verb 650 watts",
+    "steellegend",
+    "aorusmaster",
+    "x870ese",
+    "b650ex"
+  ]
+}

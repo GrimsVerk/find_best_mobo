@@ -3,27 +3,23 @@
 Work in flight. Write a task here before starting it; delete it when done.
 Keep this short enough to read in one go.
 
-Where it stands: the corpus milestone is built up to the cost projection
-(`index`, `fetch`, `select`, `estimate`). Nothing past the checkpoint exists:
-extraction, claim store, tiers and report (DESIGN §12, M2-M4) wait for the
-calibration batch.
+Where it stands: Stage A (index, fetch, select, estimate) and Stage B
+(extract, ingest, claim store, calibration record) are built, and R1000 to
+R1013 with them (R1001 superseded). The first full extraction produced 2,736
+claims; `calibration/batch-1.json` measured 2.33 chars per token against the
+4.0 guess. `analysis/report.md` is a one-off board ranking built from those
+claims outside the pipeline. Stages C to E (synthesis, tiers, report: DESIGN
+§7, M3, M4) are not built; each spending stage needs the owner's approval.
 
-Not on `main` yet, and bigger than anything above: branch
-`claude/template-lessons-merge-26dxdn` (~273 commits, summer layout) has
-Stage B built and run: extraction, claim store, calibration record, R1006 and
-R1007 (alias table at the root). `analysis/board-verdicts` adds two commits on
-top: a graded board ranking (`analysis/report.md`, from 2,736 claims). The
-owner decides whether to bring that product code onto v2 `main`; if yes, do
-it before the backlog below, which it partly answers.
-
-- Build the approved backlog items, one per session. Each maps to a requirement
-  in `docs/DESIGN.md` (list at the top of `docs/BACKLOG.md`). Suggested order:
-  R1006 (CLI flags, then drop the Python workaround in `scripts/run.sh`),
-  R1007 (alias table out of `data/`), R1005, R1002, R1003, R1004, then R1000
-  with R28 (clusters, whole-transcript path). The summer plan drafts for the
-  last two are in git history (`git show 8a9f6b4:docs/plans/oracle/recut-merged-excerpts.md`
-  and `docs/plans/whole-transcript-threshold.md` at the same commit).
-- `docs/architecture.md` opening paragraph predates the excerpt/estimate slice;
-  correct it with the next change that touches that code.
-- Owner: one real run (`./scripts/run.sh`) for S1 and S2; check `./scripts/run.sh aliases`
-  first. Then decide on the projected cost and the excerpt window.
+- Owner: decide whether Stage C/E should replace `analysis/` (its ranking and
+  board resolution were done by hand-run workers, not by the pipeline), and
+  approve the next stage.
+- `analysis/board-map.jsonl` is keyed by claim line number in
+  `data/claims.jsonl` as it was before `scripts/drop-gpu-claims.py`; rerunning
+  `analysis/aggregate.py` on the cleaned store needs `claims.jsonl.bak` or a
+  re-keying. Nothing in the repo reruns it, and no checkout but the owner's
+  has `data/`.
+- Open backlog: BL-1 (stale failure ledger), BL-3 (`FetchFailure` re-export).
+- Bundles are still packed at the configured 4.0 factor, not the measured one
+  (`docs/architecture.md`, Known rough edges); decide before the next
+  extraction run.
