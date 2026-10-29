@@ -1,21 +1,6 @@
-"""Project-wide test guards.
+"""Tests run offline: any non-loopback socket connection fails the test.
 
-The suite must run offline and deterministically (AGENTS.md): this autouse
-fixture makes any outbound socket connection fail the test that made it.
-Tests that legitimately need a network boundary mock it instead.
-
-Two deliberate carve-outs, because the blunt version of this rule blocks things
-that are not "the network" in any sense that matters:
-
-- **Loopback is allowed.** A test that starts a local server, or uses anything
-  built on a local socket pair, is not reaching the outside world and is still
-  perfectly deterministic. Blocking it forbids a whole category of honest tests
-  and teaches people to disable the fixture wholesale.
-- **`@pytest.mark.allow_network`** opts a single test out entirely, for the rare
-  case that has to be tested against something real. It is deliberately noisy:
-  it names itself in the test, so it shows up in review rather than hiding in a
-  conftest edit. A test wearing this marker is not part of the offline
-  guarantee, and CI may well be the place it fails.
+Opt one test out with @pytest.mark.allow_network.
 """
 
 import socket
