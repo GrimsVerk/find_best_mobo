@@ -5,28 +5,6 @@
 This exists solely for me to collect as much of Buildzoid's motherboard
 expertise as possible and use it to inform one buying decision: which AM5 board
 to buy.
-`CODEOWNERS` puts this file behind the owner, and that is not a restriction
-bolted on — it is the mechanism. The oracle names, in every decision it writes,
-the statement here that it leaned on (`docs/DESIGN.oracle.md`). When a decision
-comes out wrong, the owner edits the statement rather than arguing with the
-decision, and every future decision moves with it.
-
-**An agent may WRITE this file. Only the owner LANDS it.** `/design` interviews
-the owner and writes their answers into a branch, which is most of the work —
-and then stops. The owner opens the pull request themselves, reads the diff, and
-merges. That is checked, not asked for: `.github/scripts/owner-authored.sh`
-fails any pull request touching this file that the owner did not open.
-
-The reason is one line long. **If any agent can land the design, there is no
-reason for `docs/DESIGN.oracle.md` to exist** — an agent that can edit the
-design does not need an evidence ledger, it just edits the design. That second
-document is how an agent corrects the design from real evidence while nobody is
-awake, and it only means anything while this one is out of reach.
-
-`CODEOWNERS` on its own would not draw that line. It requires the owner's
-approval, which is a click on a diff someone else composed and opened. The check
-requires their authorship of the pull request, which is a different claim: it
-means the owner has actually read what these two documents say.
 
 "Best" means **safe**, and safe has a specific technical meaning here. Buildzoid
 has shown, with an oscilloscope, that some boards deliver voltage spikes to the
@@ -129,50 +107,6 @@ never happen. None of them is a reason to stop working and wait for me.
 4. **V11** — **Every claim carries a video and a timestamp.** Provenance is not optional
    in any design: a claim I cannot go and watch is not usable, and the pointer
    to the moment he said it *is* the recommendation of what to watch.
-
-## Durable evidence is a requirement, not a nicety
-
-**This section is not a question for you to answer.** It is a statement about
-how unattended operation works here, kept in the vision file for one reason:
-the oracle must be able to *cite* it. A decision to add a measurement needs
-something in this document standing behind it, and without this section there
-is nothing.
-
-The owner's ruling, in their words:
-
-> the data needs to be collected in a sensible way so that future runs can be
-> improved by not repeating mistakes… if a change is necessary in an unattended
-> run that goes outside or misses built in data collection mechanisms, then new
-> data collection mechanisms need to be added to track the performance of the
-> changes that are downstream of the oracle's ruling.
-
-What follows from it, and what is already built:
-
-- **A run leaves a record.** `docs/runs/<timestamp>/run.md` — committed, on its
-  own pull request, at every stop whatever the reason. The run log used to be
-  gitignored, and in a web session it lived in a container that is reclaimed, so
-  the evidence that would tell the next run what went wrong was destroyed by
-  default.
-- **The review gate keeps what it was shown and what it said.**
-  `docs/runs/<timestamp>/reviews/` holds the payload and the reply for every
-  review in that run. It is the only load-bearing gate with no fixtures, and it
-  was also the only one leaving no trace to build fixtures from.
-- **A change nothing can observe is a change nobody can evaluate.** When a
-  decision alters behaviour that no existing check, test, run report or review
-  artifact would notice, adding the thing that notices is part of the decision —
-  not a follow-up, and not optional. This is what the owner's ruling means by
-  measurements "downstream of the oracle's ruling", and an oracle decision may
-  cite this statement to justify adding one.
-
-**On space.** Committed evidence grows, and the owner has weighed that
-deliberately: *"i would rather risk gathering too much data and deal with space
-issues, than getting stuck without the info to get out of it."* A space problem
-is visible, bounded and fixable later; missing evidence is none of those. If it
-becomes a problem the answer is a retention rule — prune payloads older than N
-runs, keep every verdict — and never a return to discarding them.
-
-<!-- Delete this section only if this project genuinely never runs unattended.
-     Editing it is how you change what the oracle may cite. -->
 
 ## What makes an answer unacceptable
 

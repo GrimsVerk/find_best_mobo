@@ -1,34 +1,27 @@
 # Backlog — Finding Best Mobo by Buildzoid
 
-The standing queue of what *might* be built, as opposed to a plan, which covers
-the one change being built now. Two sections, and the difference between them is
-the owner's approval:
+Ideas and found problems not yet built. The owner approved BL-1 to BL-13 on
+2026-08-19 (`docs/DECISIONS.md`); where a requirement in `docs/DESIGN.md` §14
+or R28 answers an item, it is named. Ids are never reused. Forget an item by
+deleting it; git history is the archive.
 
-- **Approved** — the owner has said yes. An agent working unattended implements
-  these top to bottom, and keeps going until the list is done or it is truly
-  blocked (`AGENTS.md`, "Work queue").
-- **Proposed** — ideas, written as text, **never coded unprompted**. They move
-  up when the owner moves them.
+Answered by a requirement (build these):
 
-## Approved
+- BL-4, BL-6 → R1007 (alias table tracked at the repo root, path from config)
+- BL-5 → R1006 (CLI forwards subcommand flags)
+- BL-7 → R1005 (a stage with a missing input refuses)
+- BL-8 → R1002 (caption-split aliases match)
+- BL-9 → R1003 (ITX chipset variants match)
+- BL-10 → R1000 (merged excerpts re-cut from cues, into clusters)
+- BL-11 → R1004 (video description recorded at fetch, matched at selection)
+- BL-13 → R28 (whole transcript at 80% coverage, uncapped, sequential bundles)
 
-_(nothing yet)_
+Still open: BL-1, and the code half of BL-3 (`FetchFailure` lives in
+`ledger.py`; retire the re-export in `transcripts.py`). BL-2 is already built
+(`NoCaptions`). The "slice" and "plan" wording below refers to the summer
+plans, which are in git history under `docs/plans/`.
 
-## Plan rework
-
-Objections to what a plan explicitly says, raised while building it. Per the
-2026-08-14 ruling in `docs/DECISIONS.md`, the plan is implemented as written and
-the objection is recorded HERE rather than argued in a pull request. This list
-is the agenda for the next plan revision; an item leaving it means the plan was
-fixed, not that the objection lapsed.
-
-**Every item carries a `BL-<n>` id**, the next unused integer, and ids are never
-reused — a resolved item keeps its number rather than freeing it, so a citation
-written today still means the same thing in six months.
-
-The ids exist so an item can be CITED by id rather than by quoting its text,
-the way `docs/escapes.md` entries already are. Ids run across both sections,
-because a proposal is evidence about the design exactly as a rework item is.
+## Found while building the corpus milestone
 
 - **BL-1** — **`corpus-and-checkpoint` slice 2 — a clean rerun leaves a stale failure
   ledger.** `data/failures.jsonl` is rewritten when a failure is recorded, so a
@@ -125,37 +118,7 @@ because a proposal is evidence about the design exactly as a rework item is.
   playlist extraction does not return descriptions, so fetching them is an extra
   request per video.
 
-## Proposed
-
-### BL-12 — Make template updates stop costing a manual intervention
-
-Every `copier update` that conflicts fails the `template-sync` check and needs
-an owner bypass to land. It has happened on both updates that conflicted (#4 and
-#28) and it will happen on every future one, because the check demands a tree
-byte-identical to a replayed update while a conflict is precisely the case
-copier hands to a human. This entry is the standing intent to fix it rather than
-keep paying it; the incident record is the ratchet's business and is being
-logged separately, so nothing here depends on it having landed.
-
-Three directions, not mutually exclusive, roughly in order of preference:
-
-1. **Teach the check about conflicts.** Keep the replay's *pre-resolution* tree
-   and require this repository's tree to differ from it only inside hunks copier
-   marked as conflicted. Everything outside a conflict hunk stays byte-for-byte,
-   so a hand edit smuggled into an untouched file still fails. This is the fix
-   named in the escapes entry, and it belongs upstream in the template.
-2. **Reduce how often conflicts happen at all.** Most of ours come from
-   template-owned documents this project legitimately rewrote — the design doc
-   skeleton above all. If the template kept its guidance out of files projects
-   are expected to replace wholesale, the conflict surface shrinks.
-3. **Make the bypass cheap and visible instead of ad hoc**, if neither of the
-   above lands: a documented, logged path for "conflicted sync, resolutions
-   reviewed", so the exception is a procedure rather than a judgment call made
-   fresh each time under time pressure.
-
-Both the check and the workflow it guards are owner-owned gate paths, so the
-ruling is the owner's — this entry exists so it is not rediscovered from scratch
-on the next update.
+## Owner proposals
 
 ### BL-13 — Send whole transcripts instead of excerpts
 
@@ -192,19 +155,3 @@ Worth weighing before adopting:
 
 This touches `docs/DESIGN.md` R5, R6 and R17, so it is recorded here as a
 proposal and neither the design nor any plan has been edited.
-
-## Uncertainties awaiting oracle ruling
-
-_(nothing yet — filed by `/plan` when a design leaves a question open; format:_
-_`BL-<n>` — the question, the proposed default, HIGH or LOW risk, one line on_
-_why that class, and `— filed by: plan`.)_
-
-- **BL-14** — Does the merged plan `capped-whole-transcript-path` still stand
-  now that the owner's 2026-08-19 ruling (`docs/DECISIONS.md`) overrules OD-5's
-  cap and amends R5/R28 to clustered excerpts with an uncapped whole-transcript
-  path? Proposed default: supersede OD-5/R1001 citing that ruling and the
-  amended design, mark the plan partly wrong, and have the steward re-cut it to
-  the clustering design before anything builds it. **HIGH**: it changes a merged
-  plan's slice boundaries and an external routing behaviour, and building the
-  capped path as merged would implement a decision the owner has reversed.
-  — filed by: owner (recorded from chat by the postmortem session)
