@@ -22,27 +22,29 @@ implied, the same rule the index follows.
 
 from __future__ import annotations
 
-import errno
 import json
-import os
 import re
 from collections.abc import Iterable, Iterator, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import date
 from pathlib import Path
 
 from find_best_mobo.aliases import (
     Mention,
     compile_matcher,
+    count_cross_cue_candidates,
+    find_description_hits,
     find_mentions,
     find_title_hits,
     load_aliases,
 )
+from find_best_mobo.artifacts import require_directory, require_file
 from find_best_mobo.config import Config
 from find_best_mobo.index import Video, read_index
 from find_best_mobo.transcripts import Transcript, load_cached
 
 TITLE_HIT = "title_hit"
+DESCRIPTION_HIT = "description_hit"
 THRESHOLD = "threshold"
 EXCLUDED = "excluded_below_threshold"
 
@@ -50,19 +52,50 @@ EXCLUDED = "excluded_below_threshold"
 @dataclass(frozen=True)
 class Selection:
     video: Video
-    reason: str  # "title_hit" | "threshold" | "excluded_below_threshold"
+    reason: str  # "title_hit" | "description_hit" | "threshold" | "excluded_below_threshold"
     mentions: tuple[Mention, ...]
     distinct_canonicals: int
+    # Whether this video's transcript was in the cache when it was selected.
+    # Recorded rather than re-derived downstream: R1012 asks the projection to
+    # print "the same coverage figure", and two stages each counting for
+    # themselves would diverge the moment their populations do — `select`
+    # considers every pending video, `estimate` only the included selections.
+    has_transcript: bool
+    # How many alias matches existed ONLY across an adjacent-cue join and were
+    # therefore not counted as mentions (OD-15, R1010). Defaults to 0 for two
+    # reasons, both worth stating so the default is not read as laziness: a
+    # video with no cached transcript genuinely has none, and `read_selected`
+    # must be able to read a record written before this field existed.
+    cross_cue_candidates: int = 0
+
+
+@dataclass(frozen=True)
+class Coverage:
+    """How much of the transcript cache a stage actually had to read.
+
+    `considered` is the population the stage was working on; `with_transcript`
+    is how many of those had a cached transcript. Zero of the second over a
+    non-zero first is an unmet precondition, not a result (R1012, OD-23).
+    """
+
+    considered: int
+    with_transcript: int
 
 
 @dataclass(frozen=True)
 class ThresholdReport:
     threshold: int
     title_hits: int
+    description_hits: int
+    # How many of those no other rule would have admitted — R1004's "how many
+    # videos the signal ADDED". Only this second number reads that way, because
+    # a video can satisfy two rules at once.
+    description_only_includes: int
     threshold_passes: int
     excluded: int
     would_include_at_minus_one: int
     would_exclude_at_plus_one: int
+    cross_cue_candidates: int
 
 
 def select_video(
@@ -79,8 +112,14 @@ def select_video(
     """
     mentions = find_mentions(transcript, matcher)
     distinct_canonicals = len({mention.canonical for mention in mentions})
+    # Title, description, threshold, excluded. A description hit is an automatic
+    # include like a title hit, on the same reasoning — an author-written field
+    # naming a board is stronger evidence than a count of body mentions (OD-8,
+    # R1004).
     if find_title_hits(video, matcher):
         reason = TITLE_HIT
+    elif find_description_hits(transcript.description, matcher):
+        reason = DESCRIPTION_HIT
     elif distinct_canonicals >= config.mention_threshold:
         reason = THRESHOLD
     else:
@@ -90,6 +129,16 @@ def select_video(
         reason=reason,
         mentions=mentions,
         distinct_canonicals=distinct_canonicals,
+        # This function receives a `Transcript` and cannot tell a cached empty
+        # one from `select_all`'s stand-in, so it stays pure and says "no";
+        # the caller, which knows, overrides it. Keeping the one place that
+        # knows the one place that decides is the whole point (R1012).
+        has_transcript=False,
+        # Filled from the transcript this function already has. It changes no
+        # decision: reason, mentions and distinct_canonicals are computed
+        # exactly as before, and a video is never selected or excluded because
+        # of this count (R1010).
+        cross_cue_candidates=count_cross_cue_candidates(transcript, matcher),
     )
 
 
@@ -102,16 +151,21 @@ def select_all(config: Config) -> tuple[Selection, ...]:
     memory does not grow with the corpus (R22) — only the selections survive the
     loop, and a selection holds mentions rather than cues.
 
-    Raises `FileNotFoundError` if the index or the alias table is missing; a
-    missing transcript cache is not an error, because a video with no captions
-    can still be selected on its title.
+    Raises `FileNotFoundError` if the index, the alias table or the transcript
+    cache is missing. The last of those is a distinction worth stating exactly,
+    because getting it wrong is how the tolerance gets restored by accident: a
+    missing transcript **for a video** is not an error, since a video with no
+    captions can still be selected on its title (R2, R24); a missing **cache
+    directory** is, because `fetch` has not run and no video could have passed
+    the threshold. An empty cache directory is a real state and selects
+    normally — title hits in, everything else out at zero canonicals (R1005).
+
+    The cache is checked LAST, after the alias table. A stage missing both
+    still names the table, which is the order the refusals already had.
     """
-    index_path = config.data_dir / "index.jsonl"
-    if not index_path.exists():
-        # Raised in the shape `open` would have raised it, `filename` included,
-        # so the command can name the missing file without parsing a message.
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(index_path))
-    matcher = compile_matcher(load_aliases(config.data_dir / "aliases.toml"))
+    index_path = require_file(config.data_dir / "index.jsonl", "index", "index")
+    matcher = compile_matcher(load_aliases(config.alias_table_path))
+    require_directory(config.data_dir / "transcripts", "cached transcripts", "fetch")
 
     selections: list[Selection] = []
     for video in read_index(index_path):
@@ -119,8 +173,37 @@ def select_all(config: Config) -> tuple[Selection, ...]:
             continue
         cached = load_cached(video.video_id, config)
         transcript = cached if cached is not None else Transcript(video_id=video.video_id, cues=())
-        selections.append(select_video(video, transcript, matcher, config))
+        # This line is the one place that can tell a cached empty transcript
+        # from the stand-in above, so it is the one place that decides the flag.
+        # Never inferred from the mention count: a cached transcript naming no
+        # board is real coverage, not a miss.
+        selections.append(
+            replace(
+                select_video(video, transcript, matcher, config),
+                has_transcript=cached is not None,
+            )
+        )
     return tuple(selections)
+
+
+def transcript_coverage(selections: Sequence[Selection]) -> Coverage:
+    """How many of these videos had a transcript to read."""
+    return Coverage(
+        considered=len(selections),
+        with_transcript=sum(1 for selection in selections if selection.has_transcript),
+    )
+
+
+def render_coverage(coverage: Coverage, noun: str) -> str:
+    """The one line, printed on every run whether or not anything is wrong.
+
+    `noun` because the two stages count different populations — pending videos
+    at `select`, selected videos at `estimate` — and a shared renderer that
+    hard-coded one would print a false label at the other.
+    """
+    # The sentence, and only the sentence: indentation is the caller's, because
+    # the two callers sit at different depths in their own reports.
+    return f"{coverage.with_transcript} of {coverage.considered} {noun} had a cached transcript"
 
 
 def threshold_report(selections: Sequence[Selection], config: Config) -> ThresholdReport:
@@ -138,11 +221,16 @@ def threshold_report(selections: Sequence[Selection], config: Config) -> Thresho
     """
     threshold = config.mention_threshold
     title_hits = sum(1 for selection in selections if selection.reason == TITLE_HIT)
+    description_hit_selections = [s for s in selections if s.reason == DESCRIPTION_HIT]
     threshold_passes = [selection for selection in selections if selection.reason == THRESHOLD]
     excluded = [selection for selection in selections if selection.reason == EXCLUDED]
     return ThresholdReport(
         threshold=threshold,
         title_hits=title_hits,
+        description_hits=len(description_hit_selections),
+        description_only_includes=sum(
+            1 for s in description_hit_selections if s.distinct_canonicals < threshold
+        ),
         threshold_passes=len(threshold_passes),
         excluded=len(excluded),
         would_include_at_minus_one=sum(
@@ -151,6 +239,7 @@ def threshold_report(selections: Sequence[Selection], config: Config) -> Thresho
         would_exclude_at_plus_one=sum(
             1 for selection in threshold_passes if selection.distinct_canonicals < threshold + 1
         ),
+        cross_cue_candidates=sum(selection.cross_cue_candidates for selection in selections),
     )
 
 
@@ -205,6 +294,8 @@ def read_selected(path: Path) -> Iterator[Selection]:
                     for mention in record["mentions"]
                 ),
                 distinct_canonicals=record["distinct_canonicals"],
+                has_transcript=bool(record["has_transcript"]),
+                cross_cue_candidates=int(record.get("cross_cue_candidates", 0)),
             )
 
 
@@ -222,4 +313,6 @@ def _record(selection: Selection) -> dict[str, object]:
         "reason": selection.reason,
         "mentions": [asdict(mention) for mention in selection.mentions],
         "distinct_canonicals": selection.distinct_canonicals,
+        "has_transcript": selection.has_transcript,
+        "cross_cue_candidates": selection.cross_cue_candidates,
     }

@@ -1,0 +1,40 @@
+WEBVTT
+Kind: captions
+Language: en
+
+NOTE
+Roll-up captions, the shape BL-28 measured: two lines scroll on screen and the
+track emits one cue per DISPLAY FRAME rather than one per line of speech. Every
+line therefore arrives three times — alone, as the tail of the previous frame,
+and as the head of the next — and each solo cue is followed 0.01s later by the
+frame that adds the line after it. Synthetic words, measured geometry (R21).
+The last cue is a frame, so the final line never appears alone anywhere in this
+file: it exists only as that frame's tail.
+
+00:00:01.500 --> 00:00:04.510 align:start position:0%
+Right, so the <00:00:02.110><c>Quorvex</c> B940 here and we're
+
+00:00:01.510 --> 00:00:04.510 align:start position:0%
+Right, so the <00:00:02.110><c>Quorvex</c> B940 here and we're
+going to walk the twelve phase VRM
+
+00:00:04.510 --> 00:00:06.870 align:start position:0%
+going to walk the twelve phase VRM
+
+00:00:04.520 --> 00:00:06.870 align:start position:0%
+going to walk the twelve phase VRM
+layout on this thing and see whether
+
+00:00:06.870 --> 00:00:09.320 align:start position:0%
+layout on this thing and see whether
+
+00:00:06.880 --> 00:00:09.320 align:start position:0%
+layout on this thing and see whether
+the doubler story actually holds up
+
+00:00:09.320 --> 00:00:11.900 align:start position:0%
+the doubler story actually holds up
+
+00:00:09.330 --> 00:00:11.900 align:start position:0%
+the doubler story actually holds up
+under a sustained all core load

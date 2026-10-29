@@ -57,7 +57,8 @@ part released in a year's time.
 - Separate what he tested from what he inferred from what *we* inferred, and
   never let an inference read as a measurement.
 - Keep inference spend visible and bounded: nothing is sent to a model before
-  the owner sees a projection, and the work runs in batches with hard stops.
+  the owner sees a projection, the work runs in batches, and how many batches a
+  run does is the owner's to say — one, several, or all of them.
 - Stay disposable. This is a tool for one decision, not a product.
 
 **Non-goals**
@@ -71,17 +72,21 @@ part released in a year's time.
   expected to need a new socket, so no amount of VRM overspec buys it. The
   report states this rather than pricing it in.
 - No Intel, no AM4, no server platforms.
-- Not intended to run unattended or on a schedule. Every model-invoking stage
-  is entered deliberately.
+- Not intended to run on a schedule. Every model-invoking run is STARTED
+  deliberately — by the owner, or by an agent the owner told to start it. What
+  a run does once started is a parameter rather than a further decision: it
+  extracts the number of batches it was given and then stops, reports and
+  waits. Nothing starts itself, and nothing continues past R26's ceiling.
 
 ## 4. Users & core use cases
 
 The only user is the repository owner, buying one board.
 
 **Main path.** As the buyer, I run the corpus stage, read the cost projection,
-and decide whether the inference spend is acceptable. I then run extraction one
-batch at a time, most recent videos first, checking after the calibration batch
-that reality matched the estimate. When I have enough coverage, I generate the
+and decide whether the inference spend is acceptable. I then run extraction,
+most recent videos first, saying how many batches this run should do — one at
+first, so I can check after the calibration batch that reality matched the
+estimate, and all of them once I have seen enough to trust the number. When I have enough coverage, I generate the
 report and use its tier-1 and tier-2 sections as my shortlist, spot-checking two
 or three claims against the linked timestamps before spending money.
 
@@ -139,10 +144,31 @@ specific fact I would need to confirm myself before buying.
   then larger batches.
 - **R7** — Before any model is invoked, print a cost projection: videos indexed,
   videos selected, total and per-batch excerpt volume, bundle count, projected
-  token load, and the chars-per-token factor used, stated openly. The pipeline
-  stops here and does not continue without an explicit separate command.
-- **R8** — After the calibration batch, record projected against actual usage,
-  report the delta, and correct the factor used for subsequent projections.
+  token load, and the chars-per-token factor used, stated openly. Extraction is
+  a separate command from the projection and is always started deliberately, so
+  no spend begins by itself. **How many batches that command does is its
+  argument, not a further decision per batch**: it extracts the number it was
+  given, then stops, reports what it spent and what remains, and waits. R26's
+  ceiling stops it earlier whatever the number was, so "all of them" is bounded
+  by a real reading rather than by trust.
+- **R8** — After the calibration batch, record two quantities and keep them
+  apart. **Tokens:** the projection's figure against the token counts the run's
+  own model calls report, summed across every call the batch made, including any
+  the run delegated to a spawned worker. Their delta corrects the chars-per-token
+  factor for subsequent projections, because both sides are tokens. The four
+  components a call reports — fresh input, output, cache creation and cache read
+  — are recorded separately and never as a single total: a cache read is not
+  billed as fresh input, and on the owner's machine cache reads already outnumber
+  fresh input by more than four orders of magnitude, so a summed figure is
+  dominated by the cheapest tokens in it. **Subscription points:** the R26
+  readings taken before and after the batch, whose difference is what the batch
+  cost against the weekly limit. Neither quantity is derived from the other. A
+  token-to-points conversion is recorded beside them as a labelled ESTIMATE, with
+  every assumption it rests on written out rather than implied. Every estimate
+  this pipeline makes is stored that way — the projection, its chars-per-token
+  factor, and this conversion — so a finished run can be compared against what it
+  predicted and each estimate corrected from the comparison. An estimate whose
+  assumptions are not stored beside it cannot be corrected, only replaced.
 - **R9** — Extract claims from each bundle into a validated schema. A bundle
   whose output fails validation is reported and retried or set aside — never
   silently dropped.
@@ -190,15 +216,21 @@ specific fact I would need to confirm myself before buying.
   rule.
 - **R26** — Total model spend for the extraction effort is capped at 10% of the
   owner's weekly subscription limits. The cap is enforced against real readings
-  rather than the projection: `claude -p "/usage"` returns them headlessly, so a
-  reading is taken before a batch, after it, and part-way through a long one,
-  and a run stops before crossing the line instead of discovering the overrun
-  afterwards. On Omarchy the reader is
-  `omarchy-agent-usage-claude --limits-only --force`, which returns the limits as
-  JSON without starting a session. The Python pipeline itself still cannot read
-  them, and the reading is approximate — it counts only local sessions on the
-  owner's machine — so the owner's own figure remains the tiebreaker where the
-  two disagree.
+  rather than the projection: a reading is taken before a batch, after it, and
+  part-way through a long one, and a run stops before crossing the line instead
+  of discovering the overrun afterwards. **The run takes the reading itself.** On
+  Omarchy the reader is `omarchy-agent-usage-claude --limits-only --force`, an
+  ordinary command that returns the limits as JSON without starting a session;
+  `claude -p "/usage"` is the fallback when that fails, and it is a fallback
+  rather than the default because it starts a session and so spends against the
+  very limit it is reading. A session with neither reader relies on other means.
+  The limits themselves come from Anthropic's own usage endpoint, so they account
+  for every session on the subscription rather than only the ones on this
+  machine — while the same reader's per-model TOKEN counts are local, and that
+  difference is why R8 keeps the two quantities apart. The readings are reported
+  in whole percentage points, which sets the floor on what a calibration batch
+  must consume to be measurable at all. The owner's own figure remains the
+  tiebreaker where a reading and the owner disagree.
 - **R27** — No completed work is lost to an overrun. Every model output is
   written to disk as it is produced rather than at the end of a batch, and full
   transcripts are retained after excerpting rather than discarded. Exceeding the
@@ -295,7 +327,8 @@ agents never scrape YouTube. They meet at files on disk.
 - *Excerpter* → cuts and merges timestamped context windows around mentions.
 - *Bundler* → packs excerpts into token-capped bundles and assigns them to
   recency-ordered batches.
-- *Estimator* → prints the cost projection and **stops**.
+- *Estimator* → prints the cost projection and **stops**. Extraction is a
+  separate command (§Stage B); nothing here starts it.
 
 **Stage B — Extraction (agents, batch by batch).** An agent reads one bundle and
 writes one claims file: for each board mentioned, what was said, in which of the
@@ -303,8 +336,12 @@ claim categories, about which subject (VRM capacity, voltage/firmware safety,
 memory behaviour, features, value), with the short verbatim snippet, its
 timestamp, and its video's title and id. Low effort, because this is reading
 comprehension, not reasoning. An ingest step validates each file against the
-schema and appends it to the append-only claim store, tagged by batch. Between
-batches the pipeline stops.
+schema and appends it to the append-only claim store, tagged by batch. A run
+extracts the number of batches it was asked for — one, several, or every batch
+still pending — and then stops, reports and waits. Each batch's claims land
+before the next one starts, so a run stopped by R26's ceiling or by its own
+count leaves every batch it finished intact and every batch it did not reach
+untouched.
 
 **Stage C — Synthesis (agents, medium effort).** Claims are grouped per board
 into a dossier: capacity assessment, safety assessment, the strongest supporting
@@ -408,8 +445,12 @@ Options: run it and see; estimate then run; estimate, calibrate, batch. An
 estimate built on a chars-per-token guess is a guess, and being wrong by 3x on a
 subscription budget is the failure that ends the project. The calibration batch
 converts the guess into a measurement having spent a small fraction of the
-budget, and the batch stops mean the decision to continue is re-taken with real
-numbers each time. The cost-saving levers are agreed in advance (R17) so that a
+budget, and the batching means the decision to continue is taken with real
+numbers rather than with the guess. The owner takes that decision by choosing
+how many batches the next run does, which is one at a time while the numbers
+are still unfamiliar and all of them once they are not — a knob rather than a
+gate, because a gate that must be passed every few minutes is one that gets
+propped open. The cost-saving levers are agreed in advance (R17) so that a
 bad calibration result leads to turning knobs rather than to a redesign.
 
 **Decision: append-only claim store, batch-tagged, partial report always valid.**
@@ -563,13 +604,19 @@ flags the staleness; a cutoff throws both away.
   cumulative fetch errors crossing 3% of indexed videos, with the no-caption
   class counted separately against its own 5% trigger.
   *(Mechanically checkable.)*
-- **S2** — The cost projection is printed and the pipeline stops before any
-  inference; continuing requires a separate explicit command. *(Mechanically
-  checkable.)*
-- **S3** — After the calibration batch, projected and actual usage are recorded
-  together with the corrected factor. *(Mechanically checkable —
-  `omarchy-agent-usage-claude --limits-only --force` reads the real subscription
-  limits on this machine as JSON, so actual usage is not owner-only.)*
+- **S2** — The cost projection is printed before any inference, extraction is
+  a separate command that never starts itself, and a run stops after the number
+  of batches it was given or at R26's ceiling, whichever comes first.
+  *(Mechanically checkable.)*
+- **S3** — After the calibration batch, the token projection, the token actual
+  the run's own calls reported, their delta and the corrected factor are recorded
+  together, and the R26 points readings taken around the batch are recorded
+  beside them as a separate quantity, with the token-to-points conversion and its
+  assumptions. *(Mechanically checkable — the records are committed files and
+  `tests/test_calibration_records.py` checks them. `omarchy-agent-usage-claude --limits-only
+  --force` supplies the points readings on this machine as JSON; it does not
+  supply the token figure the factor is corrected from, which is why the two are
+  recorded apart.)*
 - **S4** — **(owner)** Every claim in the report carries its video title, a working
   timestamped link, and a short verbatim snippet. The owner picks any five
   claims at random and all five are locatable within a minute at their stated
@@ -592,9 +639,12 @@ flags the staleness; a cutoff throws both away.
 
 ## 14. Requirements added from evidence (R1000+)
 
-Decisions made on 2026-08-19 from logged backlog evidence (`BL-<n>` in
-`docs/BACKLOG.md`), formerly kept in `docs/DESIGN.oracle.md`. They are
-requirements like any other. None is built yet (see `next-steps.md`).
+Decisions made from 2026-08-19 to 2026-08-24 from logged backlog evidence
+(`BL-<n>`, now in git history), formerly kept in `docs/DESIGN.oracle.md`. They
+are requirements like any other. All are built except R1001, which is
+superseded. OD-4 to OD-11 are kept in full; OD-13 onward are condensed to
+their requirement text (the full entries are in git history). OD-1 to OD-3,
+OD-12 and OD-19 to OD-21 governed the summer delivery process and are dropped.
 
 ### OD-4 — Merged excerpt windows are re-cut from the cues, never concatenated
 
@@ -761,6 +811,123 @@ repository root — and every loader takes its path from configuration rather
 than assuming a location. The `git add -f` exception is retired; a fresh clone
 carries the table. Migration moves the existing file and its config default in
 one change, observable by `aliases --check` running from a clean checkout.
+
+### OD-13 — The whole-transcript path is uncapped; an over-cap transcript spans sequential bundles
+
+2026-08-20. Evidence: BL-14, BL-13. Supersedes R1001. Follows the owner's 2026-08-19 ruling (`docs/DECISIONS.md`).
+
+**R1008** — The cost projection reports the routing per path: how many videos
+were sent as whole transcripts and how many as excerpts, and the characters and
+projected tokens each path accounts for. For the whole-transcript path it also
+reports how many videos exceed one bundle's token cap and the number of
+sequential bundles each such transcript spans, so the uncapped path's largest
+submissions are visible at the checkpoint before anything is spent. Supersedes
+R1001: the observability is kept, the cap and the excerpt-fallback above it are
+not.
+
+### OD-14 — The zero-duration warning judges the listing shape, not the count
+
+2026-08-20. Evidence: BL-15. On the first real index run all eight durationless entries were genuine Shorts, so the old warning was a permanent false positive that would hide a real drop.
+
+**R1009** — The index stage distinguishes the flat listing's Shorts shape from
+a real anomaly by the evidence in each entry, never by how many entries lack a
+duration. An entry with no duration and no date in either listing field
+(`upload_date`, `timestamp`) is the expected Shorts shape: it classifies as it
+does today and is reported as a one-line count ("N Shorts reported no duration
+(expected)"), with no banner. The loud warning fires only for an entry carrying
+a real date but no duration — the shape of a genuine video being silently
+dropped — and names each such video id. The suite pins the distinguishing
+pair: a dateless, durationless entry does not trip the warning, and a dated,
+durationless one does.
+
+### OD-15 — R1002 applies within one cue; a cross-cue split is counted, never matched
+
+2026-08-20. Evidence: BL-16. A mention spanning two cues has no single start time, and R5's windows and R14's links are cut from that start.
+
+**R1010** — Mention matching applies R1002's token-join rule within one cue's
+normalized text: a mention is never synthesized from text spanning a cue
+boundary, so every mention's `start_seconds` is the start of the one cue
+containing it — the anchor R5's excerpt windows are cut from and R14's
+timestamped links point at. The scoping is measured, not assumed: the matching
+stage also detects matches that exist only in the normalized concatenation of
+adjacent cues — a match that starts in one cue's text and ends in the next's —
+and reports the count per run (zero included) in the selection report, without
+ever emitting a mention for one. The suite pins the distinguishing pair: an
+alias split across a cue boundary yields no mention and increments the
+counter, and the same split within one cue yields a mention and does not.
+
+### OD-16 and OD-17 — Reconstructed test fixtures say so
+
+2026-08-20. Evidence: BL-17, BL-18.
+
+BL-8's original 52 caption variants and the real B850I review title were lost.
+The fixtures for R1002 and R1003 are labelled reconstructions: they may be sized
+by the lost originals but never claim measured provenance beyond what was
+observed (the three named R1002 failures; the board name `MSI MPG B850I Edge TI`
+and its zero `B850` matches).
+
+### OD-18 — `--help` after a subcommand prints the subcommand's help
+
+2026-08-20. Evidence: BL-19, BL-5. Elaborates R1006.
+
+`find-best-mobo <stage> --help` is forwarded like any other flag and prints
+that stage's help, as `git`, `pip` and `uv` do. `find-best-mobo --help` and a
+bare `find-best-mobo` keep the top-level output (exit 0 and 2).
+
+### OD-22 — Stage B's calibration and spend readings are committed evidence
+
+2026-08-20. Evidence: BL-23 (Stage B, approved by the owner). Where the record lives: `docs/DECISIONS.md`, 2026-08-25.
+
+**R1011** — Stage B's measurements are committed evidence, not console output.
+The calibration record R8 requires — projected tokens, actual usage, the delta,
+and the corrected chars-per-token factor — and the spend-guard readings R26
+requires around each batch (before, part-way through a long one, after) are
+written to git-tracked files outside the gitignored corpus directory, keyed to
+the batch they describe. The suite checks the shape of every committed
+record (`tests/test_calibration_records.py`; before v2 this was
+`acceptance/S3.sh`). The fraction the spend guard enforces is read from one
+configured place whose default is R26's figure, so an owner edit to that figure
+reaches the guard as a one-line change and a restated number elsewhere is never
+a second source.
+
+### OD-23 — Transcript coverage is reported on every run, and zero coverage refuses
+
+2026-08-24. Evidence: BL-27. `select` once ran before `fetch` had finished, and `estimate` printed a zero-cost projection without a word of warning.
+
+**R1012** — Every stage that reads the transcript cache reports its COVERAGE of
+the population it is working on: how many of the videos it considered had a
+cached transcript to read, printed on every run whether or not anything is
+wrong. Zero coverage over a non-empty selection is an unmet precondition rather
+than a result — the stage refuses, names the stage that produces the missing
+input, and exits non-zero, in the shape R1005 already gives a missing artifact.
+A partial cache stays tolerated exactly as today; the per-video rule R24's
+failure ledger owns is unchanged. The cost projection prints the same coverage
+figure beside its character count, so no projection can be read without seeing
+what fraction of the corpus produced it. The suite pins the distinguishing
+pair: a selection whose videos all have transcripts and genuinely zero mentions
+still reports a real (zero) projection, and a selection whose videos have none
+does not.
+
+### OD-24 — Captions are fetched as json3; VTT stays as a fallback that says so
+
+2026-08-24. Evidence: BL-28. Roll-up VTT stored every spoken word about three times (2.84x over 285 transcripts); json3 does not.
+
+**R1013** — The caption fetch requests `json3` and prefers it, reading a
+transcript as the concatenation of every segment of every event, `aAppend`
+events included — they carry real speech, and dropping them loses words. Each
+cue's start time comes from the segment timing json3 supplies rather than from
+a display frame, so a mention's `start_seconds` is the moment its own words were
+spoken.
+
+WebVTT remains the fallback for a track offering no `json3`, and its roll-up
+duplication is removed on parse rather than stored: no video's cached transcript
+may contain the same line three times whichever path produced it.
+
+**The path taken is recorded per video in the cache record and reported in the
+run summary**, so a transcript's provenance is never a question asked later
+about a cache that cannot answer it. A run that used the fallback for any video
+says so prominently, because a fallback nobody notices is a reconstruction
+silently mixed in with verbatim text.
 
 ---
 

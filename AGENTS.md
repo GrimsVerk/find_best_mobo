@@ -15,7 +15,7 @@ Searching Buildzoid videos on YT to extract his top pick for an AMD mobo.
 - `docs/DECISIONS.md`: settled decisions and why. Don't relitigate them.
 - `docs/BACKLOG.md`: ideas not started. Forget by deleting; git history is the archive.
 - `docs/architecture.md`: what exists now and how it flows. Update it when behaviour changes.
-- `config.toml`: every pipeline lever. `data/` is the local, gitignored corpus cache (index, transcripts, failure ledger); it never enters git.
+- `config.toml`: every pipeline lever. `aliases.toml` (alias table), `prompts/` (extraction prompt) and `calibration/` (measured cost per batch) are tracked inputs and evidence. `data/` is the local, gitignored corpus cache (index, transcripts, failure ledger, bundles, claim store); it never enters git. `analysis/`: the one-off board ranking (`analysis/report.md`).
 
 ## Working
 
@@ -24,7 +24,7 @@ Searching Buildzoid videos on YT to extract his top pick for an AMD mobo.
 - Work on a branch, never on `main`. Run the checks below locally, then open a PR and merge it (`gh pr merge --rebase --delete-branch`; squash is off here). CI runs only on `main`; a red `main` is the next task.
 - Never force-push, rewrite pushed history, or skip hooks (`--no-verify`).
 - Paths in repo files are relative, so any computer can resume the work. Machine-specific values go in one gitignored local file with a committed `.example`.
-- Python never calls a model and nothing in the pipeline spends subscription usage: it stops at the `estimate` projection (R7). Agents never scrape YouTube; `yt-dlp` stays behind `src/find_best_mobo/ytdlp.py`.
+- Only the `extract` stage spends subscription usage, and only `src/find_best_mobo/extract.py` calls a model (`claude -p`); tests fake that seam. Nothing starts it by itself: `estimate` prints the projection first, `extract` does the batches it is asked for (one by default), and R26's guard stops it at 10% of the weekly limit. Never run `extract` unasked. Agents never scrape YouTube; `yt-dlp` stays behind `src/find_best_mobo/ytdlp.py`.
 - No new dependency without the owner's approval, recorded in `docs/DECISIONS.md` (what it is for, why the stdlib won't do, its license).
 
 ## Checks

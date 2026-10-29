@@ -271,6 +271,73 @@ because chat is not storage. Four parts:
    sequential bundles rather than falling back to excerpts; the mechanics are
    the implementing change's to specify.
 
+## 2026-08-24 — Usage readings, units, and where the factor lives
+
+Owner's rulings for Stage B (BL-15, BL-24 to BL-26), given in chat:
+
+1. **BL-15 approved**: the indexer's zero-duration warning must stop firing on
+   ordinary Shorts (built as R1009).
+2. **Usage readings**: locally the run reads usage itself,
+   `omarchy-agent-usage-claude --limits-only --force` first and
+   `claude -p "/usage"` only when that fails (it starts a session, so it
+   spends against the limit it reads). Without either, rely on other means.
+3. **Units**: tokens and subscription points are recorded apart, never one
+   derived from the other, plus a best-effort token-to-points conversion with
+   every assumption written down (now R8).
+4. **The factor**: the calibration stage writes the measured chars-per-token
+   factor; `estimate` prefers it over `config.chars_per_token`, prints which
+   source it used and whether it is measured or a guess; no stage ever rewrites
+   the config key.
+
+## 2026-08-25 — Stage B: the subscription pays, the 7-day limit governs, calibration stays at 12
+
+Owner's rulings, given in chat before Stage B was built:
+
+1. **The subscription pays**, through `claude -p`, not the API on a card. R26
+   caps spend at 10% of the weekly subscription limits, and an API call never
+   moves that meter: the guard would report healthy while a card was charged.
+   It is also the only path where R8's token counts and R26's points come out
+   of the same run (Claude Code writes the four token components to its
+   transcript).
+2. **The cap applies to `Weekly (7-day)`**, the account-wide limit, not the
+   model-scoped one beside it.
+3. **The calibration batch stays at 12 bundles.** The token comparison is exact
+   at any size; the points delta is read in whole percent and may read zero.
+   A zero delta is recorded as "unmeasurable at this size", not forced by a
+   bigger batch.
+
+## 2026-08-25 — The calibration record is one tracked file per batch
+
+Owner's ruling (recorded in the Stage B plan at the time): the record lives at
+`calibration/batch-<n>.json`, git-tracked, with no copy under `data/`. R1011
+governs the location, the 2026-08-24 ruling above the semantics. The first real
+record (`calibration/batch-1.json`) measured 2.33 characters per token against
+the configured 4.0 guess.
+
+## 2026-08-25 — Extraction is a knob, not a gate
+
+R7 used to require a human between every batch. The owner's concern was that
+no transcript reach a model before the Python work landed, and that a runaway
+run not eat the weekly limit unnoticed. The first is done; the second is R26's
+guard. So `extract` takes the number of batches as an argument (`--batches N`
+or `all`, default one) and stops at that count or at R26's ceiling, whichever
+comes first. A gate that must be passed every few minutes gets propped open.
+DESIGN §3, §4, §7, R7, R8, R26, S2 and S3 were changed together.
+
+## 2026-08-25 — Keep motherboard claims; graphics-card claims are the lesser error
+
+Owner's ruling, given in chat twice: "it is way more important to include
+motherboards than to exclude gpus". Recall of motherboard claims is the
+constraint, precision against graphics cards only the objective; a rule that is
+unsure keeps the claim. The extraction prompt now excludes graphics cards like
+CPUs and chipsets, and `scripts/drop-gpu-claims.py` removed the graphics-card
+claims the first full extraction had already stored, with guards that keep a
+claim whenever it might be about a board. The store is derived from the raw
+model output (R27), which is never touched, so the removal can be redone.
+
+A bundle whose claims file fails validation is retried once, then set aside:
+it stays unconsumed, is named in the run's output, and the batch continues.
+
 ## 2026-10-29 — The project is MIT-licensed
 
 Owner ruling, given in chat as the repository went public. This supersedes the
