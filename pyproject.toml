@@ -1,8 +1,6 @@
 [project]
 name = "find-best-mobo"
 version = "0.1.0"
-# Not measured by ruff (TOML, not Python), so a long description is safe here —
-# unlike the module docstring in src/, which is wordwrapped for that reason.
 description = "Searching Buildzoid videos on YT to extract his top pick for an AMD mobo."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -16,12 +14,10 @@ dependencies = [
 find-best-mobo = "find_best_mobo.cli:main"
 
 [dependency-groups]
-# Pinned to the same minor as the `rev` values in .pre-commit-config.yaml. An
-# open lower bound here lets `uv sync` resolve a different ruff than pre-commit
-# runs, and the two then disagree about formatting: green locally, red in CI,
-# with no diff to explain why. Bump these and the pre-commit revs together.
+# Keep ruff in step with the rev in .pre-commit-config.yaml.
 dev = [
     "mypy~=2.3",
+    "pre-commit~=4.0",
     "pytest>=8.3",
     "ruff~=0.15.22",
 ]
